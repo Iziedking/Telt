@@ -9,7 +9,7 @@ import { intelRoutes } from "../intel/market.js";
 import { agentMandateId, faucetMintUsdc } from "../chain/sui.js";
 import { verifyByBlob } from "../avow/anchorMove.js";
 import { playMatch } from "../coordinator/table.js";
-import { runAutopilotCycle, recentContests, rotationInfo, autopilotEnabled } from "../coordinator/autopilot.js";
+import { runAutopilotCycle, recentContests, difficultyTiers, autopilotEnabled } from "../coordinator/autopilot.js";
 import { query } from "../db/pool.js";
 
 // The read API and the WS live feed. Routes are intentionally thin: health, a status
@@ -89,9 +89,9 @@ app.post("/autopilot/run", (c) => {
   return c.json({ started: true });
 });
 
-// The Contests view: the rotation the autopilot cycles, and recent finished events.
+// The Contests view: the difficulty tiers missions scale across, and recent finished ones.
 app.get("/contests", (c) =>
-  c.json({ autopilot: autopilotEnabled(), rotation: rotationInfo(), recent: recentContests() }),
+  c.json({ autopilot: autopilotEnabled(), tiers: difficultyTiers(), recent: recentContests() }),
 );
 
 app.get("/status", (c) =>

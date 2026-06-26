@@ -8,14 +8,17 @@ function short(s: string): string {
   return s ? `${s.slice(0, 6)}…${s.slice(-4)}` : "";
 }
 
-// The mark: a big, thick lowercase t with a curved tail at its base, and a round red dot
-// after it. The t takes the text color; the dot stays Signal red. Scales for any surface.
-export function Logo({ size = 34 }: { size?: number }) {
+// The mark: a thick lowercase t with a curved tail and a red dot, set inside a ring. The
+// ring and t take the text color; the dot stays Signal red. Same emblem on the landing.
+export function Logo({ size = 36 }: { size?: number }) {
   return (
-    <svg className="logo" viewBox="0 0 96 104" width={size} height={(size * 104) / 96} aria-hidden>
-      <rect className="logo-t" x="9" y="32" width="62" height="17" rx="4" />
-      <path className="logo-t" d="M28 8 L50 8 L50 70 C50 84 59 90 71 84 C65 95 47 97 38 86 C33 80 30 74 28 65 Z" />
-      <circle className="logo-dot" cx="82" cy="85" r="9" />
+    <svg className="logo" viewBox="0 0 104 104" width={size} height={size} aria-hidden>
+      <circle className="logo-ring" cx="52" cy="52" r="48" fill="none" strokeWidth="6" />
+      <g transform="translate(23,21) scale(0.6)">
+        <rect className="logo-t" x="9" y="32" width="62" height="17" rx="4" />
+        <path className="logo-t" d="M28 8 L50 8 L50 70 C50 84 59 90 71 84 C65 95 47 97 38 86 C33 80 30 74 28 65 Z" />
+        <circle className="logo-dot" cx="82" cy="85" r="9" />
+      </g>
     </svg>
   );
 }
@@ -37,7 +40,7 @@ export function WalletButton() {
 }
 
 const NAV = [
-  { href: "/", label: "Home" },
+  { href: "/home", label: "Home" },
   { href: "/arena", label: "Arena" },
   { href: "/contests", label: "Contests" },
   { href: "/leaderboard", label: "Leaderboard" },
@@ -50,7 +53,7 @@ export function TopNav() {
   const path = usePathname() || "/";
   return (
     <nav className="nav">
-      <Link href="/" className="nav-left">
+      <Link href="/" className="nav-left" title="Back to the landing page">
         <Logo />
         <span className="wordmark">
           tel<span className="wm-accent">t</span>
