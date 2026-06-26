@@ -1,17 +1,18 @@
 {
   "network": "testnet",
-  "packageId": "0xca171662f5f5cc4547bec5d96dc21173627880e148ac4686f77423e08dd9e395",
+  "packageId": "0x751ad57e8477d29a5d2186c85883e96a677e3323a641580497e3fdd7839195ea",
   "modules": ["registry", "table", "intel", "test_usdc", "contest"],
-  "coordinatorCap": "0x574dc3ebb8b0828e49efbfa2a55c510c785614e997a1cbb94f44d4e6d771d7b9",
-  "treasuryObject": "0x4583f5d58cdf47cb54e95313054f24d1afc060046e9090c5a778e8c5c81a703c",
-  "testUsdcTreasuryCap": "0xd2f708b02c60ddc0a7272add8085544011c9c90f5612d04ff9066a8adf151917",
+  "coordinatorCap": "0xd366971156d5daa8f0d24a4c277603d21073601f2f0f649e9364a8e403ec2cce",
+  "treasuryObject": "0x8b2d37a4f33de9e1c417b529299fc03d79ef688b5f4c5217b2d870260eb619de",
+  "testUsdcTreasuryCap": "0xe0250064c83ff4d6faac51b84423d75a8cc26fce73052deae78da7e7c6728ebf",
+  "nameRegistry": "0x08ba37ecec12775d73de511edd61f8b60e412e1ca4b8c08c84dca7290fd60bf2",
   "treasuryAddress": "0xc11c77d7f5f0555041e04a89a266edbe305da731c4f10c102bc4384536bbb65b",
   "publisher": "0xc11c77d7f5f0555041e04a89a266edbe305da731c4f10c102bc4384536bbb65b",
-  "publishTx": "9wpXuBeqgmNfvAm14tAprK3GcuvJfHMWT5tzqsRMbCrd",
+  "publishTx": "Ct2bSbBauGfUrsywvyVDuVMdeziNn6Lt3xGhcp4hG5Ed",
   "publishedAt": "2026-06-26",
-  "note": "Upgrade price ladder raised to 1 / 2.5 / 6 / 15 SUI (L0->1..L3->4), a real climb to the Oracle. Fees still pool in the Treasury and are claimable; setupAgents sweeps after each upgrade so the peak balance needed is the largest single step. The tier model behind each level is hidden in the UI. Avow package (0x4f3e...a3ee) reused unchanged.",
+  "note": "Adds the NameRegistry: agent names are unique across the arena (case-insensitive) and editable with limits (registry::rename, at most 3 lifetime and one per 30 days via Clock). claim_agent now reserves the name. Upgrade ladder 1/2.5/6/15 SUI, fees pool in the Treasury. Avow package (0x4f3e...a3ee) reused unchanged.",
   "supersedes": {
-    "packageId": "0x00c9f42ee2280964c9a41fda2bbca1e288eac6ed3ba768e58d3dde1ea4417ad8",
-    "reason": "Repriced the tier upgrade ladder to 1/2.5/6/15 SUI."
+    "packageId": "0x5176db2a57a0278c953cab818c8d0590ca0155c4f668cf37994cc4baa71cdd09",
+    "reason": "A partial setup on that package reserved the demo names; republished for a clean registry."
   }
 }

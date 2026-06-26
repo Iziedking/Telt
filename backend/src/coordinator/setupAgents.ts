@@ -32,6 +32,27 @@ const PER_MOVE_CAP = 1_000_000_000n; // generous: chips committed never approach
 const DAILY_CAP = 1_000_000_000_000n;
 const EXPIRY_EPOCH = 100000n; // safely far in the future on testnet
 
+// The load-balanced testnet RPC can hand back a stale gas-coin version when transactions
+// fire in quick succession. Each call here builds a fresh transaction, so retrying it
+// re-selects gas and clears the race.
+async function retry<T>(fn: () => Promise<T>, tries = 5): Promise<T> {
+  let last: unknown;
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      last = e;
+      const m = String((e as Error).message || "");
+      if (/unavailable for consumption|not available|rebuilt because object|reserved/i.test(m) && i < tries - 1) {
+        await new Promise((r) => setTimeout(r, 2000 * (i + 1)));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw last;
+}
+
 async function main() {
   console.log(`coordinator: ${coordinatorAddress()}`);
   const agents = [];
@@ -54,18 +75,18 @@ async function main() {
     });
     console.log(`  mandate ${mandate.mandateId}`);
 
-    const { agentId } = await claimAgent(a.name, mandate.mandateId);
+    const { agentId } = await retry(() => claimAgent(a.name, mandate.mandateId));
     console.log(`  agent   ${agentId}`);
-    await registerForArena(agentId);
+    await retry(() => registerForArena(agentId));
     console.log(`  registered for arena`);
 
     for (let lvl = 0; lvl < a.level; lvl++) {
       const cost = nextLevelCostMist(lvl);
       if (cost) {
-        await upgradeAgent(agentId, cost);
+        await retry(() => upgradeAgent(agentId, cost));
         // Sweep the fee back to the coordinator so the next (pricier) upgrade is affordable;
         // the peak balance needed is the largest single step, not the cumulative ladder.
-        await claimTreasury();
+        await retry(() => claimTreasury());
         console.log(`  upgraded to level ${lvl + 1} (paid ${Number(cost) / 1e9} SUI, swept back)`);
       }
     }

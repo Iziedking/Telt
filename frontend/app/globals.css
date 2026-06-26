@@ -1135,6 +1135,47 @@ a.home-card:hover {
   opacity: 0.5;
   cursor: default;
 }
+.pf-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 12px 0 14px;
+}
+.pf-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 24px;
+  color: var(--ink);
+  box-shadow: 0 2px 0 rgba(20, 24, 31, 0.16);
+  flex: none;
+}
+.pf-name {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+}
+.pf-rec {
+  font-size: 12px;
+  color: #4b5560;
+  margin-top: 2px;
+}
+.pf-rename {
+  display: flex;
+  gap: 8px;
+}
+.pf-rename .ws-input {
+  flex: 1;
+}
+.pf-note {
+  font-size: 12px;
+  color: #4b5560;
+  margin-top: 8px;
+}
 
 /* Contests */
 .panel-label {

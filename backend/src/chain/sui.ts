@@ -123,10 +123,30 @@ export async function claimAgent(name: string, mandateId: string, signer?: Ed255
   const tx = new Transaction();
   tx.moveCall({
     target: `${PKG()}::registry::claim_agent`,
-    arguments: [tx.pure.vector("u8", new TextEncoder().encode(name)), tx.pure.id(mandateId)],
+    arguments: [
+      tx.object(config.arena.nameRegistry),
+      tx.pure.vector("u8", Array.from(new TextEncoder().encode(name))),
+      tx.pure.id(mandateId),
+    ],
   });
   const r = await execute(tx, signer);
   return { agentId: createdId(r.objectChanges, "::registry::Agent"), digest: r.digest };
+}
+
+// Rename an agent. Owner-signed; unique and rate limited on chain (max 3 lifetime, one per
+// 30 days). The Sui Clock is the shared object at 0x6.
+export async function renameAgent(agentId: string, newName: string, signer?: Ed25519Keypair): Promise<string> {
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${PKG()}::registry::rename`,
+    arguments: [
+      tx.object(agentId),
+      tx.object(config.arena.nameRegistry),
+      tx.pure.vector("u8", Array.from(new TextEncoder().encode(newName))),
+      tx.object("0x6"),
+    ],
+  });
+  return (await execute(tx, signer)).digest;
 }
 
 export async function registerForArena(agentId: string, signer?: Ed25519Keypair): Promise<string> {

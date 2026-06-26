@@ -38,6 +38,8 @@ export const config = {
     // TreasuryCap<TEST_USDC>, held by the coordinator, used to mint the exact upgrade
     // cost in TestUSDC inside the upgrade transaction.
     testUsdcCap: process.env.ARENA_TESTUSDC_CAP ?? "",
+    // The shared NameRegistry that enforces unique agent names.
+    nameRegistry: process.env.ARENA_NAME_REGISTRY ?? "",
   },
   avow: {
     packageId: optional("AVOW_PACKAGE_ID", AVOW_PACKAGE_ID_DEFAULT),

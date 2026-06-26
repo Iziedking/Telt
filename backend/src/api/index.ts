@@ -114,12 +114,39 @@ app.get("/agents", async (c) => {
           wins: Number(f.wins ?? 0),
           losses: Number(f.losses ?? 0),
           registered: Boolean(f.registered),
+          renameCount: Number(f.rename_count ?? 0),
+          lastRenameMs: Number(f.last_rename_ms ?? 0),
         };
       }),
     );
     return c.json({ agents });
   } catch (e) {
     return c.json({ agents: [], error: (e as Error).message });
+  }
+});
+
+// Is a name free? Best-effort hint for the UI (the contract enforces uniqueness on chain).
+// Reads claimed names from the AgentClaimed events and compares case-insensitively.
+app.get("/name-available", async (c) => {
+  const name = (c.req.query("name") || "").trim().toLowerCase();
+  if (!name) return c.json({ available: false });
+  try {
+    const ev = await sui.queryEvents({
+      query: { MoveEventType: `${config.arena.packageId}::registry::AgentClaimed` },
+      limit: 200,
+      order: "descending",
+    });
+    const taken = new Set<string>();
+    for (const e of ev.data) {
+      const id = (e as any).parsedJson?.agent as string | undefined;
+      if (!id) continue;
+      const o = (await sui.getObject({ id, options: { showContent: true } })) as any;
+      const n = String(o.data?.content?.fields?.name ?? "").toLowerCase();
+      if (n) taken.add(n);
+    }
+    return c.json({ available: !taken.has(name) });
+  } catch (e) {
+    return c.json({ available: true, error: (e as Error).message });
   }
 });
 
@@ -190,6 +217,7 @@ app.get("/status", (c) =>
     memoryConfigured: memoryConfigured(),
     arenaPackage: config.arena.packageId || null,
     arenaTreasury: config.arena.treasuryObject || null,
+    arenaNameRegistry: config.arena.nameRegistry || null,
     avowPackage: config.avow.packageId,
   }),
 );

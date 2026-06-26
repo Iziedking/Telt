@@ -20,17 +20,26 @@ module telt::registry;
 
 use std::string::{Self, String};
 use sui::balance::{Self, Balance};
+use sui::clock::{Self, Clock};
 use sui::coin::{Self, Coin};
 use sui::event;
 use sui::sui::SUI;
+use sui::table::{Self, Table};
 
 // --- Error codes ---
 const ENotOwner: u64 = 1;
 const EInsufficientPayment: u64 = 2;
 const EMaxLevel: u64 = 3;
+const ENameTaken: u64 = 4;
+const ETooManyRenames: u64 = 5;
+const ERenameTooSoon: u64 = 6;
 
 /// Five levels, 0 to 4. Level 0 is the untrained floor; level 4 is the strongest.
 const MAX_LEVEL: u8 = 4;
+
+/// Names are scarce: at most three changes in a lifetime, and one every 30 days.
+const MAX_RENAMES: u64 = 3;
+const RENAME_COOLDOWN_MS: u64 = 2_592_000_000;
 
 /// The platform treasury. Tier-upgrade SUI accumulates in its `balance`; the coordinator
 /// claims it with the CoordinatorCap. `addr` is the publisher (the claim recipient).
@@ -48,6 +57,13 @@ public struct CoordinatorCap has key, store {
     id: UID,
 }
 
+/// One name per agent, unique across the arena (compared case-insensitively). Shared,
+/// created once at publish; `names` maps the lowercased name to the agent that holds it.
+public struct NameRegistry has key {
+    id: UID,
+    names: Table<String, ID>,
+}
+
 /// An operator's agent. Shared, so the coordinator can record results against it.
 public struct Agent has key {
     id: UID,
@@ -63,6 +79,10 @@ public struct Agent has key {
     /// Links to the agent's Avow mandate, so its move anchors verify against it.
     mandate_id: ID,
     created_epoch: u64,
+    /// Name changes are rate limited: at most MAX_RENAMES total, one per RENAME_COOLDOWN_MS.
+    /// `last_rename_ms` stays 0 until the first rename, so the first one is always allowed.
+    rename_count: u64,
+    last_rename_ms: u64,
 }
 
 // --- Events ---
@@ -70,10 +90,25 @@ public struct AgentClaimed has copy, drop { agent: ID, owner: address, mandate_i
 public struct LevelUp has copy, drop { agent: ID, owner: address, level: u8 }
 public struct ArenaRegistered has copy, drop { agent: ID, owner: address, mandate_id: ID }
 public struct ResultRecorded has copy, drop { agent: ID, won: bool, wins: u64, losses: u64 }
+public struct AgentRenamed has copy, drop { agent: ID, owner: address, name: String }
 
 fun init(ctx: &mut TxContext) {
     transfer::share_object(Treasury { id: object::new(ctx), addr: ctx.sender(), balance: balance::zero() });
+    transfer::share_object(NameRegistry { id: object::new(ctx), names: table::new(ctx) });
     transfer::public_transfer(CoordinatorCap { id: object::new(ctx) }, ctx.sender());
+}
+
+/// Lowercase ASCII so names are unique case-insensitively (izie and Izie are one name).
+fun to_lower(s: &vector<u8>): vector<u8> {
+    let mut out = vector::empty<u8>();
+    let n = vector::length(s);
+    let mut i = 0;
+    while (i < n) {
+        let b = *vector::borrow(s, i);
+        vector::push_back(&mut out, if (b >= 65 && b <= 90) b + 32 else b);
+        i = i + 1;
+    };
+    out
 }
 
 /// SUI (in MIST, 9 decimals) to go from `level` to `level + 1`. Mirrors the backend
@@ -86,8 +121,11 @@ fun upgrade_cost(level: u8): u64 {
     else 0
 }
 
-/// Mint a shared `Agent` for the caller at level 0, linked to its Avow mandate.
-public fun claim_agent(name: vector<u8>, mandate_id: ID, ctx: &mut TxContext) {
+/// Mint a shared `Agent` for the caller at level 0, linked to its Avow mandate. The name
+/// must be free; it is reserved in the registry so no one else can take it.
+public fun claim_agent(registry: &mut NameRegistry, name: vector<u8>, mandate_id: ID, ctx: &mut TxContext) {
+    let key = string::utf8(to_lower(&name));
+    assert!(!table::contains(&registry.names, key), ENameTaken);
     let agent = Agent {
         id: object::new(ctx),
         owner: ctx.sender(),
@@ -98,9 +136,42 @@ public fun claim_agent(name: vector<u8>, mandate_id: ID, ctx: &mut TxContext) {
         registered: false,
         mandate_id,
         created_epoch: ctx.epoch(),
+        rename_count: 0,
+        last_rename_ms: 0,
     };
-    event::emit(AgentClaimed { agent: object::id(&agent), owner: ctx.sender(), mandate_id });
+    let aid = object::id(&agent);
+    table::add(&mut registry.names, key, aid);
+    event::emit(AgentClaimed { agent: aid, owner: ctx.sender(), mandate_id });
     transfer::share_object(agent);
+}
+
+/// Rename the agent. Owner-only, the new name must be free, and changes are rate limited:
+/// at most MAX_RENAMES in a lifetime and one per RENAME_COOLDOWN_MS. The first rename is
+/// always allowed since `last_rename_ms` starts at 0.
+public fun rename(
+    agent: &mut Agent,
+    registry: &mut NameRegistry,
+    new_name: vector<u8>,
+    clock: &Clock,
+    ctx: &TxContext,
+) {
+    assert!(ctx.sender() == agent.owner, ENotOwner);
+    assert!(agent.rename_count < MAX_RENAMES, ETooManyRenames);
+    let now = clock::timestamp_ms(clock);
+    assert!(now - agent.last_rename_ms >= RENAME_COOLDOWN_MS, ERenameTooSoon);
+
+    let new_lower = to_lower(&new_name);
+    let old_lower = to_lower(string::as_bytes(&agent.name));
+    if (new_lower != old_lower) {
+        let new_key = string::utf8(new_lower);
+        assert!(!table::contains(&registry.names, new_key), ENameTaken);
+        let _ = table::remove(&mut registry.names, string::utf8(old_lower));
+        table::add(&mut registry.names, new_key, object::id(agent));
+    };
+    agent.name = string::utf8(new_name);
+    agent.rename_count = agent.rename_count + 1;
+    agent.last_rename_ms = now;
+    event::emit(AgentRenamed { agent: object::id(agent), owner: agent.owner, name: agent.name });
 }
 
 /// Pay to bump the agent's level by one. Takes exactly the cost to the treasury and

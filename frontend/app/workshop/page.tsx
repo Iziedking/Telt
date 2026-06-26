@@ -1,5 +1,6 @@
 import FaucetCard from "../FaucetCard";
 import AgentCard from "../AgentCard";
+import ProfileCard from "../ProfileCard";
 
 // Workshop: the agent owner's control room. Your agent, the tier ladder you upgrade
 // along, profile, and settings. Each tier is a stronger model plus more reasoning passes
@@ -57,12 +58,7 @@ export default function WorkshopPage() {
             </div>
           </div>
 
-          <div className="tile peri ws-card">
-            <div className="kicker">Profile</div>
-            <div className="ws-empty">
-              <p>Name, avatar, and your record across games. Set up once a wallet is connected.</p>
-            </div>
-          </div>
+          <ProfileCard />
 
           <div className="tile sky ws-card">
             <div className="kicker">Settings</div>

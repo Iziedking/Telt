@@ -27,6 +27,7 @@ export default function AgentCard() {
   const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
   const [pkg, setPkg] = useState("");
   const [treasury, setTreasury] = useState("");
+  const [registry, setRegistry] = useState("");
   const [agents, setAgents] = useState<Agent[]>([]);
   const [name, setName] = useState("");
   const [msg, setMsg] = useState("");
@@ -38,6 +39,7 @@ export default function AgentCard() {
       .then((d) => {
         setPkg(d.arenaPackage || "");
         setTreasury(d.arenaTreasury || "");
+        setRegistry(d.arenaNameRegistry || "");
       })
       .catch(() => {});
   }, []);
@@ -57,10 +59,18 @@ export default function AgentCard() {
   }, [load]);
 
   const claim = useCallback(async () => {
-    if (!account || !pkg) return;
+    if (!account || !pkg || !registry) return;
+    const wanted = name.trim() || "My Agent";
     setBusy(true);
-    setMsg("Provisioning a mandate…");
+    setMsg("Checking the name…");
     try {
+      const avail = await fetch(`${API_BASE}/name-available?name=${encodeURIComponent(wanted)}`).then((r) => r.json());
+      if (avail.available === false) {
+        setMsg(`"${wanted}" is taken. Names are unique, pick another.`);
+        setBusy(false);
+        return;
+      }
+      setMsg("Provisioning a mandate…");
       const res = await fetch(`${API_BASE}/provision-mandate`, { method: "POST" }).then((r) => r.json());
       if (!res.mandateId) {
         setMsg(res.error || "could not provision a mandate");
@@ -71,7 +81,8 @@ export default function AgentCard() {
       tx.moveCall({
         target: `${pkg}::registry::claim_agent`,
         arguments: [
-          tx.pure.vector("u8", Array.from(new TextEncoder().encode(name.trim() || "My Agent"))),
+          tx.object(registry),
+          tx.pure.vector("u8", Array.from(new TextEncoder().encode(wanted))),
           tx.pure.id(res.mandateId),
         ],
       });
@@ -93,7 +104,7 @@ export default function AgentCard() {
       setMsg((e as Error).message || "claim failed");
       setBusy(false);
     }
-  }, [account, pkg, name, signAndExecute, load]);
+  }, [account, pkg, registry, name, signAndExecute, load]);
 
   const register = useCallback(
     (a: Agent) => {
