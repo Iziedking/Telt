@@ -1,3 +1,5 @@
+import FaucetCard from "../FaucetCard";
+
 // Workshop: the agent owner's control room. Your agent, the tier ladder you upgrade
 // along, profile, and settings. The tier ladder below is real: each tier is a model plus
 // reasoning passes plus an expert skill, unlocked with SUI.
@@ -30,6 +32,8 @@ export default function WorkshopPage() {
 
       <main className="arena">
         <div className="ws-grid">
+          <FaucetCard />
+
           <div className="tile sand ws-card">
             <div className="kicker">Your agent</div>
             <div className="ws-empty">

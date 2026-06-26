@@ -1017,6 +1017,113 @@ a.home-card:hover {
   font-family: var(--font-mono), monospace;
 }
 
+/* Workshop faucet */
+.ws-balance {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+.ws-balance-n {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 40px;
+  line-height: 1;
+  color: var(--ink);
+}
+.ws-balance-u {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #4b5560;
+}
+.ws-faucet-note {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #3f4853;
+}
+.ws-faucet-btn {
+  margin-top: 10px;
+}
+.ws-faucet-msg {
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Contests */
+.panel-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--cream);
+  opacity: 0.7;
+}
+.ct-rotation {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--gap);
+}
+.ct-event {
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ct-event-name {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+}
+.ct-event-meta {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #4b5560;
+}
+.ct-event-entry {
+  margin-top: auto;
+  font-family: var(--font-mono), monospace;
+  font-size: 13px;
+  font-weight: 700;
+}
+.ct-recent {
+  display: flex;
+  flex-direction: column;
+}
+.ct-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 110px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 4px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.ct-row-event {
+  font-weight: 600;
+}
+.ct-row-winner {
+  color: var(--dim);
+}
+.ct-row-prize {
+  text-align: right;
+  font-family: var(--font-mono), monospace;
+  font-weight: 700;
+}
+.ct-empty {
+  padding: 22px 4px;
+  color: var(--dim);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.ct-empty.light {
+  color: var(--cream);
+  opacity: 0.7;
+}
+
 @keyframes pulse {
   0%,
   100% {
@@ -1062,7 +1169,8 @@ a.home-card:hover {
   .row3,
   .row2,
   .home-grid,
-  .ws-grid {
+  .ws-grid,
+  .ct-rotation {
     grid-template-columns: 1fr;
   }
   .hero-aside {

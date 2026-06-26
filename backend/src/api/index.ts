@@ -9,7 +9,7 @@ import { intelRoutes } from "../intel/market.js";
 import { agentMandateId, faucetMintUsdc } from "../chain/sui.js";
 import { verifyByBlob } from "../avow/anchorMove.js";
 import { playMatch } from "../coordinator/table.js";
-import { runAutopilotCycle } from "../coordinator/autopilot.js";
+import { runAutopilotCycle, recentContests, rotationInfo, autopilotEnabled } from "../coordinator/autopilot.js";
 import { query } from "../db/pool.js";
 
 // The read API and the WS live feed. Routes are intentionally thin: health, a status
@@ -56,18 +56,27 @@ app.post("/match", (c) => {
   return c.json({ started: true });
 });
 
-// tUSDC faucet: mint the in-app currency to a wallet so a user can fund contests and
-// challenge duels. Capped per request; tUSDC is test money with no value.
-const FAUCET_MAX_USDC = 1000; // per request
+// tUSDC faucet: a modest drip, claimable twice a week per wallet. Kept small on purpose so
+// tUSDC stays scarce and winning contests is what actually grows a balance. (In-memory rate
+// limit; a restart resets it. Move to the DB for a persistent limit later.)
+const FAUCET_CLAIM_USDC = 25;
+const FAUCET_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const FAUCET_MAX_CLAIMS = 2;
+const faucetClaims = new Map<string, number[]>();
 app.post("/faucet", async (c) => {
   const body = await c.req.json().catch(() => ({}));
-  const address = String(body.address ?? "");
-  const want = Number(body.amount ?? 100);
-  if (!/^0x[0-9a-fA-F]{1,64}$/.test(address)) return c.json({ error: "invalid address" }, 400);
-  const usdc = Math.max(1, Math.min(FAUCET_MAX_USDC, Math.floor(want || 0)));
+  const address = String(body.address ?? "").toLowerCase();
+  if (!/^0x[0-9a-f]{1,64}$/.test(address)) return c.json({ error: "invalid address" }, 400);
+  const now = Date.now();
+  const claims = (faucetClaims.get(address) ?? []).filter((t) => now - t < FAUCET_WINDOW_MS);
+  if (claims.length >= FAUCET_MAX_CLAIMS) {
+    return c.json({ error: "faucet limit reached: twice a week", retryAt: claims[0]! + FAUCET_WINDOW_MS, remaining: 0 }, 429);
+  }
   try {
-    const digest = await faucetMintUsdc(address, BigInt(usdc) * 1_000_000n);
-    return c.json({ ok: true, address, amount: usdc, digest });
+    const digest = await faucetMintUsdc(address, BigInt(FAUCET_CLAIM_USDC) * 1_000_000n);
+    claims.push(now);
+    faucetClaims.set(address, claims);
+    return c.json({ ok: true, address, amount: FAUCET_CLAIM_USDC, digest, remaining: FAUCET_MAX_CLAIMS - claims.length });
   } catch (e) {
     return c.json({ error: (e as Error).message }, 500);
   }
@@ -79,6 +88,11 @@ app.post("/autopilot/run", (c) => {
   void runAutopilotCycle().catch((e) => console.error("autopilot:", (e as Error).message));
   return c.json({ started: true });
 });
+
+// The Contests view: the rotation the autopilot cycles, and recent finished events.
+app.get("/contests", (c) =>
+  c.json({ autopilot: autopilotEnabled(), rotation: rotationInfo(), recent: recentContests() }),
+);
 
 app.get("/status", (c) =>
   c.json({

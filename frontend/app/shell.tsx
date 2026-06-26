@@ -39,6 +39,7 @@ export function WalletButton() {
 const NAV = [
   { href: "/", label: "Home" },
   { href: "/arena", label: "Arena" },
+  { href: "/contests", label: "Contests" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/workshop", label: "Workshop" },
 ];

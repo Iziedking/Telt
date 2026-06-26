@@ -33,6 +33,23 @@ export interface CycleResult {
   contestId: string;
   winner: string;
   prizeUsdc: number;
+  at: number;
+}
+
+// Recent finished events, newest first, for the Contests view.
+const recent: CycleResult[] = [];
+export function recentContests(): CycleResult[] {
+  return recent.slice(0, 20);
+}
+
+// The rotation the autopilot cycles through, for display.
+export function rotationInfo() {
+  return ROTATION.map((e) => ({
+    name: e.name,
+    entryUsdc: Number(e.entryUsdc) / 1e6,
+    format: e.format === CONTEST_FORMAT.duel ? "duel" : "multi",
+    levelBand: `L${e.levelMin}-L${e.levelMax}`,
+  }));
 }
 
 // One full event: create a contest, both agents enter, play, settle the pool to the winner.
@@ -69,7 +86,9 @@ export async function runAutopilotCycle(): Promise<CycleResult> {
 
     const prizeUsdc = (Number(ev.entryUsdc) * 2) / 1e6;
     console.log(`[autopilot] ${winnerAgent.name} won ${prizeUsdc} tUSDC (contest ${contestId.slice(0, 10)})`);
-    return { event: ev.name, contestId, winner: winnerAgent.name, prizeUsdc };
+    const result: CycleResult = { event: ev.name, contestId, winner: winnerAgent.name, prizeUsdc, at: Date.now() };
+    recent.unshift(result);
+    return result;
   } finally {
     busy = false;
   }
