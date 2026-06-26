@@ -2,9 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 
-// The background reel: gamified clips of the games, looping and switching. Drop the files
-// into public/videos and they play; until then the dark brand backdrop shows on its own.
-const CLIPS = ["/videos/poker.mp4", "/videos/chess.mp4", "/videos/prediction.mp4"];
+// The background reel: gamified clips of the games, looping and switching. The files are
+// large binaries, so they live on a CDN rather than in the repo. Two ways to point at them:
+//   - NEXT_PUBLIC_VIDEO_CDN: a base URL with fixed paths (bucket/Cloudinary). Each clip
+//     resolves to `${base}/poker.mp4`, etc.
+//   - NEXT_PUBLIC_VIDEO_URLS: a comma-separated list of full URLs, in play order. Use this
+//     when the host hashes filenames (e.g. Vercel Blob).
+// With neither set, the reel reads local files from /videos for dev. If nothing loads, the
+// dark brand backdrop shows on its own.
+const CDN = process.env.NEXT_PUBLIC_VIDEO_CDN?.replace(/\/+$/, "") ?? "";
+const URLS = process.env.NEXT_PUBLIC_VIDEO_URLS?.split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+const FILES = ["poker.mp4", "chess.mp4", "prediction.mp4"];
+const CLIPS = URLS?.length ? URLS : FILES.map((f) => (CDN ? `${CDN}/${f}` : `/videos/${f}`));
 
 const PAUSE_MS = 3000; // a short breath between plays
 const FADE_S = 1.2; // seconds to ramp volume in at the start and out before the end

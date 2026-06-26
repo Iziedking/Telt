@@ -15,6 +15,11 @@ frontend/node_modules/
 # OS / editor
 .DS_Store
 
+# Background reel videos are large binaries: keep them out of git. They live locally for
+# the dev demo, and the landing falls back to the brand backdrop when they are absent. For
+# a deployed reel, host them on a CDN and point CLIPS in app/LandingVideo.tsx at the URLs.
+frontend/public/videos/*.mp4
+
 # Private roadmap scratchpad, not for the public repo
 TODO.md
 PLAN.md
