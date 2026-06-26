@@ -1,19 +1,41 @@
-/* Telt design system. PLAN section 10: a bento grid of flat solid-color tiles, big
-   confident grotesk numerals, a calm canvas, the boldness spent only on Signal red.
-   No glassmorphism, no purple gradient, no Inter, no shadow on every tile. */
+/* Telt design system. Light by default; the dark values live under [data-theme="dark"]
+   for a future dark mode. A navigation-led editorial page: nav and a big display
+   heading on the calm canvas, then the colorful poker tiles on an inked panel so they
+   pop. Boldness is spent on Signal red and nothing else. No glass, no gradient, no drift. */
 
 :root {
-  --canvas: #eef1f5;
+  /* Constants */
+  --ink: #14181f;
+  --cream: #f4f1ea;
+  --signal: #e8352b;
   --sand: #f1e7ce;
   --felt: #a8e0c2;
   --peri: #c7c9f2;
   --sky: #bfe0f2;
-  --signal: #e8352b;
-  --ink: #14181f;
 
-  --radius: 22px;
-  --gap: 22px;
-  --frame-shadow: 0 24px 60px -28px rgba(20, 24, 31, 0.45);
+  /* Themed (light default) */
+  --bg: #eef1f5;
+  --text: #14181f;
+  --dim: #59636f;
+  --line: rgba(20, 24, 31, 0.12);
+  --surface: #ffffff;
+  --panel: #14181f;
+  --move-bg: rgba(20, 24, 31, 0.05);
+  --move-bg-hover: rgba(20, 24, 31, 0.09);
+
+  --radius: 20px;
+  --gap: 20px;
+}
+
+[data-theme="dark"] {
+  --bg: #14181f;
+  --text: #f4f1ea;
+  --dim: #8b94a0;
+  --line: rgba(244, 241, 234, 0.13);
+  --surface: #1b212c;
+  --panel: #0f1318;
+  --move-bg: rgba(244, 241, 234, 0.05);
+  --move-bg-hover: rgba(244, 241, 234, 0.1);
 }
 
 * {
@@ -24,8 +46,8 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: var(--canvas);
-  color: var(--ink);
+  background: var(--bg);
+  color: var(--text);
   font-family: var(--font-body), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
@@ -33,74 +55,221 @@ body {
 .mono {
   font-family: var(--font-mono), ui-monospace, monospace;
 }
-.display {
-  font-family: var(--font-display), system-ui, sans-serif;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+.dim {
+  color: var(--dim);
 }
 
-/* --- Shell and frame --- */
+/* --- Navigation bar --- */
 
-.shell {
-  width: 100%;
-  margin: 0;
-  padding: 28px 34px 34px;
-  min-height: 100vh;
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
-  flex-direction: column;
-}
-
-.topbar {
-  display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: 26px;
-  gap: 16px;
-  flex-wrap: wrap;
+  gap: 20px;
+  padding: 16px 30px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
 }
-
-.brand {
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.logo {
+  display: block;
+}
+.logo-t {
+  fill: var(--text);
+}
+.logo-dot {
+  fill: var(--signal);
+}
+.wordmark {
   font-family: var(--font-display), sans-serif;
-  font-weight: 800;
-  font-size: 30px;
-  letter-spacing: -0.03em;
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: 0.01em;
+  color: var(--text);
 }
-.brand .tick {
+.wordmark .wm-accent {
   color: var(--signal);
 }
-
-.tagline {
-  font-size: 14px;
-  color: #57606b;
-  max-width: 460px;
+.nav-links {
+  display: flex;
+  gap: 28px;
+  flex: 1;
+  justify-content: center;
+}
+.nav-links a {
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.nav-links a:hover {
+  color: var(--text);
+}
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* Chips in our own creamy style: a soft sand pill with ink text, not a bracketed
+   outline. Warm and flat, the way the brand wants it. */
+.chip {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--sand);
+  border: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  cursor: default;
+}
+.chip.wallet {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.chip.wallet:hover {
+  background: #e7d9b6;
+}
+.chip .sdot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--signal);
+}
+.chip .sdot.off {
+  background: #b7a98a;
 }
 
-/* The tablet-style ink frame that holds the whole arena, the one soft shadow. It
-   fills the page, edge to edge and down to the viewport, so the arena reads as a
-   full-bleed dashboard rather than a centered card. */
-.frame {
-  background: var(--ink);
-  border-radius: calc(var(--radius) + 8px);
-  padding: var(--gap);
-  box-shadow: var(--frame-shadow);
-  flex: 1;
+/* --- Hero heading --- */
+
+.hero-section {
+  padding: 44px 30px 26px;
+}
+.kicker-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 14px;
+}
+.kicker-sq {
+  width: 18px;
+  height: 11px;
+  border-radius: 999px;
+  background: var(--signal);
+}
+.kicker-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.display-heading {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: clamp(40px, 7vw, 104px);
+  line-height: 1;
+  letter-spacing: -0.005em;
+  text-transform: uppercase;
+  color: var(--text);
+  margin: 0;
+  opacity: 0;
+  transform: translateY(18px);
+  animation: ledeIn 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+.display-heading .red {
+  color: var(--signal);
+}
+.hero-sub {
+  margin-top: 16px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--dim);
+  white-space: nowrap;
+}
+.hero-sub b {
+  color: var(--text);
+  font-weight: 700;
+}
+.hero-cta {
+  margin-top: 22px;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  background: var(--signal);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 13px 28px;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+.hero-cta:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.hero-cta:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* --- Arena: an inked panel holding the bright tiles --- */
+
+.arena {
+  background: var(--panel);
+  border-radius: 26px;
+  margin: 8px 28px 30px;
+  padding: 22px;
   display: flex;
   flex-direction: column;
   gap: var(--gap);
-  min-height: calc(100vh - 150px);
 }
-
 .bento {
   display: grid;
   grid-template-columns: 1fr 1.5fr;
   gap: var(--gap);
-  flex: 1.2;
 }
+.row3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--gap);
+}
+.row2 {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: var(--gap);
+}
+.row3 > .tile {
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+.row2 > .tile {
+  min-height: 260px;
+}
+
+/* --- Tiles (colorful cards, ink text) --- */
 
 .tile {
   border-radius: var(--radius);
   padding: 22px;
-  min-height: 120px;
+  color: var(--ink);
 }
 .tile.sand {
   background: var(--sand);
@@ -119,12 +288,14 @@ body {
   color: #fff;
 }
 .tile.canvas {
-  background: var(--canvas);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
 }
 
 .kicker {
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.16em;
   font-size: 11px;
   font-weight: 700;
   color: #59636f;
@@ -133,22 +304,23 @@ body {
 .tile.signal .kicker {
   color: rgba(255, 255, 255, 0.85);
 }
-
+.tile.canvas .kicker {
+  color: var(--dim);
+}
 .big {
   font-family: var(--font-display), sans-serif;
-  font-weight: 800;
-  font-size: 44px;
-  line-height: 1;
-  letter-spacing: -0.02em;
+  font-weight: 700;
+  font-size: 48px;
+  line-height: 0.95;
 }
 
-/* --- Hero panel --- */
+/* --- Hero arena panel (sand tile) --- */
 
 .hero {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 18px;
+  gap: 16px;
 }
 .hero .round {
   font-size: 13px;
@@ -165,7 +337,6 @@ body {
   align-items: center;
   flex-wrap: wrap;
 }
-
 .chip-dot {
   width: 12px;
   height: 12px;
@@ -180,7 +351,6 @@ body {
   background: var(--peri);
   border: 2px solid var(--ink);
 }
-
 .live {
   display: inline-flex;
   align-items: center;
@@ -212,7 +382,6 @@ body {
 .seatrow {
   display: flex;
   justify-content: space-between;
-  align-items: stretch;
   gap: 16px;
 }
 .seat {
@@ -228,7 +397,7 @@ body {
 .seat .name {
   font-family: var(--font-display), sans-serif;
   font-weight: 700;
-  font-size: 17px;
+  font-size: 20px;
 }
 .seat .lvl {
   font-size: 11px;
@@ -239,8 +408,8 @@ body {
 }
 .seat .chips {
   font-family: var(--font-display), sans-serif;
-  font-weight: 800;
-  font-size: 26px;
+  font-weight: 700;
+  font-size: 30px;
   margin-top: 6px;
 }
 .seat .last {
@@ -249,7 +418,6 @@ body {
   margin-top: 4px;
   min-height: 16px;
 }
-
 .board {
   display: flex;
   gap: 8px;
@@ -257,16 +425,15 @@ body {
   min-height: 64px;
   justify-content: center;
 }
-
 .card {
   font-family: var(--font-display), sans-serif;
   font-weight: 700;
-  font-size: 20px;
+  font-size: 22px;
   background: #fff;
   color: var(--ink);
-  border-radius: 10px;
-  padding: 10px 12px;
-  min-width: 44px;
+  border-radius: 12px;
+  padding: 12px;
+  min-width: 46px;
   text-align: center;
   box-shadow: 0 2px 0 rgba(20, 24, 31, 0.18);
   animation: deal 0.32s ease both;
@@ -278,50 +445,26 @@ body {
   color: #6a737d;
   font-size: 13px;
 }
-
 .potpill {
   align-self: center;
   background: var(--ink);
   color: #fff;
   border-radius: 999px;
-  padding: 6px 16px;
+  padding: 7px 18px;
   font-family: var(--font-display), sans-serif;
   font-weight: 700;
 }
-
-/* --- Bottom row tiles --- */
-
-.row3 {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: var(--gap);
-  flex: 1;
-}
-.row2 {
-  display: grid;
-  grid-template-columns: 1.1fr 1fr;
-  gap: var(--gap);
-  flex: 1.15;
-}
-.row3 > .tile {
-  min-height: 280px;
+.holes {
   display: flex;
-  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 8px;
 }
-.row2 > .tile {
-  min-height: 240px;
-}
-
-.intel-summary {
-  font-size: 13.5px;
-  line-height: 1.5;
-  margin-top: 6px;
-  max-height: 220px;
-  overflow-y: auto;
-}
-.intel-meta {
-  margin-top: 12px;
-  font-size: 11px;
+.cardback {
+  width: 26px;
+  height: 36px;
+  border-radius: 6px;
+  background: repeating-linear-gradient(45deg, var(--ink), var(--ink) 4px, #2a323d 4px, #2a323d 8px);
+  box-shadow: 0 2px 0 rgba(20, 24, 31, 0.2);
 }
 
 /* --- Rich agent tiles --- */
@@ -339,7 +482,7 @@ body {
 .avatar {
   width: 54px;
   height: 54px;
-  border-radius: 14px;
+  border-radius: 16px;
   background: #fff;
   display: grid;
   place-items: center;
@@ -348,9 +491,9 @@ body {
 }
 .agent-name {
   font-family: var(--font-display), sans-serif;
-  font-weight: 800;
-  font-size: 20px;
-  line-height: 1.05;
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1.02;
 }
 .agent-perk {
   font-size: 11px;
@@ -367,11 +510,10 @@ body {
 }
 .agent-chips .n {
   font-family: var(--font-display), sans-serif;
-  font-weight: 800;
-  font-size: 40px;
+  font-weight: 700;
+  font-size: 44px;
   line-height: 1;
 }
-
 .passes {
   display: flex;
   align-items: center;
@@ -393,10 +535,8 @@ body {
 .pass-dot.on {
   background: var(--ink);
 }
-
 .agent-last {
   font-size: 13px;
-  color: var(--ink);
   font-weight: 600;
 }
 .agent-why {
@@ -405,7 +545,6 @@ body {
   color: #3f4853;
   min-height: 34px;
 }
-
 .recent {
   display: flex;
   gap: 6px;
@@ -420,7 +559,6 @@ body {
   border-radius: 999px;
   padding: 3px 9px;
 }
-
 .agent-foot {
   display: flex;
   gap: 18px;
@@ -429,8 +567,8 @@ body {
 }
 .stat .v {
   font-family: var(--font-display), sans-serif;
-  font-weight: 800;
-  font-size: 20px;
+  font-weight: 700;
+  font-size: 22px;
 }
 .stat .k {
   font-size: 10px;
@@ -439,23 +577,19 @@ body {
   color: #4b5560;
 }
 
-/* Face-down hole cards on the live table. */
-.holes {
-  display: flex;
-  gap: 5px;
-  margin-bottom: 8px;
-}
-.cardback {
-  width: 26px;
-  height: 36px;
-  border-radius: 6px;
-  background: repeating-linear-gradient(45deg, var(--ink), var(--ink) 4px, #232a34 4px, #232a34 8px);
-  box-shadow: 0 2px 0 rgba(20, 24, 31, 0.2);
-}
-.cardback.muted {
-  opacity: 0.25;
-}
+/* --- Intel --- */
 
+.intel-summary {
+  font-size: 13.5px;
+  line-height: 1.5;
+  margin-top: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.intel-meta {
+  margin-top: 12px;
+  font-size: 11px;
+}
 .tile.signal .intel-summary::-webkit-scrollbar {
   width: 6px;
 }
@@ -474,12 +608,8 @@ body {
   min-height: 0;
   overflow-y: auto;
 }
-.tile.canvas {
-  display: flex;
-  flex-direction: column;
-}
 .move {
-  background: rgba(20, 24, 31, 0.05);
+  background: var(--move-bg);
   border-radius: 12px;
   padding: 10px 12px;
   cursor: pointer;
@@ -487,10 +617,10 @@ body {
   border: 1px solid transparent;
 }
 .move:hover {
-  background: rgba(20, 24, 31, 0.09);
+  background: var(--move-bg-hover);
 }
 .move.selected {
-  border-color: var(--ink);
+  border-color: var(--signal);
 }
 .move .head {
   display: flex;
@@ -501,7 +631,7 @@ body {
 .move .who {
   font-family: var(--font-display), sans-serif;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 15px;
 }
 .move .act {
   font-weight: 700;
@@ -509,7 +639,7 @@ body {
 }
 .move .why {
   font-size: 12px;
-  color: #4b5560;
+  color: var(--dim);
   margin-top: 3px;
 }
 .badge {
@@ -546,7 +676,7 @@ body {
 .check .mark {
   width: 20px;
   height: 20px;
-  border-radius: 6px;
+  border-radius: 7px;
   display: grid;
   place-items: center;
   font-size: 12px;
@@ -577,36 +707,20 @@ body {
 }
 .verify-empty {
   font-size: 13px;
-  color: #4b5560;
-}
-
-/* --- Buttons --- */
-
-.btn {
-  font-family: var(--font-display), sans-serif;
-  font-weight: 700;
-  font-size: 14px;
-  background: var(--ink);
-  color: #fff;
-  border: none;
-  border-radius: 999px;
-  padding: 11px 22px;
-  cursor: pointer;
-}
-.btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.btn.ghost {
-  background: transparent;
-  color: var(--ink);
-  border: 2px solid var(--ink);
-  padding: 9px 20px;
+  color: #3f4853;
 }
 
 .muted-small {
   font-size: 12px;
   color: #6a737d;
+}
+.footnote {
+  padding: 0 30px 40px;
+  font-size: 12px;
+  color: var(--dim);
+}
+.footnote a {
+  color: var(--text);
 }
 
 a {
@@ -643,19 +757,37 @@ a {
     opacity: 1;
   }
 }
+@keyframes ledeIn {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 
-@media (max-width: 860px) {
+@media (max-width: 900px) {
+  .nav-links {
+    display: none;
+  }
   .bento,
   .row3,
   .row2 {
     grid-template-columns: 1fr;
+  }
+  .display-heading {
+    font-size: clamp(34px, 11vw, 64px);
+  }
+  .hero-sub {
+    white-space: normal;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .card,
   .live .pulse,
-  .seat.active {
+  .seat.active,
+  .display-heading {
     animation: none !important;
+    opacity: 1;
+    transform: none;
   }
 }

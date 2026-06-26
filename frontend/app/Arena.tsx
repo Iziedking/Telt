@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ConnectModal, useCurrentAccount, useDisconnectWallet } from "@mysten/dapp-kit";
 import {
   API_BASE,
   WS_URL,
@@ -149,27 +150,58 @@ export default function Arena() {
   const leader = (A.chips ?? 0) === (B.chips ?? 0) ? null : (A.chips ?? 0) > (B.chips ?? 0) ? "A" : "B";
 
   return (
-    <div className="shell">
-      <div className="topbar">
-        <div>
-          <div className="brand">
-            tel<span className="tick">t</span>
-          </div>
-          <div className="tagline">
-            Heads-up poker between AI agents on Sui. Every move and the reasoning behind it is sealed on Walrus and
-            stamped on chain, replayable and provable through Avow.
-          </div>
+    <div className="page">
+      <nav className="nav">
+        <div className="nav-left">
+          <Logo />
+          <span className="wordmark">
+            tel<span className="wm-accent">t</span>
+          </span>
         </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <span className="muted-small">{connected ? "feed connected" : "feed offline"}</span>
-          <button className="btn" onClick={runMatch} disabled={starting || live}>
-            {live ? "match running" : starting ? "starting…" : "Run a match"}
-          </button>
+        <div className="nav-links">
+          <a href="#arena">Arena</a>
+          <a href="#table">Live table</a>
+          <a href="#intel">Intel</a>
+          <a href="#verify">Verify</a>
+          <a href="#feed">Feed</a>
         </div>
-      </div>
+        <div className="nav-right">
+          <span className="chip">
+            <span className={`sdot ${connected ? "" : "off"}`} />
+            {connected ? "live feed" : "offline"}
+          </span>
+          <WalletButton />
+        </div>
+      </nav>
 
-      <div className="frame">
-        <div className="bento">
+      <header className="hero-section">
+        <div className="kicker-row">
+          <span className="kicker-sq" />
+          <span className="kicker-label">{live ? "Live · heads-up" : "Heads-up arena"}</span>
+        </div>
+        <h1 className="display-heading">
+          {live ? (
+            <>
+              {A.name} vs {B.name}
+              <span className="red">.</span>
+            </>
+          ) : (
+            <>
+              The tell, proven<span className="red">.</span>
+            </>
+          )}
+        </h1>
+        <p className="hero-sub">
+          Every move and the reasoning behind it is sealed on <b>Walrus</b> and stamped on <b>Sui</b>, replayable and
+          provable through <b>Avow</b>.
+        </p>
+        <button className="hero-cta" onClick={runMatch} disabled={starting || live}>
+          {live ? "Match running" : starting ? "Starting…" : "Run a match"}
+        </button>
+      </header>
+
+      <main className="arena">
+        <div className="bento" id="arena">
           {/* Sand hero panel */}
           <div className="tile sand hero">
             <div>
@@ -204,7 +236,7 @@ export default function Arena() {
           </div>
 
           {/* Felt live table, the hero */}
-          <div className="tile felt table">
+          <div className="tile felt table" id="table">
             <div className="kicker">Live table</div>
             <div className="board">
               {vm.board.length === 0 ? (
@@ -222,7 +254,7 @@ export default function Arena() {
         </div>
 
         {/* Agent A, Agent B, Intel */}
-        <div className="row3">
+        <div className="row3" id="intel">
           <AgentTile tone="felt" seat="A" view={A} />
           <AgentTile tone="peri" seat="B" view={B} />
 
@@ -251,7 +283,7 @@ export default function Arena() {
         </div>
 
         {/* Verify reveal + feed */}
-        <div className="row2">
+        <div className="row2" id="verify">
           <div className="tile sky">
             <div className="kicker">Verify reveal</div>
             {!selected ? (
@@ -264,7 +296,7 @@ export default function Arena() {
             )}
           </div>
 
-          <div className="tile canvas">
+          <div className="tile canvas" id="feed">
             <div className="kicker">Feed · newest first</div>
             <div className="feed">
               {vm.moveList.length === 0 && <div className="muted-small">No moves yet. Run a match.</div>}
@@ -292,10 +324,10 @@ export default function Arena() {
             </div>
           </div>
         </div>
-      </div>
+      </main>
 
       {vm.settled && (
-        <div style={{ marginTop: 20, textAlign: "center" }} className="muted-small">
+        <div className="footnote">
           Settled on chain. Payout {fmtSui(vm.settled.amount)} ·{" "}
           <a className="mono" href={suiscan(vm.settled.digest)} target="_blank" rel="noreferrer">
             {short(vm.settled.digest)}
@@ -304,6 +336,40 @@ export default function Arena() {
       )}
     </div>
   );
+}
+
+// The mark: a big, thick lowercase t with a curved tail at its base, and a round red
+// dot after it. The t takes the text color; the dot stays Signal red, the one bold
+// thing. Small in the nav, scalable for logo sheets.
+function Logo({ size = 42 }: { size?: number }) {
+  return (
+    <svg className="logo" viewBox="0 0 96 104" width={size} height={(size * 104) / 96} aria-hidden>
+      {/* crossbar */}
+      <rect className="logo-t" x="9" y="32" width="62" height="17" rx="4" />
+      {/* stem with a curved tail hooking right at the base */}
+      <path
+        className="logo-t"
+        d="M28 8 L50 8 L50 70 C50 84 59 90 71 84 C65 95 47 97 38 86 C33 80 30 74 28 65 Z"
+      />
+      <circle className="logo-dot" cx="82" cy="85" r="9" />
+    </svg>
+  );
+}
+
+// Real Sui wallet connect via dapp-kit. Connected shows the address chip (click to
+// disconnect); otherwise a connect trigger that opens the wallet modal.
+function WalletButton() {
+  const account = useCurrentAccount();
+  const { mutate: disconnect } = useDisconnectWallet();
+  if (account) {
+    return (
+      <button className="chip wallet" onClick={() => disconnect()} title="Click to disconnect">
+        <span className="sdot" />
+        {short(account.address)}
+      </button>
+    );
+  }
+  return <ConnectModal trigger={<button className="chip wallet">Connect wallet</button>} />;
 }
 
 function AgentTile({ tone, seat, view }: { tone: "felt" | "peri"; seat: Seat; view: SeatView }) {
