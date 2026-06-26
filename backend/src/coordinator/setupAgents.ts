@@ -3,7 +3,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { coordinatorAddress, claimAgent, registerForArena, upgradeAgent, createMandateAndAccess } from "../chain/sui.js";
-import { nextLevelCostUsdc } from "../reason/levels.js";
+import { nextLevelCostMist } from "../reason/levels.js";
 
 // One-time setup for a demo match. For each agent it creates an Avow mandate (the
 // agent address is the coordinator, who signs every anchor), creates the evidence
@@ -53,10 +53,10 @@ async function main() {
     console.log(`  registered for arena`);
 
     for (let lvl = 0; lvl < a.level; lvl++) {
-      const cost = nextLevelCostUsdc(lvl);
+      const cost = nextLevelCostMist(lvl);
       if (cost) {
         await upgradeAgent(agentId, cost);
-        console.log(`  upgraded to level ${lvl + 1} (paid ${Number(cost) / 1e6} TUSDC)`);
+        console.log(`  upgraded to level ${lvl + 1} (paid ${Number(cost) / 1e9} SUI)`);
       }
     }
 

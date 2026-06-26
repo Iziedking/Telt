@@ -135,19 +135,24 @@ export async function registerForArena(agentId: string, signer?: Ed25519Keypair)
   return (await execute(tx, signer)).digest;
 }
 
-// Tier upgrades are paid in TestUSDC. The coordinator holds the mint authority, so we
-// mint exactly the cost inside the same transaction and hand it to upgrade. No coin to
-// pre-fund or track.
-export async function upgradeAgent(agentId: string, payUsdc: bigint, signer?: Ed25519Keypair): Promise<string> {
+// Tier upgrades are paid in SUI. The fee is split from gas and lands in the on-chain
+// Treasury balance, which the coordinator can later claim with the CoordinatorCap.
+export async function upgradeAgent(agentId: string, payMist: bigint, signer?: Ed25519Keypair): Promise<string> {
   const tx = new Transaction();
-  // mint_coin returns a single Coin<TEST_USDC>; the result handle stands in for it.
-  const pay = tx.moveCall({
-    target: `${PKG()}::test_usdc::mint_coin`,
-    arguments: [tx.object(config.arena.testUsdcCap), tx.pure.u64(payUsdc)],
-  });
+  const [pay] = tx.splitCoins(tx.gas, [tx.pure.u64(payMist)]);
   tx.moveCall({
     target: `${PKG()}::registry::upgrade`,
     arguments: [tx.object(agentId), pay, tx.object(config.arena.treasuryObject)],
+  });
+  return (await execute(tx, signer)).digest;
+}
+
+// Sweep accumulated upgrade fees from the Treasury to its address. CoordinatorCap-gated.
+export async function claimTreasury(signer?: Ed25519Keypair): Promise<string> {
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${PKG()}::registry::claim_treasury`,
+    arguments: [tx.object(config.arena.coordinatorCap), tx.object(config.arena.treasuryObject)],
   });
   return (await execute(tx, signer)).digest;
 }

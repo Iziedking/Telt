@@ -11,13 +11,14 @@ import { config } from "../config/index.js";
 // skills/poker.ts), so the gap between tiers is real, not cosmetic.
 export const MAX_LEVEL = 4;
 
-// Cost (in TestUSDC base units, 6 decimals) to go from level i to level i+1. An easy
-// on-ramp, then a real climb to the Oracle. Mirrors registry::upgrade_cost on chain.
-export const UPGRADE_COSTS_USDC = [
-  5_000_000n, // level 0 -> 1: 5 TUSDC
-  15_000_000n, // level 1 -> 2: 15 TUSDC
-  40_000_000n, // level 2 -> 3: 40 TUSDC
-  100_000_000n, // level 3 -> 4: 100 TUSDC
+// Cost (in MIST, 9 decimals for SUI) to go from level i to level i+1. An easy on-ramp,
+// then a real climb to the Oracle. Mirrors registry::upgrade_cost on chain. The fee
+// accumulates in the on-chain Treasury for the coordinator to claim.
+export const UPGRADE_COSTS_MIST = [
+  100_000_000n, // level 0 -> 1: 0.1 SUI
+  300_000_000n, // level 1 -> 2: 0.3 SUI
+  800_000_000n, // level 2 -> 3: 0.8 SUI
+  1_500_000_000n, // level 3 -> 4: 1.5 SUI
 ] as const;
 
 // Per-decision plan. `samples` is the number of independent reasoned action
@@ -73,9 +74,9 @@ export function modelForLevel(level: number): string {
   return (config.reason.tierModels[i] ?? config.reason.tierModels[0]!).model;
 }
 
-// TestUSDC base units needed to reach the next level from `current`, or null at the cap.
-export function nextLevelCostUsdc(current: number): bigint | null {
+// MIST needed to reach the next level from `current`, or null at the cap.
+export function nextLevelCostMist(current: number): bigint | null {
   const l = levelClamp(current);
   if (l >= MAX_LEVEL) return null;
-  return UPGRADE_COSTS_USDC[l]!;
+  return UPGRADE_COSTS_MIST[l]!;
 }

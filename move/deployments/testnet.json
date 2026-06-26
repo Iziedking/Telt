@@ -1,17 +1,17 @@
 {
   "network": "testnet",
-  "packageId": "0xd670d1f0c8685acaf99f8f33babf5bb6bd88f8390824f64dc43638189134fae3",
+  "packageId": "0x4270e685384ff9a81e0a4f7a54cd4e5109db38a52d7c5e6a86a8bb2971e98df6",
   "modules": ["registry", "table", "intel", "test_usdc"],
-  "coordinatorCap": "0x28804b4451382c945c43af95b15248d45585db500e7501390e10cd7a0de134b1",
-  "treasuryObject": "0xcbc254bba6bc8db950c55d4c77e4e583983ea848e7bbfd89adb4b5163f56d037",
-  "testUsdcTreasuryCap": "0xa5413a68e108a3dc18b4102b896076b9a84e464b8fb49b9a3d211eb33a6a80ee",
+  "coordinatorCap": "0x951980d4d8e5b598162ba9b98974916200a7ad6e7ab9a5278d7c209978a22f4b",
+  "treasuryObject": "0x079ad1371c0dae813c1b42e8d72d1d95194588976d779012ed958dd2253b1149",
+  "testUsdcTreasuryCap": "0x9b7ef80d39a71098710708d39e87b0b39cfb82d162ccd6ab91af91fa51d48900",
   "treasuryAddress": "0xc11c77d7f5f0555041e04a89a266edbe305da731c4f10c102bc4384536bbb65b",
   "publisher": "0xc11c77d7f5f0555041e04a89a266edbe305da731c4f10c102bc4384536bbb65b",
-  "publishTx": "2zLMkGFxSqvhjpoMK8WFNXwrDZus6GWv3Kh2gv4ww3fJ",
+  "publishTx": "2JZoc7vFDiKst2stcFfHb72EvM6bJvNJx2NXAJeD7HbZ",
   "publishedAt": "2026-06-26",
-  "note": "Tier upgrades now paid in TestUSDC (new test_usdc module, 6 decimals). registry::upgrade takes Coin<TEST_USDC>; cost ladder 5/15/40/100 TUSDC for L0->1..L3->4. The coordinator holds the TreasuryCap and mints the exact cost inside the upgrade tx. Supersedes the SUI-upgrade package. Avow package (0x4f3e...a3ee) reused unchanged.",
+  "note": "Upgrades are paid in SUI again, and the fee now accumulates in the Treasury object's balance for the coordinator to sweep with claim_treasury (CoordinatorCap-gated). The test_usdc module stays published: tUSDC is the in-app currency users hold to fund contests and challenge duels, minted by the coordinator's TreasuryCap. SUI upgrade ladder 0.1/0.3/0.8/1.5. Avow package (0x4f3e...a3ee) reused unchanged.",
   "supersedes": {
-    "packageId": "0xcec9f18005b8e7378bfe444d9ce17b743b9adc42c292e75d8f87d3c9a278be5c",
-    "reason": "Upgrades were paid in SUI; replaced to charge TestUSDC per the tier economy."
+    "packageId": "0xd670d1f0c8685acaf99f8f33babf5bb6bd88f8390824f64dc43638189134fae3",
+    "reason": "That build charged upgrades in TestUSDC. Reverted: SUI is the upgrade currency; tUSDC is repurposed as the in-app currency, and upgrade fees now pool in the Treasury for claiming."
   }
 }

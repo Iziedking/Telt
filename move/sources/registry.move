@@ -19,6 +19,7 @@
 module telt::registry;
 
 use std::string::{Self, String};
+use sui::balance::{Self, Balance};
 use sui::coin::{Self, Coin};
 use sui::event;
 use sui::sui::SUI;
@@ -31,12 +32,14 @@ const EMaxLevel: u64 = 3;
 /// Five levels, 0 to 4. Level 0 is the untrained floor; level 4 is the strongest.
 const MAX_LEVEL: u8 = 4;
 
-/// Holds the address arena fees flow to (upgrades and intel). Shared and set once at
-/// publish to the publisher, who is the coordinator on the testnet demo. There is no
-/// public constructor, so exactly one Treasury ever exists and it cannot be spoofed.
+/// The platform treasury. Tier-upgrade SUI accumulates in its `balance`; the coordinator
+/// claims it with the CoordinatorCap. `addr` is the publisher (the claim recipient).
+/// Shared and created once at publish, with no public constructor, so exactly one
+/// Treasury ever exists and it cannot be spoofed.
 public struct Treasury has key {
     id: UID,
     addr: address,
+    balance: Balance<SUI>,
 }
 
 /// The coordinator's authority. Gates result recording here and settlement in the
@@ -69,17 +72,17 @@ public struct ArenaRegistered has copy, drop { agent: ID, owner: address, mandat
 public struct ResultRecorded has copy, drop { agent: ID, won: bool, wins: u64, losses: u64 }
 
 fun init(ctx: &mut TxContext) {
-    transfer::share_object(Treasury { id: object::new(ctx), addr: ctx.sender() });
+    transfer::share_object(Treasury { id: object::new(ctx), addr: ctx.sender(), balance: balance::zero() });
     transfer::public_transfer(CoordinatorCap { id: object::new(ctx) }, ctx.sender());
 }
 
-/// TestUSDC (6 decimals) to go from `level` to `level + 1`. Mirrors the backend ladder
-/// in reason/levels.ts: an easy on-ramp, then a real climb to the Oracle.
+/// SUI (in MIST, 9 decimals) to go from `level` to `level + 1`. Mirrors the backend
+/// ladder in reason/levels.ts: an easy on-ramp, then a real climb to the Oracle.
 fun upgrade_cost(level: u8): u64 {
-    if (level == 0) 5_000_000 // 5 TUSDC
-    else if (level == 1) 15_000_000 // 15 TUSDC
-    else if (level == 2) 40_000_000 // 40 TUSDC
-    else if (level == 3) 100_000_000 // 100 TUSDC
+    if (level == 0) 100_000_000 // 0.1 SUI
+    else if (level == 1) 300_000_000 // 0.3 SUI
+    else if (level == 2) 800_000_000 // 0.8 SUI
+    else if (level == 3) 1_500_000_000 // 1.5 SUI
     else 0
 }
 
@@ -104,8 +107,8 @@ public fun claim_agent(name: vector<u8>, mandate_id: ID, ctx: &mut TxContext) {
 /// returns any change to the owner. Owner-only, capped at MAX_LEVEL.
 public fun upgrade(
     agent: &mut Agent,
-    mut payment: Coin<TEST_USDC>,
-    treasury: &Treasury,
+    mut payment: Coin<SUI>,
+    treasury: &mut Treasury,
     ctx: &mut TxContext,
 ) {
     assert!(ctx.sender() == agent.owner, ENotOwner);
@@ -113,14 +116,25 @@ public fun upgrade(
     let cost = upgrade_cost(agent.level);
     assert!(coin::value(&payment) >= cost, EInsufficientPayment);
 
+    // The fee accumulates in the treasury balance for the coordinator to claim later.
     let due = coin::split(&mut payment, cost, ctx);
-    transfer::public_transfer(due, treasury.addr);
+    balance::join(&mut treasury.balance, coin::into_balance(due));
     // Return the remainder to the owner. A zero-value coin is a valid object.
     transfer::public_transfer(payment, agent.owner);
 
     agent.level = agent.level + 1;
     event::emit(LevelUp { agent: object::id(agent), owner: agent.owner, level: agent.level });
 }
+
+/// Sweep the accumulated upgrade fees to the treasury address. CoordinatorCap-gated, so
+/// only the platform can claim. Returns nothing; the SUI lands at `treasury.addr`.
+public fun claim_treasury(_cap: &CoordinatorCap, treasury: &mut Treasury, ctx: &mut TxContext) {
+    let swept = balance::withdraw_all(&mut treasury.balance);
+    transfer::public_transfer(coin::from_balance(swept, ctx), treasury.addr);
+}
+
+/// The SUI currently held in the treasury, awaiting claim.
+public fun treasury_balance(t: &Treasury): u64 { balance::value(&t.balance) }
 
 /// Consent to arena play. Sets the on-chain `registered` flag and emits the marker.
 /// Entering an arena makes this agent's moves and reasoning purchasable intel,
