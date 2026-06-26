@@ -20,9 +20,10 @@ import type { Seat, Street, Card } from "../poker/types.js";
 // (hash matches, within mandate) the way the dashboard would.
 
 // One Seal client and one Walrus client for the process, both built on the shared
-// Sui client so Seal can cache keys across decryptions.
-const seal = getSealClient(sui);
-const walrus = getWalrusClient(sui);
+// Sui client so Seal can cache keys across decryptions. Exported so the dossier path
+// reuses the same clients rather than spinning up a second pair.
+export const seal = getSealClient(sui);
+export const walrus = getWalrusClient(sui);
 
 /** Everything a single agent needs to anchor under its own Avow mandate. */
 export interface AgentAvow {

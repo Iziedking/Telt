@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { config, memoryConfigured, reasonConfigured, suiConfigured } from "../config/index.js";
 import { reasonMode } from "../reason/client.js";
 import { attachWebSocket } from "../coordinator/ws.js";
+import { intelRoutes } from "../intel/market.js";
 import { query } from "../db/pool.js";
 
 // The read API and the WS live feed. Routes are intentionally thin: health, a status
@@ -12,6 +13,9 @@ import { query } from "../db/pool.js";
 // Zerun's api/index.ts.
 
 export const app = new Hono();
+
+// The intel marketplace 402 quote endpoint.
+intelRoutes(app);
 
 app.get("/health", (c) => c.json({ ok: true }));
 

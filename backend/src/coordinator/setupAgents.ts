@@ -1,9 +1,8 @@
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
-import { createMandate } from "avow-sdk";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { sui, coordinator, coordinatorAddress, claimAgent, registerForArena, upgradeAgent } from "../chain/sui.js";
+import { coordinatorAddress, claimAgent, registerForArena, upgradeAgent, createMandateAndAccess } from "../chain/sui.js";
 import { nextLevelCostMist } from "../reason/levels.js";
 
 // One-time setup for a demo match. For each agent it creates an Avow mandate (the
@@ -32,10 +31,14 @@ async function main() {
 
   for (const a of ROSTER) {
     console.log(`\n${a.name} (level ${a.level})...`);
-    // A distinct sealing identity per agent, for per-agent intel separation later.
-    const userAddr = Ed25519Keypair.generate().getPublicKey().toSuiAddress();
+    // A distinct sealing identity per agent, for per-agent intel separation. The
+    // secret is kept so the agent can decrypt intel re-sealed to it via the per-user
+    // Seal tier. These are throwaway testnet keys held only in gitignored runtime.
+    const userKp = Ed25519Keypair.generate();
+    const userAddr = userKp.getPublicKey().toSuiAddress();
+    const userSecret = userKp.getSecretKey();
 
-    const mandate = await createMandate(sui, coordinator(), {
+    const mandate = await createMandateAndAccess({
       agent: coordinatorAddress(),
       perMoveCap: PER_MOVE_CAP,
       dailyCap: DAILY_CAP,
@@ -66,6 +69,7 @@ async function main() {
       accessId: mandate.accessId,
       capId: mandate.capId,
       userAddr,
+      userSecret,
     });
   }
 

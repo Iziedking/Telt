@@ -1,13 +1,12 @@
-import { readFileSync } from "node:fs";
-import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import { Hand, otherSeat } from "../poker/engine.js";
 import type { Seat } from "../poker/types.js";
 import { planForLevel } from "../reason/levels.js";
 import { decide } from "../runners/pokerRunner.js";
 import { anchorMove, verifyLatestForMandate, type AgentAvow } from "../avow/anchorMove.js";
 import { recallNotes, rememberNote } from "../avow/memory.js";
-import { coordinator, coordinatorAddress, openTable, joinTable, settleTable, recordResult } from "../chain/sui.js";
+import { coordinatorAddress, openTable, joinTable, settleTable, recordResult } from "../chain/sui.js";
+import { buyAndDeliver } from "../intel/market.js";
+import { loadRoster, avowFor, type RosterEntry } from "./roster.js";
 import { broadcast, type MovePayload } from "./ws.js";
 import { query } from "../db/pool.js";
 
@@ -19,17 +18,6 @@ import { query } from "../db/pool.js";
 // Chips are the in-game scoreboard; the SUI buy-ins are the real escrow. Whoever leads
 // in chips after N hands is paid the pot on chain. Decoupling the two keeps the game
 // fast while the money move stays real.
-
-interface RosterEntry {
-  key: Seat;
-  name: string;
-  level: number;
-  agentId: string;
-  mandateId: string;
-  accessId: string;
-  capId: string;
-  userAddr: string;
-}
 
 interface MatchAgent {
   seat: Seat;
@@ -48,6 +36,8 @@ export interface MatchOptions {
   bigBlind?: number;
   /** Anchor every move through Avow. Off makes a fast engine/LLM-only dry run. */
   anchor?: boolean;
+  /** The underdog buys a dossier on its opponent before the hand at this index. */
+  intel?: { buyerSeat: Seat; beforeHand: number };
 }
 
 const DEFAULTS = {
@@ -59,11 +49,6 @@ const DEFAULTS = {
   anchor: true,
 };
 
-function loadRoster(): { coordinator: string; agents: RosterEntry[] } {
-  const file = resolve(dirname(fileURLToPath(import.meta.url)), "../../runtime/agents.json");
-  return JSON.parse(readFileSync(file, "utf8"));
-}
-
 function toMatchAgent(e: RosterEntry): MatchAgent {
   return {
     seat: e.key,
@@ -71,13 +56,7 @@ function toMatchAgent(e: RosterEntry): MatchAgent {
     level: e.level,
     agentId: e.agentId,
     mandateId: e.mandateId,
-    avow: {
-      mandateId: e.mandateId,
-      accessId: e.accessId,
-      agentAddress: coordinatorAddress(),
-      user: e.userAddr,
-      signer: coordinator(),
-    },
+    avow: avowFor(e),
   };
 }
 
@@ -99,14 +78,19 @@ export async function playMatch(opts: MatchOptions = {}): Promise<{ matchId: str
   log(matchId, "status", { status: "seated", detail: `${A.name} (L${A.level}) vs ${B.name} (L${B.level})` });
 
   const chips: Record<Seat, number> = { A: o.startingChips, B: o.startingChips };
+  // Dossiers bought mid-match are injected into the buyer's decisions as notes.
+  const injected: Record<Seat, string[]> = { A: [], B: [] };
 
   for (let handIndex = 0; handIndex < o.hands; handIndex++) {
     if (chips.A <= o.bigBlind || chips.B <= o.bigBlind) {
       log(matchId, "status", { status: "busted", detail: `after ${handIndex} hands` });
       break;
     }
+    if (opts.intel && handIndex === opts.intel.beforeHand) {
+      await runIntelBeat(matchId, tableId, opts.intel.buyerSeat, bySeat, injected);
+    }
     const button: Seat = handIndex % 2 === 0 ? "A" : "B";
-    await playHand(matchId, tableId, handIndex, button, bySeat, chips, o);
+    await playHand(matchId, tableId, handIndex, button, bySeat, chips, injected, o);
   }
 
   const winner: Seat = chips.A >= chips.B ? "A" : "B";
@@ -158,6 +142,7 @@ async function playHand(
   button: Seat,
   bySeat: Record<Seat, MatchAgent>,
   chips: Record<Seat, number>,
+  injected: Record<Seat, string[]>,
   o: typeof DEFAULTS,
 ): Promise<void> {
   const hand = new Hand({
@@ -182,7 +167,9 @@ async function playHand(
     const legal = hand.legalActions(seat);
     const pl = hand.players[seat];
 
-    const notes = await recallNotes(me.avow.user, `betting and bluffing tendencies of ${them.name}`).catch(() => []);
+    const recalled = await recallNotes(me.avow.user, `betting and bluffing tendencies of ${them.name}`).catch(() => []);
+    // Bought intel leads; recalled memory follows.
+    const notes = [...injected[seat], ...recalled];
 
     const decision = await decide(
       {
@@ -319,6 +306,50 @@ async function playHand(
       `Hand ${handIndex + 1}: board ${hand.board.join(" ") || "preflop"}, ${winnerName} won ${result.pot} by ${result.reason}.`,
     ),
   );
+}
+
+// The intel beat: the buyer pays for a dossier on its opponent, the coordinator
+// verifies the payment on chain, compiles the dossier from the opponent's real
+// anchored records, re-seals it to the buyer, and loads it into the buyer's notes for
+// the rest of the match. Best effort: a failed purchase must not sink the match.
+async function runIntelBeat(
+  matchId: string,
+  tableId: string,
+  buyerSeat: Seat,
+  bySeat: Record<Seat, MatchAgent>,
+  injected: Record<Seat, string[]>,
+): Promise<void> {
+  const buyer = bySeat[buyerSeat];
+  const target = bySeat[otherSeat(buyerSeat)];
+  log(matchId, "status", { status: "intel", detail: `${buyer.name} buys a dossier on ${target.name}` });
+  try {
+    const delivered = await buyAndDeliver({
+      tableId,
+      targetAgentId: target.agentId,
+      buyer: buyer.avow,
+    });
+    const summary = delivered.dossier.summary;
+    injected[buyerSeat].push(`Scouting report on ${target.name}: ${summary}`);
+    broadcast({
+      type: "intel",
+      payload: {
+        matchId,
+        buyerSeat,
+        targetAgentId: target.agentId,
+        amount: Number(delivered.amount),
+        payDigest: delivered.payDigest,
+        dossierDigest: delivered.dossier.anchor?.anchorDigest ?? null,
+        summary,
+      },
+    });
+    log(matchId, "status", {
+      status: "intel-delivered",
+      detail: `${delivered.dossier.verifiedCount}/${delivered.dossier.sourceCount} moves verified; loaded into ${buyer.name}`,
+    });
+  } catch (e) {
+    console.warn(`intel beat failed:`, (e as Error).message);
+    log(matchId, "status", { status: "intel-failed", detail: (e as Error).message });
+  }
 }
 
 function lastActionOf(hand: Hand, seat: Seat): string | undefined {

@@ -47,6 +47,9 @@ export async function execute(tx: Transaction, signer: Ed25519Keypair = coordina
   if (status !== "success") {
     throw new Error(`tx ${res.digest} failed: ${JSON.stringify(res.effects?.status)}`);
   }
+  // Wait until the node has indexed this transaction before returning, so the next
+  // transaction's gas-coin selection sees the new version instead of racing it.
+  await sui.waitForTransaction({ digest: res.digest });
   return { digest: res.digest, objectChanges: res.objectChanges ?? [], status };
 }
 
@@ -58,6 +61,52 @@ export function createdId(changes: unknown[], suffix: string): string {
     }
   }
   throw new Error(`no created object of type ...${suffix}`);
+}
+
+// --- avow mandate (created via our execute() so the two txs do not race gas) ---
+
+export interface CreatedMandate {
+  mandateId: string;
+  accessId: string;
+  capId: string;
+}
+
+// Mirror avow-sdk createMandate, but run both transactions through execute() so each
+// waits for indexing before the next. The SDK's own version fires the two back to back
+// and races the gas-coin version on a busy node.
+export async function createMandateAndAccess(params: {
+  agent: string;
+  perMoveCap: bigint;
+  dailyCap: bigint;
+  expiryEpoch: bigint;
+  restrictTargets?: boolean;
+}): Promise<CreatedMandate> {
+  const AVOW = config.avow.packageId;
+
+  const txMandate = new Transaction();
+  txMandate.moveCall({
+    target: `${AVOW}::mandate::create_entry`,
+    arguments: [
+      txMandate.pure.address(params.agent),
+      txMandate.pure.u64(params.perMoveCap),
+      txMandate.pure.u64(params.dailyCap),
+      txMandate.pure.u64(params.expiryEpoch),
+      txMandate.pure.bool(params.restrictTargets ?? false),
+    ],
+  });
+  const r1 = await execute(txMandate);
+  const mandateId = createdId(r1.objectChanges, "::mandate::Mandate");
+  const capId = createdId(r1.objectChanges, "::mandate::MandateCap");
+
+  const txAccess = new Transaction();
+  txAccess.moveCall({
+    target: `${AVOW}::record::create_access`,
+    arguments: [txAccess.object(mandateId), txAccess.object(capId)],
+  });
+  const r2 = await execute(txAccess);
+  const accessId = createdId(r2.objectChanges, "::record::EvidenceAccess");
+
+  return { mandateId, accessId, capId };
 }
 
 // --- registry ---

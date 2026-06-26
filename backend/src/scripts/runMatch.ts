@@ -14,10 +14,18 @@ function num(name: string, fallback: number): number {
   return fallback;
 }
 
+function seat(name: string): "A" | "B" | undefined {
+  const i = process.argv.indexOf(name);
+  if (i < 0) return undefined;
+  return process.argv[i + 1] === "B" ? "B" : "A";
+}
+
 async function main() {
+  const intelBuyer = seat("--intel-buyer");
   const res = await playMatch({
     hands: num("--hands", 2),
     anchor: !flag("--no-anchor"),
+    intel: intelBuyer ? { buyerSeat: intelBuyer, beforeHand: num("--intel-before", 1) } : undefined,
   });
   console.log(`\ndone: match ${res.matchId}, winner seat ${res.winner}`);
   process.exit(0);

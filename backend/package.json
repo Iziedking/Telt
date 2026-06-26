@@ -10,7 +10,9 @@
     "reason:check": "tsx src/scripts/reasonCheck.ts",
     "engine:test": "tsx src/poker/engine.test.ts",
     "setup:agents": "tsx src/coordinator/setupAgents.ts",
+    "seed": "tsx src/coordinator/seedHistory.ts",
     "match": "tsx src/scripts/runMatch.ts",
+    "intel": "tsx src/scripts/runIntel.ts",
     "db:migrate": "tsx src/scripts/migrate.ts",
     "typecheck": "tsc --noEmit",
     "records": "tsx src/scripts/records.ts"
