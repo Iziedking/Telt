@@ -1,0 +1,109 @@
+import type { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
+import {
+  anchor,
+  verify,
+  listRecords,
+  createSession,
+  getSealClient,
+  getWalrusClient,
+  Reasoning,
+  EVIDENCE_VERSION,
+  type AnchorResult,
+  type VerifyResult,
+} from "avow-sdk";
+import { sui, coordinator } from "../chain/sui.js";
+import type { Seat, Street, Card } from "../poker/types.js";
+
+// Wrap the Avow SDK to anchor one poker move: build a Reasoning trace, seal it on
+// Walrus, hash and stamp it on Sui. The proof of a move lives here, not in the model
+// layer. Verification is exposed too, so the coordinator can confirm a move is real
+// (hash matches, within mandate) the way the dashboard would.
+
+// One Seal client and one Walrus client for the process, both built on the shared
+// Sui client so Seal can cache keys across decryptions.
+const seal = getSealClient(sui);
+const walrus = getWalrusClient(sui);
+
+/** Everything a single agent needs to anchor under its own Avow mandate. */
+export interface AgentAvow {
+  /** The agent's Avow mandate object id. */
+  mandateId: string;
+  /** The evidence access (Seal namespace) registered for that mandate. */
+  accessId: string;
+  /** The mandate's agent address; this signer must equal it. */
+  agentAddress: string;
+  /** The operator identity the evidence is sealed to (per-agent, for per-user intel). */
+  user: string;
+  /** Signs the Walrus write and the anchor transaction. Must be the mandate's agent. */
+  signer: Ed25519Keypair;
+}
+
+export interface MoveAnchorInput {
+  seat: Seat;
+  street: Street;
+  board: Card[];
+  holeCards: [Card, Card];
+  pot: number;
+  action: string;
+  size: number;
+  /** Chips this action committed (the on-chain amount). */
+  amount: number;
+  rationale: string;
+  /** The opponent agent id, recorded as the action's target. */
+  opponentAgentId: string;
+  before: unknown;
+  after: unknown;
+  /** Digests of any real money moves this action references (settlement, etc.). */
+  txDigests?: string[];
+}
+
+export async function anchorMove(ctx: AgentAvow, m: MoveAnchorInput): Promise<AnchorResult> {
+  const boardStr = m.board.length ? m.board.join(" ") : "preflop";
+  const r = new Reasoning(`Heads-up poker decision on the ${m.street}`);
+  r.observe("Read the table", `Hole ${m.holeCards.join(" ")}, board ${boardStr}, pot ${m.pot}.`, {
+    holeCards: m.holeCards,
+    board: m.board,
+    pot: m.pot,
+  });
+  r.decide(
+    m.size > 0 ? `${m.action} to ${m.size}` : m.action,
+    m.rationale,
+    { action: m.action, size: m.size, amount: m.amount },
+  );
+  const reasoning = r.build(m.size > 0 ? `${m.action} ${m.size} (${m.amount} chips)` : `${m.action} (${m.amount} chips)`);
+
+  return anchor({
+    suiClient: sui,
+    sealClient: seal,
+    walrusClient: walrus,
+    signer: ctx.signer,
+    mandateId: ctx.mandateId,
+    accessId: ctx.accessId,
+    bundle: {
+      version: EVIDENCE_VERSION,
+      mandateId: ctx.mandateId,
+      agent: ctx.agentAddress,
+      user: ctx.user,
+      reasoning,
+      actionType: "poker_move",
+      target: m.opponentAgentId,
+      amount: String(m.amount),
+      rationale: m.rationale,
+      observed: { holeCards: m.holeCards, board: m.board, pot: m.pot, action: m.action, size: m.size },
+      before: m.before,
+      after: m.after,
+      txDigests: m.txDigests ?? [],
+      timestampMs: Date.now(),
+    },
+  });
+}
+
+// Confirm the most recent anchored record for a mandate is real: fetch it, decrypt
+// through Seal, recompute the hash, and read the on-chain compliance verdict. The
+// reader is the coordinator, which is the principal of every access it created.
+export async function verifyLatestForMandate(mandateId: string): Promise<VerifyResult | null> {
+  const records = await listRecords(sui, mandateId, 10);
+  if (records.length === 0) return null;
+  const session = await createSession(sui, coordinator(), 10);
+  return verify({ suiClient: sui, sealClient: seal, walrusClient: walrus, sessionKey: session, record: records[0]! });
+}

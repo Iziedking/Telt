@@ -9,8 +9,11 @@
     "start": "tsx src/server.ts",
     "reason:check": "tsx src/scripts/reasonCheck.ts",
     "engine:test": "tsx src/poker/engine.test.ts",
+    "setup:agents": "tsx src/coordinator/setupAgents.ts",
+    "match": "tsx src/scripts/runMatch.ts",
     "db:migrate": "tsx src/scripts/migrate.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "records": "tsx src/scripts/records.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.106.0",

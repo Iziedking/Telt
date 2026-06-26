@@ -3,3 +3,6 @@ dist/
 .env
 .env.local
 *.log
+
+# Per-run agent identities (mandates, access, throwaway sealing keys)
+runtime/
