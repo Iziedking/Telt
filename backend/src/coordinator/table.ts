@@ -75,6 +75,18 @@ export async function playMatch(opts: MatchOptions = {}): Promise<{ matchId: str
   log(matchId, "status", { status: "opening", detail: `table ${short(tableId)} buyin ${fmtSui(o.buyinMist)}` });
   await joinTable(tableId, A.agentId, o.buyinMist);
   await joinTable(tableId, B.agentId, o.buyinMist);
+  broadcast({
+    type: "match",
+    payload: {
+      matchId,
+      tableId,
+      buyin: Number(o.buyinMist),
+      agents: [
+        { seat: "A", name: A.name, level: A.level, agentId: A.agentId },
+        { seat: "B", name: B.name, level: B.level, agentId: B.agentId },
+      ],
+    },
+  });
   log(matchId, "status", { status: "seated", detail: `${A.name} (L${A.level}) vs ${B.name} (L${B.level})` });
 
   const chips: Record<Seat, number> = { A: o.startingChips, B: o.startingChips };

@@ -109,6 +109,14 @@ export async function createMandateAndAccess(params: {
   return { mandateId, accessId, capId };
 }
 
+// Read an agent's linked mandate id from chain (for the verify reveal).
+export async function agentMandateId(agentId: string): Promise<string> {
+  const obj = await sui.getObject({ id: agentId, options: { showContent: true } });
+  const f = (obj.data?.content as { fields?: Record<string, unknown> } | undefined)?.fields;
+  if (!f) throw new Error(`agent ${agentId} not found`);
+  return String(f.mandate_id);
+}
+
 // --- registry ---
 
 export async function claimAgent(name: string, mandateId: string, signer?: Ed25519Keypair): Promise<{ agentId: string; digest: string }> {

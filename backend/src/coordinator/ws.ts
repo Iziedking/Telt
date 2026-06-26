@@ -52,8 +52,16 @@ export interface IntelPayload {
   summary: string;
 }
 
+export interface MatchPayload {
+  matchId: string;
+  tableId: string;
+  buyin: number;
+  agents: { seat: string; name: string; level: number; agentId: string }[];
+}
+
 export type FeedMessage =
   | { type: "status"; payload: { matchId?: string; status: string; detail?: string } }
+  | { type: "match"; payload: MatchPayload }
   | { type: "move"; payload: MovePayload }
   | { type: "verify"; payload: { matchId: string; anchorDigest: string; hashMatches: boolean; amountMatches: boolean; withinMandate: boolean; blobId: string } }
   | { type: "hand"; payload: HandPayload }

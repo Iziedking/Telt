@@ -108,3 +108,42 @@ export async function verifyLatestForMandate(mandateId: string): Promise<VerifyR
   const session = await createSession(sui, coordinator(), 10);
   return verify({ suiClient: sui, sealClient: seal, walrusClient: walrus, sessionKey: session, record: records[0]! });
 }
+
+export interface MoveVerification {
+  hashMatches: boolean;
+  amountMatches: boolean;
+  withinMandate: boolean;
+  blobId: string;
+  txDigest: string | null;
+}
+
+// Verify one specific anchored move by its Walrus blob id (or the latest if no blob is
+// given). This backs the frontend verify reveal: it does the real check on demand, it
+// does not trust a cached flag.
+export async function verifyByBlob(mandateId: string, blobId?: string): Promise<MoveVerification | null> {
+  const records = await listRecords(sui, mandateId, 50);
+  const record = blobId ? records.find((r) => r.blobId === blobId) : records[0];
+  if (!record) return null;
+
+  // Seal key servers and the Walrus relay occasionally rate-limit or drop a request
+  // under load (for example while a match's intel beat is decrypting many bundles).
+  // Retry a couple of times with backoff so the verify reveal is robust.
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const session = await createSession(sui, coordinator(), 10);
+      const vr = await verify({ suiClient: sui, sealClient: seal, walrusClient: walrus, sessionKey: session, record });
+      return {
+        hashMatches: vr.hashMatches,
+        amountMatches: vr.amountMatches,
+        withinMandate: vr.withinMandate,
+        blobId: record.blobId,
+        txDigest: record.txDigest ?? null,
+      };
+    } catch (e) {
+      lastErr = e;
+      await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
+}
