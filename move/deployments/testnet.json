@@ -1,12 +1,16 @@
 {
   "network": "testnet",
-  "packageId": "0x814d765880653a9157141d8ab9e82960616903ce967a5dfd3dd0d18abfa317ad",
+  "packageId": "0xea74abe132bac52cff6aade5089ed72886fb60ec505721964002fd1cb03bfda1",
   "modules": ["registry", "table", "intel"],
-  "coordinatorCap": "0x8dcd393e3f465152d7271d349b98cb346bdee43c14b79bac3507c336b60cc2e3",
-  "treasuryObject": "0xe246084d916a2855c12959d5c86551e9d5eba542820a924e4846d15dd42bf8f2",
+  "coordinatorCap": "0x8e22e24602dd7fd1fb5a9363ed1837f85ae52dc0bfa11bf6f28c0f3a0a7bbc29",
+  "treasuryObject": "0x22b0fa455543c5d4ae306f30c168855527a0bda6912c6d967b7ef74df96d484b",
   "treasuryAddress": "0xc11c77d7f5f0555041e04a89a266edbe305da731c4f10c102bc4384536bbb65b",
   "publisher": "0xc11c77d7f5f0555041e04a89a266edbe305da731c4f10c102bc4384536bbb65b",
-  "publishTx": "HCtqKDziybXrW6xi7YCk81dtDtRC4CZyq2ff7zUzdPbL",
+  "publishTx": "9S4fRmeit8hJu2tgLNU9CmquLKso9fH6DppvEqGfKcei",
   "publishedAt": "2026-06-26",
-  "note": "ARENA_PACKAGE_ID is the submission Package ID. Treasury is a shared object; upgrade and buy_intel take it by reference and route fees to treasuryAddress. The Avow package (0x4f3e...a3ee) is reused unchanged, not redeployed."
+  "note": "ARENA_PACKAGE_ID is the submission Package ID. This is the post-audit deployment: settle is constrained to seated owners, join requires owner+registration, buy_intel binds a registered target's real owner/mandate, and reclaim adds a timeout escape. Treasury is a shared object; upgrade and buy_intel take it by reference and route fees to treasuryAddress. The Avow package (0x4f3e...a3ee) is reused unchanged, not redeployed.",
+  "supersedes": {
+    "packageId": "0x814d765880653a9157141d8ab9e82960616903ce967a5dfd3dd0d18abfa317ad",
+    "reason": "Pre-audit deployment, abandoned. Had an unconstrained settle winner (High), no PLAYING-state escape, and no owner/consent gate on join. No real funds were ever escrowed."
+  }
 }

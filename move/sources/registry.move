@@ -4,16 +4,18 @@
 /// The agent registry for the Telt arena.
 ///
 /// An `Agent` is the on-chain identity an operator plays under: its owner, its level
-/// (the one skill dial, bought here), its win/loss record, and a link to the Avow
-/// mandate that authorizes its move anchors. Agents are shared so the arena
-/// coordinator can stamp results against them after a table settles, while only the
-/// owner can level up or register for an arena.
+/// (the one skill dial, bought here), its win/loss record, a `registered` consent
+/// flag, and a link to the Avow mandate that authorizes its move anchors. Agents are
+/// shared so the arena coordinator can stamp results against them after a table
+/// settles, while only the owner can level up or register for an arena.
 ///
-/// The single consent rule of Telt is documented at `register_for_arena`: entering a
-/// table makes your moves and reasoning purchasable intel for that arena. The marker
-/// is emitted here; the actual read-grant is the operator calling
-/// `avow::record::add_auditor(access, cap, ARENA_COORDINATOR_ADDR)` once, off chain
-/// through the SDK, so the coordinator can compile intel from real Avow records.
+/// The single consent rule of Telt is enforced at `register_for_arena`: entering a
+/// table makes your moves and reasoning purchasable intel for that arena, symmetric
+/// for every entrant. Registration sets `registered = true`, and both `table::join`
+/// and `intel::buy_intel` require it, so an unregistered agent can neither be seated
+/// nor have intel sold on it. The on-chain marker pairs with the off-chain read-grant:
+/// the operator calls `avow::record::add_auditor(access, cap, ARENA_COORDINATOR_ADDR)`
+/// once through the SDK so the coordinator can compile intel from real Avow records.
 module telt::registry;
 
 use std::string::{Self, String};
@@ -31,7 +33,8 @@ const EMaxLevel: u64 = 3;
 const MAX_LEVEL: u8 = 3;
 
 /// Holds the address arena fees flow to (upgrades and intel). Shared and set once at
-/// publish to the publisher, who is the coordinator on the testnet demo.
+/// publish to the publisher, who is the coordinator on the testnet demo. There is no
+/// public constructor, so exactly one Treasury ever exists and it cannot be spoofed.
 public struct Treasury has key {
     id: UID,
     addr: address,
@@ -52,6 +55,9 @@ public struct Agent has key {
     level: u8,
     wins: u64,
     losses: u64,
+    /// True once the owner has registered the agent for arena play. This is the
+    /// on-chain consent marker that gates seating and intel sales.
+    registered: bool,
     /// Links to the agent's Avow mandate, so its move anchors verify against it.
     mandate_id: ID,
     created_epoch: u64,
@@ -60,7 +66,7 @@ public struct Agent has key {
 // --- Events ---
 public struct AgentClaimed has copy, drop { agent: ID, owner: address, mandate_id: ID }
 public struct LevelUp has copy, drop { agent: ID, owner: address, level: u8 }
-public struct ArenaRegistered has copy, drop { agent: ID, owner: address }
+public struct ArenaRegistered has copy, drop { agent: ID, owner: address, mandate_id: ID }
 public struct ResultRecorded has copy, drop { agent: ID, won: bool, wins: u64, losses: u64 }
 
 fun init(ctx: &mut TxContext) {
@@ -86,6 +92,7 @@ public fun claim_agent(name: vector<u8>, mandate_id: ID, ctx: &mut TxContext) {
         level: 0,
         wins: 0,
         losses: 0,
+        registered: false,
         mandate_id,
         created_epoch: ctx.epoch(),
     };
@@ -115,11 +122,17 @@ public fun upgrade(
     event::emit(LevelUp { agent: object::id(agent), owner: agent.owner, level: agent.level });
 }
 
-/// Emit the consent marker. Entering an arena makes this agent's moves and reasoning
-/// purchasable intel, symmetric for every entrant. Owner-only.
-public fun register_for_arena(agent: &Agent, ctx: &TxContext) {
+/// Consent to arena play. Sets the on-chain `registered` flag and emits the marker.
+/// Entering an arena makes this agent's moves and reasoning purchasable intel,
+/// symmetric for every entrant. Owner-only; idempotent.
+public fun register_for_arena(agent: &mut Agent, ctx: &TxContext) {
     assert!(ctx.sender() == agent.owner, ENotOwner);
-    event::emit(ArenaRegistered { agent: object::id(agent), owner: agent.owner });
+    agent.registered = true;
+    event::emit(ArenaRegistered {
+        agent: object::id(agent),
+        owner: agent.owner,
+        mandate_id: agent.mandate_id,
+    });
 }
 
 /// Stamp a hand or match result against an agent. Coordinator-gated.
@@ -140,6 +153,7 @@ public fun record_result(_cap: &CoordinatorCap, agent: &mut Agent, won: bool) {
 // --- Read-only accessors ---
 public fun owner(a: &Agent): address { a.owner }
 public fun level(a: &Agent): u8 { a.level }
+public fun is_registered(a: &Agent): bool { a.registered }
 public fun mandate_id(a: &Agent): ID { a.mandate_id }
 public fun name(a: &Agent): String { a.name }
 public fun wins(a: &Agent): u64 { a.wins }
