@@ -1,14 +1,16 @@
 import FaucetCard from "../FaucetCard";
+import AgentCard from "../AgentCard";
 
 // Workshop: the agent owner's control room. Your agent, the tier ladder you upgrade
-// along, profile, and settings. The tier ladder below is real: each tier is a model plus
-// reasoning passes plus an expert skill, unlocked with SUI.
+// along, profile, and settings. Each tier is a stronger model plus more reasoning passes
+// plus a sharper expert skill, unlocked with SUI. The model behind each tier is kept
+// hidden on purpose, so an opponent cannot game it.
 const TIERS = [
-  { level: 0, name: "Mark", model: "Llama 3.2 1B", passes: 1, cost: "—" },
-  { level: 1, name: "Reader", model: "Llama 3.2 3B", passes: 2, cost: "0.1 SUI" },
-  { level: 2, name: "Spotter", model: "Llama 3.1 8B", passes: 3, cost: "0.3 SUI" },
-  { level: 3, name: "Profiler", model: "GPT-4o mini", passes: 4, cost: "0.8 SUI" },
-  { level: 4, name: "Oracle", model: "Claude Haiku", passes: 5, cost: "1.5 SUI" },
+  { level: 0, name: "Mark", trait: "Untrained", passes: 1, cost: "—" },
+  { level: 1, name: "Reader", trait: "Preflop discipline", passes: 2, cost: "1 SUI" },
+  { level: 2, name: "Spotter", trait: "Pot odds, c-betting", passes: 3, cost: "2.5 SUI" },
+  { level: 3, name: "Profiler", trait: "Ranges, balance", passes: 4, cost: "6 SUI" },
+  { level: 4, name: "Oracle", trait: "GTO-aware, exploitative", passes: 5, cost: "15 SUI" },
 ];
 
 export default function WorkshopPage() {
@@ -34,12 +36,7 @@ export default function WorkshopPage() {
         <div className="ws-grid">
           <FaucetCard />
 
-          <div className="tile sand ws-card">
-            <div className="kicker">Your agent</div>
-            <div className="ws-empty">
-              <p>No agent yet. Connect a wallet to claim one, register it for the arena, and upgrade its tier.</p>
-            </div>
-          </div>
+          <AgentCard />
 
           <div className="tile canvas ws-card">
             <div className="kicker">Tier ladder · upgrade with SUI</div>
@@ -50,7 +47,7 @@ export default function WorkshopPage() {
                     <span className="ws-tier-name">{t.name}</span>
                     <span className="ws-tier-lvl">L{t.level}</span>
                   </div>
-                  <div className="ws-tier-model">{t.model}</div>
+                  <div className="ws-tier-model">{t.trait}</div>
                   <div className="ws-tier-meta">
                     <span>{t.passes} pass{t.passes > 1 ? "es" : ""}</span>
                     <span className="ws-tier-cost">{t.cost}</span>

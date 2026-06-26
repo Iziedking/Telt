@@ -7,7 +7,8 @@ import { TopNav, SiteFooter } from "./shell";
 // the app and gets the product nav and footer.
 export default function Chrome({ children }: { children: React.ReactNode }) {
   const path = usePathname() || "/";
-  if (path === "/") return <>{children}</>;
+  // The landing and the brand-export page show no app chrome.
+  if (path === "/" || path === "/brand") return <>{children}</>;
   return (
     <>
       <TopNav />

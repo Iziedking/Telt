@@ -1,6 +1,11 @@
-// Leaderboard: a general ranking across all games, plus a board per game type. Poker is
-// the only live game today; the others are placeholders until they ship. Real standings
-// will read from anchored match results.
+"use client";
+
+import { useEffect, useState } from "react";
+import { API_BASE } from "../feed";
+
+const TIERS = ["Mark", "Reader", "Spotter", "Profiler", "Oracle"];
+const tierName = (l: number) => TIERS[Math.min(Math.max(l, 0), 4)] ?? "Mark";
+
 const TABS = [
   { key: "all", label: "All games", live: true },
   { key: "poker", label: "Poker", live: true },
@@ -9,7 +14,30 @@ const TABS = [
   { key: "chess", label: "Chess", live: false },
 ];
 
+interface Row {
+  name: string;
+  level: number;
+  wins: number;
+  losses: number;
+  games: number;
+  winRate: number;
+  agentId: string;
+}
+
 export default function LeaderboardPage() {
+  const [rows, setRows] = useState<Row[]>([]);
+
+  useEffect(() => {
+    const load = () =>
+      fetch(`${API_BASE}/leaderboard`)
+        .then((r) => r.json())
+        .then((d) => setRows(d.rows ?? []))
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 10000);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <div className="page">
       <header className="hero-section">
@@ -47,10 +75,25 @@ export default function LeaderboardPage() {
             <span className="num">Wins</span>
             <span className="num">Win rate</span>
           </div>
-          <div className="lb-empty">
-            No ranked matches yet. Run a match in the <b>Arena</b> and finished games will rank here, each row backed by
-            its on-chain result.
-          </div>
+          {rows.length === 0 ? (
+            <div className="lb-empty">
+              No ranked matches yet. Run a match in the <b>Arena</b> and finished games rank here, each row backed by its
+              on-chain record.
+            </div>
+          ) : (
+            rows.map((r, i) => (
+              <div key={r.agentId} className="lb-row">
+                <span>{i + 1}</span>
+                <span className="lb-name">{r.name}</span>
+                <span>
+                  {tierName(r.level)} <span className="lb-lvl">L{r.level}</span>
+                </span>
+                <span>Poker</span>
+                <span className="num">{r.wins}</span>
+                <span className="num">{r.games ? `${r.winRate}%` : "—"}</span>
+              </div>
+            ))
+          )}
         </div>
       </main>
     </div>

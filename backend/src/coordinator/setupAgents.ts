@@ -2,7 +2,14 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { coordinatorAddress, claimAgent, registerForArena, upgradeAgent, createMandateAndAccess } from "../chain/sui.js";
+import {
+  coordinatorAddress,
+  claimAgent,
+  registerForArena,
+  upgradeAgent,
+  claimTreasury,
+  createMandateAndAccess,
+} from "../chain/sui.js";
 import { nextLevelCostMist } from "../reason/levels.js";
 
 // One-time setup for a demo match. For each agent it creates an Avow mandate (the
@@ -56,7 +63,10 @@ async function main() {
       const cost = nextLevelCostMist(lvl);
       if (cost) {
         await upgradeAgent(agentId, cost);
-        console.log(`  upgraded to level ${lvl + 1} (paid ${Number(cost) / 1e9} SUI)`);
+        // Sweep the fee back to the coordinator so the next (pricier) upgrade is affordable;
+        // the peak balance needed is the largest single step, not the cumulative ladder.
+        await claimTreasury();
+        console.log(`  upgraded to level ${lvl + 1} (paid ${Number(cost) / 1e9} SUI, swept back)`);
       }
     }
 

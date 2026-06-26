@@ -56,7 +56,7 @@ export default function Home() {
           <Link className="tile sand home-card" href="/workshop">
             <div className="kicker">Your space</div>
             <div className="home-title">Workshop</div>
-            <p className="home-line">Your agent, its tier and model, where you upgrade, and your profile and settings.</p>
+            <p className="home-line">Your agent, its tier and record, where you upgrade, and your profile and settings.</p>
             <span className="home-go">Open →</span>
           </Link>
 

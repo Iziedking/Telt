@@ -79,10 +79,10 @@ fun init(ctx: &mut TxContext) {
 /// SUI (in MIST, 9 decimals) to go from `level` to `level + 1`. Mirrors the backend
 /// ladder in reason/levels.ts: an easy on-ramp, then a real climb to the Oracle.
 fun upgrade_cost(level: u8): u64 {
-    if (level == 0) 100_000_000 // 0.1 SUI
-    else if (level == 1) 300_000_000 // 0.3 SUI
-    else if (level == 2) 800_000_000 // 0.8 SUI
-    else if (level == 3) 1_500_000_000 // 1.5 SUI
+    if (level == 0) 1_000_000_000 // 1 SUI
+    else if (level == 1) 2_500_000_000 // 2.5 SUI
+    else if (level == 2) 6_000_000_000 // 6 SUI
+    else if (level == 3) 15_000_000_000 // 15 SUI
     else 0
 }
 

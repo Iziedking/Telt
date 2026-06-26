@@ -15,10 +15,10 @@ export const MAX_LEVEL = 4;
 // then a real climb to the Oracle. Mirrors registry::upgrade_cost on chain. The fee
 // accumulates in the on-chain Treasury for the coordinator to claim.
 export const UPGRADE_COSTS_MIST = [
-  100_000_000n, // level 0 -> 1: 0.1 SUI
-  300_000_000n, // level 1 -> 2: 0.3 SUI
-  800_000_000n, // level 2 -> 3: 0.8 SUI
-  1_500_000_000n, // level 3 -> 4: 1.5 SUI
+  1_000_000_000n, // level 0 -> 1: 1 SUI
+  2_500_000_000n, // level 1 -> 2: 2.5 SUI
+  6_000_000_000n, // level 2 -> 3: 6 SUI
+  15_000_000_000n, // level 3 -> 4: 15 SUI
 ] as const;
 
 // Per-decision plan. `samples` is the number of independent reasoned action

@@ -955,6 +955,19 @@ a.home-card:hover {
   font-size: 14px;
   line-height: 1.55;
 }
+.lb-row:not(.lb-head) {
+  border-top: 1px solid var(--line);
+}
+.lb-name {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 16px;
+}
+.lb-lvl {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  color: var(--dim);
+}
 
 /* Workshop */
 .ws-grid {
@@ -1050,6 +1063,77 @@ a.home-card:hover {
   font-size: 13px;
   font-weight: 600;
   color: var(--ink);
+}
+.ws-claim {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+.ws-input {
+  font-family: var(--font-body), sans-serif;
+  font-size: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(20, 24, 31, 0.2);
+  background: rgba(255, 255, 255, 0.65);
+  color: var(--ink);
+}
+.ws-agent {
+  padding: 12px 0;
+  border-top: 1px solid rgba(20, 24, 31, 0.12);
+}
+.ws-agent:first-of-type {
+  border-top: none;
+  margin-top: 8px;
+}
+.ws-agent-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+.ws-agent-name {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+}
+.ws-agent-tier {
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  color: #4b5560;
+}
+.ws-agent-rec {
+  font-size: 12px;
+  color: #4b5560;
+  margin: 3px 0 8px;
+}
+.ws-agent-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ws-mini {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.ws-mini.primary {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: #fff;
+}
+.ws-mini:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* Contests */
@@ -1162,6 +1246,49 @@ a.home-card:hover {
   opacity: 0.7;
 }
 
+/* --- Brand lockup (for the brandkit export) --- */
+.brandkit {
+  display: flex;
+  flex-direction: column;
+}
+.bk-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 96px 70px;
+}
+.bk-card.light {
+  background: #f4f1ea;
+}
+.bk-card.dark {
+  background: #14181f;
+}
+.lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 24px;
+}
+.bk-badge {
+  width: 100px;
+  height: 100px;
+  display: block;
+}
+.bk-word {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 86px;
+  line-height: 1;
+}
+.bk-word.ink {
+  color: #14181f;
+}
+.bk-word.cream {
+  color: #f4f1ea;
+}
+.bk-accent {
+  color: #e8352b;
+}
+
 /* --- Marketing landing (always dark, cinematic, no app chrome) --- */
 .landing {
   background: #0f1318;
@@ -1180,7 +1307,7 @@ a.home-card:hover {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.35;
+  opacity: 0.6;
   z-index: 0;
 }
 .landing-bg {
@@ -1226,7 +1353,17 @@ a.home-card:hover {
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: radial-gradient(60% 60% at 30% 40%, rgba(15, 19, 24, 0.5), rgba(15, 19, 24, 0.92));
+  /* Dark on the left so the headline stays crisp, clearing toward the right so the
+     background reel shows through; a touch darker along the bottom for the CTA. */
+  background:
+    linear-gradient(
+      90deg,
+      rgba(15, 19, 24, 0.95) 0%,
+      rgba(15, 19, 24, 0.78) 36%,
+      rgba(15, 19, 24, 0.42) 68%,
+      rgba(15, 19, 24, 0.6) 100%
+    ),
+    linear-gradient(0deg, rgba(15, 19, 24, 0.65) 0%, rgba(15, 19, 24, 0) 32%);
 }
 .landing-hero-inner {
   position: relative;

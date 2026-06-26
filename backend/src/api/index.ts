@@ -6,7 +6,8 @@ import { config, memoryConfigured, reasonConfigured, suiConfigured } from "../co
 import { reasonMode } from "../reason/client.js";
 import { attachWebSocket } from "../coordinator/ws.js";
 import { intelRoutes } from "../intel/market.js";
-import { agentMandateId, faucetMintUsdc } from "../chain/sui.js";
+import { agentMandateId, faucetMintUsdc, sui, createMandateAndAccess, coordinatorAddress } from "../chain/sui.js";
+import { loadRoster } from "../coordinator/roster.js";
 import { verifyByBlob } from "../avow/anchorMove.js";
 import { playMatch } from "../coordinator/table.js";
 import { runAutopilotCycle, recentContests, difficultyTiers, autopilotEnabled } from "../coordinator/autopilot.js";
@@ -89,6 +90,92 @@ app.post("/autopilot/run", (c) => {
   return c.json({ started: true });
 });
 
+// The agents a wallet owns. Agent objects are shared, so we read the AgentClaimed events
+// for this owner and then the live state of each agent.
+app.get("/agents", async (c) => {
+  const owner = (c.req.query("owner") || "").toLowerCase();
+  if (!/^0x[0-9a-f]{1,64}$/.test(owner)) return c.json({ agents: [] });
+  try {
+    const ev = await sui.queryEvents({
+      query: { MoveEventType: `${config.arena.packageId}::registry::AgentClaimed` },
+      limit: 50,
+      order: "descending",
+    });
+    const mine = ev.data.filter((e: any) => String(e.parsedJson?.owner).toLowerCase() === owner);
+    const agents = await Promise.all(
+      mine.map(async (e: any) => {
+        const id = e.parsedJson.agent as string;
+        const o = (await sui.getObject({ id, options: { showContent: true } })) as any;
+        const f = o.data?.content?.fields ?? {};
+        return {
+          agentId: id,
+          name: String(f.name ?? "agent"),
+          level: Number(f.level ?? 0),
+          wins: Number(f.wins ?? 0),
+          losses: Number(f.losses ?? 0),
+          registered: Boolean(f.registered),
+        };
+      }),
+    );
+    return c.json({ agents });
+  } catch (e) {
+    return c.json({ agents: [], error: (e as Error).message });
+  }
+});
+
+// Provision an Avow mandate so a wallet can claim its own agent. Mandate creation needs
+// the Avow SDK and the coordinator key, so the backend does it; the user then signs the
+// claim with their wallet, owning the agent. (The coordinator stays the anchoring agent.)
+app.post("/provision-mandate", async (c) => {
+  try {
+    const m = await createMandateAndAccess({
+      agent: coordinatorAddress(),
+      perMoveCap: 1_000_000_000n,
+      dailyCap: 1_000_000_000_000n,
+      expiryEpoch: 100000n,
+      restrictTargets: false,
+    });
+    return c.json({ mandateId: m.mandateId });
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 500);
+  }
+});
+
+// Leaderboard: rank the registered agents by their on-chain record. Wins and losses are
+// recorded against each Agent at settlement, so the table is backed by real results.
+app.get("/leaderboard", async (c) => {
+  let agents: { agentId: string; name: string; level: number }[];
+  try {
+    agents = loadRoster().agents;
+  } catch {
+    return c.json({ game: "poker", rows: [] });
+  }
+  const rows = await Promise.all(
+    agents.map(async (a) => {
+      try {
+        const o = (await sui.getObject({ id: a.agentId, options: { showContent: true } })) as any;
+        const f = o.data?.content?.fields ?? {};
+        const wins = Number(f.wins ?? 0);
+        const losses = Number(f.losses ?? 0);
+        const games = wins + losses;
+        return {
+          name: String(f.name ?? a.name),
+          level: Number(f.level ?? a.level),
+          wins,
+          losses,
+          games,
+          winRate: games ? Math.round((100 * wins) / games) : 0,
+          agentId: a.agentId,
+        };
+      } catch {
+        return { name: a.name, level: a.level, wins: 0, losses: 0, games: 0, winRate: 0, agentId: a.agentId };
+      }
+    }),
+  );
+  rows.sort((x, y) => y.wins - x.wins || y.winRate - x.winRate || y.level - x.level);
+  return c.json({ game: "poker", rows });
+});
+
 // The Contests view: the difficulty tiers missions scale across, and recent finished ones.
 app.get("/contests", (c) =>
   c.json({ autopilot: autopilotEnabled(), tiers: difficultyTiers(), recent: recentContests() }),
@@ -102,6 +189,7 @@ app.get("/status", (c) =>
     suiConfigured: suiConfigured(),
     memoryConfigured: memoryConfigured(),
     arenaPackage: config.arena.packageId || null,
+    arenaTreasury: config.arena.treasuryObject || null,
     avowPackage: config.avow.packageId,
   }),
 );
