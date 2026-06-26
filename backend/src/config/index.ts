@@ -67,6 +67,13 @@ export const config = {
     privateKey: process.env.MEMWAL_PRIVATE_KEY ?? "",
     accountId: process.env.MEMWAL_ACCOUNT_ID ?? "",
   },
+  // The Solver game grounds its puzzles in the live web. Exa answers and cites facts;
+  // Firecrawl does deep web search so questions stay fresh and do not repeat. Both are
+  // optional: without keys the generator falls back to the model's own knowledge.
+  solver: {
+    exaKey: process.env.EXA_API_KEY ?? "",
+    firecrawlKey: process.env.FIRECRAWL_API_KEY ?? "",
+  },
   db: {
     url: optional("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/telt"),
   },

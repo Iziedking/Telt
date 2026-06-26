@@ -18,7 +18,8 @@
     "records": "tsx src/scripts/records.ts",
     "tiertest": "tsx src/scripts/tierTest.ts",
     "benchmark": "tsx src/scripts/benchmark.ts",
-    "modelcheck": "tsx src/scripts/modelCheck.ts"
+    "modelcheck": "tsx src/scripts/modelCheck.ts",
+    "solver": "tsx src/scripts/runSolver.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.106.0",
