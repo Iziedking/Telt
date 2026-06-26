@@ -42,9 +42,12 @@ body {
 /* --- Shell and frame --- */
 
 .shell {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 40px 24px 80px;
+  width: 100%;
+  margin: 0;
+  padding: 28px 34px 34px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .topbar {
@@ -72,18 +75,26 @@ body {
   max-width: 460px;
 }
 
-/* The tablet-style ink frame that holds the whole arena, the one soft shadow. */
+/* The tablet-style ink frame that holds the whole arena, the one soft shadow. It
+   fills the page, edge to edge and down to the viewport, so the arena reads as a
+   full-bleed dashboard rather than a centered card. */
 .frame {
   background: var(--ink);
   border-radius: calc(var(--radius) + 8px);
   padding: var(--gap);
   box-shadow: var(--frame-shadow);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-height: calc(100vh - 150px);
 }
 
 .bento {
   display: grid;
-  grid-template-columns: 1fr 1.35fr;
+  grid-template-columns: 1fr 1.5fr;
   gap: var(--gap);
+  flex: 1.2;
 }
 
 .tile {
@@ -192,6 +203,11 @@ body {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  height: 100%;
+  justify-content: space-between;
+}
+.table .board {
+  flex: 1;
 }
 .seatrow {
   display: flex;
@@ -279,21 +295,21 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: var(--gap);
-  margin-top: var(--gap);
+  flex: 1;
 }
 .row2 {
   display: grid;
   grid-template-columns: 1.1fr 1fr;
   gap: var(--gap);
-  margin-top: var(--gap);
+  flex: 1.15;
 }
 .row3 > .tile {
-  min-height: 320px;
+  min-height: 280px;
   display: flex;
   flex-direction: column;
 }
 .row2 > .tile {
-  min-height: 300px;
+  min-height: 240px;
 }
 
 .intel-summary {
@@ -454,8 +470,13 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 420px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+}
+.tile.canvas {
+  display: flex;
+  flex-direction: column;
 }
 .move {
   background: rgba(20, 24, 31, 0.05);
