@@ -1,0 +1,12 @@
+{
+  "network": "testnet",
+  "packageId": "0x814d765880653a9157141d8ab9e82960616903ce967a5dfd3dd0d18abfa317ad",
+  "modules": ["registry", "table", "intel"],
+  "coordinatorCap": "0x8dcd393e3f465152d7271d349b98cb346bdee43c14b79bac3507c336b60cc2e3",
+  "treasuryObject": "0xe246084d916a2855c12959d5c86551e9d5eba542820a924e4846d15dd42bf8f2",
+  "treasuryAddress": "0xc11c77d7f5f0555041e04a89a266edbe305da731c4f10c102bc4384536bbb65b",
+  "publisher": "0xc11c77d7f5f0555041e04a89a266edbe305da731c4f10c102bc4384536bbb65b",
+  "publishTx": "HCtqKDziybXrW6xi7YCk81dtDtRC4CZyq2ff7zUzdPbL",
+  "publishedAt": "2026-06-26",
+  "note": "ARENA_PACKAGE_ID is the submission Package ID. Treasury is a shared object; upgrade and buy_intel take it by reference and route fees to treasuryAddress. The Avow package (0x4f3e...a3ee) is reused unchanged, not redeployed."
+}

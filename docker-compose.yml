@@ -1,0 +1,43 @@
+# One command brings up the whole stack: `docker compose up`.
+#
+# Postgres is published on host port 5433 (not the default 5432) so it never
+# collides with a local Postgres. Inside the compose network the backend reaches it
+# at postgres:5432. The backend boots, applies the schema, then serves on :8787.
+#
+# Secrets (ANTHROPIC_API_KEY, SUI_PRIVATE_KEY, MEMWAL_*) come from backend/.env.
+# Copy backend/.env.example to backend/.env and fill it in before `up`.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: telt
+      POSTGRES_PASSWORD: telt
+      POSTGRES_DB: telt
+    ports:
+      - "5433:5432"
+    volumes:
+      - telt_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U telt -d telt"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build: ./backend
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      # Override the .env DATABASE_URL: inside the network the host is `postgres`.
+      DATABASE_URL: postgres://telt:telt@postgres:5432/telt
+      PORT: "8787"
+    ports:
+      - "8787:8787"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  telt_pgdata:

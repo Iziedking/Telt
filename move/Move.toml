@@ -1,0 +1,10 @@
+[package]
+name = "telt"
+edition = "2024"
+
+# The Sui framework and standard library are implicit system dependencies, so no
+# [dependencies] block is required. testnet and mainnet are built-in system
+# environments on this toolchain, so no [environments] block is needed. The
+# package's own named address (telt) binds automatically from the package name.
+# The Avow resale path calls Avow from the SDK off chain, so no Move dependency on
+# the Avow package is needed here.
