@@ -1439,6 +1439,159 @@ a.home-card:hover {
   letter-spacing: 0.08em;
   color: rgba(244, 241, 234, 0.4);
 }
+/* A tiny, barely-there red speaker button, top-right of the hero. */
+.sound-btn {
+  position: absolute;
+  top: 24px;
+  right: 28px;
+  z-index: 3;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--signal);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  opacity: 0.35;
+  transition: opacity 0.2s ease, transform 0.1s ease;
+}
+.sound-btn:hover {
+  opacity: 1;
+  transform: scale(1.06);
+}
+
+/* --- Navigation tour --- */
+.nav-help {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--dim);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.nav-help:hover {
+  color: var(--text);
+  border-color: var(--text);
+}
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+.tour-spot {
+  position: fixed;
+  border-radius: 12px;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 9999px rgba(15, 19, 24, 0.55),
+    0 0 0 2px var(--signal);
+  transition:
+    top 0.28s cubic-bezier(0.2, 0.7, 0.2, 1),
+    left 0.28s cubic-bezier(0.2, 0.7, 0.2, 1),
+    width 0.28s cubic-bezier(0.2, 0.7, 0.2, 1),
+    height 0.28s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.tour-pop {
+  position: fixed;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  pointer-events: auto;
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 18px 50px rgba(15, 19, 24, 0.35);
+  animation: tourIn 0.3s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes tourIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.tour-step {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--signal);
+}
+.tour-title {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 21px;
+  margin: 8px 0;
+  color: var(--text);
+}
+.tour-body {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--dim);
+  margin: 0 0 16px;
+}
+.tour-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.tour-skip {
+  background: none;
+  border: none;
+  color: var(--dim);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px;
+}
+.tour-skip:hover {
+  color: var(--text);
+}
+.tour-right {
+  display: flex;
+  gap: 8px;
+}
+.tour-back {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+.tour-next {
+  background: var(--signal);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 16px;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+.tour-next:hover {
+  transform: translateY(-1px);
+}
 .landing-strip {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

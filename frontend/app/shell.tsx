@@ -30,21 +30,21 @@ export function WalletButton() {
   const { mutate: disconnect } = useDisconnectWallet();
   if (account) {
     return (
-      <button className="chip wallet" onClick={() => disconnect()} title="Click to disconnect">
+      <button className="chip wallet" data-tour="connect" onClick={() => disconnect()} title="Click to disconnect">
         <span className="sdot" />
         {short(account.address)}
       </button>
     );
   }
-  return <ConnectModal trigger={<button className="chip wallet">Connect wallet</button>} />;
+  return <ConnectModal trigger={<button className="chip wallet" data-tour="connect">Connect wallet</button>} />;
 }
 
 const NAV = [
-  { href: "/home", label: "Home" },
-  { href: "/arena", label: "Arena" },
-  { href: "/contests", label: "Contests" },
-  { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/workshop", label: "Workshop" },
+  { href: "/home", label: "Home", tour: undefined as string | undefined },
+  { href: "/arena", label: "Arena", tour: "arena" },
+  { href: "/contests", label: "Contests", tour: "contests" },
+  { href: "/leaderboard", label: "Leaderboard", tour: "leaderboard" },
+  { href: "/workshop", label: "Workshop", tour: "workshop" },
 ];
 
 // The product nav, shared across every page. Poker is one game inside Arena; the
@@ -63,13 +63,21 @@ export function TopNav() {
         {NAV.map((n) => {
           const active = n.href === "/" ? path === "/" : path.startsWith(n.href);
           return (
-            <Link key={n.href} href={n.href} className={active ? "active" : ""}>
+            <Link key={n.href} href={n.href} className={active ? "active" : ""} data-tour={n.tour}>
               {n.label}
             </Link>
           );
         })}
       </div>
       <div className="nav-right">
+        <button
+          className="nav-help"
+          onClick={() => window.dispatchEvent(new Event("telt:tour"))}
+          aria-label="Take the tour"
+          title="Take the tour"
+        >
+          ?
+        </button>
         <WalletButton />
       </div>
     </nav>
