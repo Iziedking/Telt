@@ -9,6 +9,7 @@ import { intelRoutes } from "../intel/market.js";
 import { agentMandateId, faucetMintUsdc } from "../chain/sui.js";
 import { verifyByBlob } from "../avow/anchorMove.js";
 import { playMatch } from "../coordinator/table.js";
+import { runAutopilotCycle } from "../coordinator/autopilot.js";
 import { query } from "../db/pool.js";
 
 // The read API and the WS live feed. Routes are intentionally thin: health, a status
@@ -70,6 +71,13 @@ app.post("/faucet", async (c) => {
   } catch (e) {
     return c.json({ error: (e as Error).message }, 500);
   }
+});
+
+// Run one autopilot event now: open a contest, seat the agents, play, settle the pool.
+// Runs in the background; progress streams over /ws and the console.
+app.post("/autopilot/run", (c) => {
+  void runAutopilotCycle().catch((e) => console.error("autopilot:", (e as Error).message));
+  return c.json({ started: true });
 });
 
 app.get("/status", (c) =>

@@ -71,6 +71,11 @@ export const config = {
   server: {
     port: Number(optional("PORT", "8787")),
   },
+  autopilot: {
+    // When on, the platform runs contests on a schedule to keep the arena busy.
+    enabled: optional("AUTOPILOT_ENABLED", "off").toLowerCase() === "on",
+    intervalMs: Number(optional("AUTOPILOT_INTERVAL_MS", "3600000")), // default hourly
+  },
 };
 
 export function suiConfigured(): boolean {
