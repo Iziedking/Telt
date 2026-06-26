@@ -19,6 +19,11 @@ interface SeatView {
   agentId: string;
   chips: number | null;
   lastMove: string;
+  lastWhy: string;
+  lastSamples: number;
+  moves: number;
+  recent: string[];
+  handsWon: number;
 }
 
 interface ViewModel {
@@ -30,12 +35,24 @@ interface ViewModel {
   pot: number;
   active: Seat | null;
   handIndex: number;
-  moves: MovePayload[];
+  handsPlayed: number;
+  moveList: MovePayload[];
   intel: IntelPayload | null;
   settled: SettledPayload | null;
 }
 
-const EMPTY_SEAT: SeatView = { name: "—", level: 0, agentId: "", chips: null, lastMove: "" };
+const EMPTY_SEAT: SeatView = {
+  name: "—",
+  level: 0,
+  agentId: "",
+  chips: null,
+  lastMove: "",
+  lastWhy: "",
+  lastSamples: 0,
+  moves: 0,
+  recent: [],
+  handsWon: 0,
+};
 
 const INITIAL: ViewModel = {
   status: "idle",
@@ -46,10 +63,17 @@ const INITIAL: ViewModel = {
   pot: 0,
   active: null,
   handIndex: 0,
-  moves: [],
+  handsPlayed: 0,
+  moveList: [],
   intel: null,
   settled: null,
 };
+
+// What each level buys: self-consistency passes (mirrors reason/levels.ts).
+const PASSES = [1, 3, 4, 5];
+function passesFor(level: number): number {
+  return PASSES[Math.min(Math.max(level, 0), 3)] ?? 1;
+}
 
 export default function Arena() {
   const [vm, setVm] = useState<ViewModel>(INITIAL);
@@ -97,7 +121,7 @@ export default function Arena() {
     try {
       await fetch(`${API_BASE}/match`, { method: "POST" });
     } catch {
-      // The backend may not be up; the status tile shows the idle state.
+      /* backend may be down; the status tile stays idle */
     } finally {
       setTimeout(() => setStarting(false), 2000);
     }
@@ -113,8 +137,7 @@ export default function Arena() {
     try {
       const r = await fetch(`${API_BASE}/verify/agent/${m.agentId}?blob=${encodeURIComponent(m.blobId)}`);
       if (!r.ok) throw new Error(`verify failed (${r.status})`);
-      const result = (await r.json()) as MoveVerification;
-      setVerifyState({ loading: false, result });
+      setVerifyState({ loading: false, result: (await r.json()) as MoveVerification });
     } catch (err) {
       setVerifyState({ loading: false, result: null, error: (err as Error).message });
     }
@@ -123,6 +146,7 @@ export default function Arena() {
   const A = vm.seats.A;
   const B = vm.seats.B;
   const live = vm.status !== "idle" && !vm.settled;
+  const leader = (A.chips ?? 0) === (B.chips ?? 0) ? null : (A.chips ?? 0) > (B.chips ?? 0) ? "A" : "B";
 
   return (
     <div className="shell">
@@ -151,7 +175,7 @@ export default function Arena() {
             <div>
               <div className="kicker">Arena</div>
               <div className="round">
-                Hand {vm.handIndex + (live ? 1 : 0)} · buy-in {fmtSui(vm.buyin)}
+                Hand {live ? vm.handIndex + 1 : vm.handsPlayed} · buy-in {fmtSui(vm.buyin)} · {vm.handsPlayed} played
               </div>
               <div className="potline">
                 <span className="big">{vm.pot}</span>
@@ -162,6 +186,11 @@ export default function Arena() {
               <span className="chip-dot dot-felt" /> <strong>{A.name}</strong> L{A.level}
               <span style={{ margin: "0 6px", color: "#6a737d" }}>vs</span>
               <span className="chip-dot dot-peri" /> <strong>{B.name}</strong> L{B.level}
+            </div>
+            <div className="agent-foot" style={{ marginTop: 8 }}>
+              <Stat k="A hands won" v={A.handsWon} />
+              <Stat k="B hands won" v={B.handsWon} />
+              <Stat k="leader" v={leader ? vm.seats[leader].name : "—"} />
             </div>
             <div>
               {live ? (
@@ -179,38 +208,23 @@ export default function Arena() {
             <div className="kicker">Live table</div>
             <div className="board">
               {vm.board.length === 0 ? (
-                <span className="muted">pre-flop</span>
+                <span className="muted">{live ? "pre-flop" : "no hand in play"}</span>
               ) : (
                 vm.board.map((c, i) => <Card key={c + i} c={c} />)
               )}
             </div>
             <div className="potpill">pot {vm.pot}</div>
             <div className="seatrow">
-              <SeatBox seat="A" view={A} active={vm.active === "A"} />
-              <SeatBox seat="B" view={B} active={vm.active === "B"} />
+              <SeatBox seat="A" view={A} active={vm.active === "A"} live={live} />
+              <SeatBox seat="B" view={B} active={vm.active === "B"} live={live} />
             </div>
           </div>
         </div>
 
         {/* Agent A, Agent B, Intel */}
         <div className="row3">
-          <div className="tile felt">
-            <div className="kicker">Agent A · level {A.level}</div>
-            <div className="big">{A.chips ?? "—"}</div>
-            <div className="muted-small">{A.name}</div>
-            <div className="muted-small" style={{ marginTop: 8 }}>
-              {A.lastMove || "no move yet"}
-            </div>
-          </div>
-
-          <div className="tile peri">
-            <div className="kicker">Agent B · level {B.level}</div>
-            <div className="big">{B.chips ?? "—"}</div>
-            <div className="muted-small">{B.name}</div>
-            <div className="muted-small" style={{ marginTop: 8 }}>
-              {B.lastMove || "no move yet"}
-            </div>
-          </div>
+          <AgentTile tone="felt" seat="A" view={A} />
+          <AgentTile tone="peri" seat="B" view={B} />
 
           <div className="tile signal">
             <div className="kicker">Intel</div>
@@ -223,10 +237,15 @@ export default function Arena() {
                 <div className="intel-meta mono">pay {short(vm.intel.payDigest)}</div>
               </>
             ) : (
-              <div className="intel-summary">
-                The trailing agent can buy a dossier on its opponent, compiled from real anchored records, paid x402-style
-                on Sui. The money shot lands here.
-              </div>
+              <>
+                <div style={{ marginTop: 4 }}>
+                  <IntelCoin />
+                </div>
+                <div className="intel-summary" style={{ maxHeight: "none" }}>
+                  The trailing agent can buy a dossier on its opponent, compiled from real anchored records and paid
+                  x402-style on Sui. The dossier loads into its next decisions. The money shot lands here.
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -236,7 +255,10 @@ export default function Arena() {
           <div className="tile sky">
             <div className="kicker">Verify reveal</div>
             {!selected ? (
-              <div className="verify-empty">Click any move in the feed to verify it: evidence unaltered, amount reconciles, within mandate.</div>
+              <div className="verify-empty">
+                Click any move in the feed to verify it: evidence unaltered, amount reconciles, within mandate. The
+                Walrus blob id and Sui tx digest appear in mono underneath.
+              </div>
             ) : (
               <VerifyPanel move={selected} state={verifyState} />
             )}
@@ -245,8 +267,8 @@ export default function Arena() {
           <div className="tile canvas">
             <div className="kicker">Feed · newest first</div>
             <div className="feed">
-              {vm.moves.length === 0 && <div className="muted-small">No moves yet. Run a match.</div>}
-              {[...vm.moves].reverse().map((m, i) => (
+              {vm.moveList.length === 0 && <div className="muted-small">No moves yet. Run a match.</div>}
+              {[...vm.moveList].reverse().map((m, i) => (
                 <div
                   key={m.anchorDigest ?? m.blobId ?? i}
                   className={`move ${selected === m ? "selected" : ""}`}
@@ -284,9 +306,79 @@ export default function Arena() {
   );
 }
 
-function SeatBox({ seat, view, active }: { seat: Seat; view: SeatView; active: boolean }) {
+function AgentTile({ tone, seat, view }: { tone: "felt" | "peri"; seat: Seat; view: SeatView }) {
+  const passes = passesFor(view.level);
+  return (
+    <div className={`tile ${tone} agent`}>
+      <div className="agent-head">
+        <span className="avatar">
+          <ChipFace fill={tone === "felt" ? "#A8E0C2" : "#C7C9F2"} />
+        </span>
+        <div>
+          <div className="agent-name">{view.name}</div>
+          <div className="agent-perk">
+            Seat {seat} · level {view.level}
+          </div>
+        </div>
+      </div>
+
+      <div className="agent-chips">
+        <span className="n">{view.chips ?? "—"}</span>
+        <span className="muted-small">chips</span>
+      </div>
+
+      <div className="passes">
+        <span className="label">reasoning</span>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <span key={i} className={`pass-dot ${i < passes ? "on" : ""}`} />
+        ))}
+        <span className="muted-small" style={{ marginLeft: 4 }}>
+          {passes} {passes === 1 ? "pass" : "passes"}
+        </span>
+      </div>
+
+      <div>
+        <div className="agent-last">{view.lastMove || "no move yet"}</div>
+        <div className="agent-why">{view.lastWhy}</div>
+      </div>
+
+      {view.recent.length > 0 && (
+        <div className="recent">
+          {view.recent.map((a, i) => (
+            <span key={i} className="pill">
+              {a}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="agent-foot">
+        <Stat k="moves" v={view.moves} />
+        <Stat k="hands won" v={view.handsWon} />
+        <Stat k="last passes" v={view.lastSamples || "—"} />
+      </div>
+    </div>
+  );
+}
+
+function Stat({ k, v }: { k: string; v: string | number }) {
+  return (
+    <div className="stat">
+      <div className="v">{v}</div>
+      <div className="k">{k}</div>
+    </div>
+  );
+}
+
+function SeatBox({ seat, view, active, live }: { seat: Seat; view: SeatView; active: boolean; live: boolean }) {
   return (
     <div className={`seat ${active ? "active" : ""}`}>
+      {live && (
+        <div className="holes">
+          <span className="cardback" />
+          <span className="cardback" />
+        </div>
+      )}
       <div className="name">{view.name}</div>
       <div className="lvl">
         Seat {seat} · level {view.level}
@@ -297,7 +389,13 @@ function SeatBox({ seat, view, active }: { seat: Seat; view: SeatView; active: b
   );
 }
 
-function VerifyPanel({ move, state }: { move: MovePayload; state: { loading: boolean; result: MoveVerification | null; error?: string } }) {
+function VerifyPanel({
+  move,
+  state,
+}: {
+  move: MovePayload;
+  state: { loading: boolean; result: MoveVerification | null; error?: string };
+}) {
   const r = state.result;
   return (
     <div>
@@ -359,12 +457,35 @@ function Card({ c }: { c: string }) {
   );
 }
 
+// A small cartoon chip-character: the chip says poker, the check says provable.
+function ChipFace({ fill }: { fill: string }) {
+  return (
+    <svg viewBox="0 0 64 64" width="46" height="46" aria-hidden>
+      <circle cx="32" cy="32" r="29" fill={fill} stroke="#14181F" strokeWidth="3" strokeDasharray="7 5" />
+      <circle cx="32" cy="32" r="21" fill={fill} stroke="#14181F" strokeWidth="2" />
+      <circle cx="26" cy="29" r="2.6" fill="#14181F" />
+      <circle cx="38" cy="29" r="2.6" fill="#14181F" />
+      <path d="M25 37 l5 5 l10 -11" fill="none" stroke="#E8352B" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IntelCoin() {
+  return (
+    <svg viewBox="0 0 64 64" width="40" height="40" aria-hidden>
+      <circle cx="32" cy="32" r="28" fill="#fff" stroke="#14181F" strokeWidth="3" />
+      <text x="32" y="42" textAnchor="middle" fontSize="30" fontWeight="800" fill="#E8352B" fontFamily="var(--font-display)">
+        ?
+      </text>
+    </svg>
+  );
+}
+
 // --- reducer ---
 
 function reduce(prev: ViewModel, msg: FeedMessage): ViewModel {
   switch (msg.type) {
     case "status": {
-      // The socket sends a "connected" status on open; that is not a live match.
       const status = msg.payload.status === "connected" ? "idle" : msg.payload.status;
       return { ...prev, status, detail: msg.payload.detail ?? prev.detail };
     }
@@ -372,20 +493,25 @@ function reduce(prev: ViewModel, msg: FeedMessage): ViewModel {
       const seats = { A: { ...EMPTY_SEAT }, B: { ...EMPTY_SEAT } };
       for (const a of msg.payload.agents) {
         const s = a.seat as Seat;
-        seats[s] = { name: a.name, level: a.level, agentId: a.agentId, chips: null, lastMove: "" };
+        seats[s] = { ...EMPTY_SEAT, name: a.name, level: a.level, agentId: a.agentId };
       }
       return { ...INITIAL, status: "seated", buyin: msg.payload.buyin, seats };
     }
     case "move": {
       const p = msg.payload;
       const seat = p.seat as Seat;
+      const cur = prev.seats[seat];
       const seats = { ...prev.seats };
       seats[seat] = {
-        ...seats[seat],
+        ...cur,
         name: p.agentName,
         level: p.level,
         agentId: p.agentId,
         lastMove: `${p.action}${p.size ? " " + p.size : ""} on the ${p.street}`,
+        lastWhy: p.rationale,
+        lastSamples: p.samples,
+        moves: cur.moves + 1,
+        recent: [...cur.recent, p.action].slice(-5),
       };
       return {
         ...prev,
@@ -395,14 +521,16 @@ function reduce(prev: ViewModel, msg: FeedMessage): ViewModel {
         active: seat,
         handIndex: p.handIndex,
         seats,
-        moves: [...prev.moves, p].slice(-60),
+        moveList: [...prev.moveList, p].slice(-80),
       };
     }
     case "hand": {
       const seats = { ...prev.seats };
       seats.A = { ...seats.A, chips: msg.payload.stacks.A ?? seats.A.chips };
       seats.B = { ...seats.B, chips: msg.payload.stacks.B ?? seats.B.chips };
-      return { ...prev, board: msg.payload.board, active: null, seats };
+      const w = msg.payload.winnerSeat;
+      if (w === "A" || w === "B") seats[w] = { ...seats[w], handsWon: seats[w].handsWon + 1 };
+      return { ...prev, board: msg.payload.board, active: null, handsPlayed: prev.handsPlayed + 1, seats };
     }
     case "intel":
       return { ...prev, intel: msg.payload };

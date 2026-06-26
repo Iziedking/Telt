@@ -287,15 +287,165 @@ body {
   gap: var(--gap);
   margin-top: var(--gap);
 }
+.row3 > .tile {
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+.row2 > .tile {
+  min-height: 300px;
+}
 
 .intel-summary {
   font-size: 13.5px;
   line-height: 1.5;
   margin-top: 6px;
+  max-height: 220px;
+  overflow-y: auto;
 }
 .intel-meta {
   margin-top: 12px;
   font-size: 11px;
+}
+
+/* --- Rich agent tiles --- */
+
+.agent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.agent-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 14px;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  flex: none;
+  box-shadow: 0 2px 0 rgba(20, 24, 31, 0.16);
+}
+.agent-name {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+  line-height: 1.05;
+}
+.agent-perk {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #4b5560;
+  margin-top: 2px;
+}
+.agent-chips {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.agent-chips .n {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 800;
+  font-size: 40px;
+  line-height: 1;
+}
+
+.passes {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.passes .label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #4b5560;
+  margin-right: 2px;
+}
+.pass-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(20, 24, 31, 0.15);
+}
+.pass-dot.on {
+  background: var(--ink);
+}
+
+.agent-last {
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 600;
+}
+.agent-why {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #3f4853;
+  min-height: 34px;
+}
+
+.recent {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pill {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(20, 24, 31, 0.1);
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+
+.agent-foot {
+  display: flex;
+  gap: 18px;
+  margin-top: auto;
+  padding-top: 6px;
+}
+.stat .v {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 800;
+  font-size: 20px;
+}
+.stat .k {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #4b5560;
+}
+
+/* Face-down hole cards on the live table. */
+.holes {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.cardback {
+  width: 26px;
+  height: 36px;
+  border-radius: 6px;
+  background: repeating-linear-gradient(45deg, var(--ink), var(--ink) 4px, #232a34 4px, #232a34 8px);
+  box-shadow: 0 2px 0 rgba(20, 24, 31, 0.2);
+}
+.cardback.muted {
+  opacity: 0.25;
+}
+
+.tile.signal .intel-summary::-webkit-scrollbar {
+  width: 6px;
+}
+.tile.signal .intel-summary::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
 }
 
 /* --- Feed --- */
@@ -304,7 +454,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 360px;
+  max-height: 420px;
   overflow-y: auto;
 }
 .move {
