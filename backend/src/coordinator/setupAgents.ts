@@ -3,7 +3,7 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { coordinatorAddress, claimAgent, registerForArena, upgradeAgent, createMandateAndAccess } from "../chain/sui.js";
-import { nextLevelCostMist } from "../reason/levels.js";
+import { nextLevelCostUsdc } from "../reason/levels.js";
 
 // One-time setup for a demo match. For each agent it creates an Avow mandate (the
 // agent address is the coordinator, who signs every anchor), creates the evidence
@@ -17,8 +17,8 @@ import { nextLevelCostMist } from "../reason/levels.js";
 // Run: npm run setup:agents
 
 const ROSTER = [
-  { key: "A" as const, name: "Calypso", level: 0 },
-  { key: "B" as const, name: "Maverick", level: 2 },
+  { key: "A" as const, name: "Calypso", level: 0 }, // Mark, the untrained underdog
+  { key: "B" as const, name: "Maverick", level: 4 }, // Oracle, the top tier
 ];
 
 const PER_MOVE_CAP = 1_000_000_000n; // generous: chips committed never approach this
@@ -53,10 +53,10 @@ async function main() {
     console.log(`  registered for arena`);
 
     for (let lvl = 0; lvl < a.level; lvl++) {
-      const cost = nextLevelCostMist(lvl);
+      const cost = nextLevelCostUsdc(lvl);
       if (cost) {
         await upgradeAgent(agentId, cost);
-        console.log(`  upgraded to level ${lvl + 1}`);
+        console.log(`  upgraded to level ${lvl + 1} (paid ${Number(cost) / 1e6} TUSDC)`);
       }
     }
 

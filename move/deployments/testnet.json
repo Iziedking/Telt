@@ -1,16 +1,17 @@
 {
   "network": "testnet",
-  "packageId": "0xea74abe132bac52cff6aade5089ed72886fb60ec505721964002fd1cb03bfda1",
-  "modules": ["registry", "table", "intel"],
-  "coordinatorCap": "0x8e22e24602dd7fd1fb5a9363ed1837f85ae52dc0bfa11bf6f28c0f3a0a7bbc29",
-  "treasuryObject": "0x22b0fa455543c5d4ae306f30c168855527a0bda6912c6d967b7ef74df96d484b",
+  "packageId": "0xd670d1f0c8685acaf99f8f33babf5bb6bd88f8390824f64dc43638189134fae3",
+  "modules": ["registry", "table", "intel", "test_usdc"],
+  "coordinatorCap": "0x28804b4451382c945c43af95b15248d45585db500e7501390e10cd7a0de134b1",
+  "treasuryObject": "0xcbc254bba6bc8db950c55d4c77e4e583983ea848e7bbfd89adb4b5163f56d037",
+  "testUsdcTreasuryCap": "0xa5413a68e108a3dc18b4102b896076b9a84e464b8fb49b9a3d211eb33a6a80ee",
   "treasuryAddress": "0xc11c77d7f5f0555041e04a89a266edbe305da731c4f10c102bc4384536bbb65b",
   "publisher": "0xc11c77d7f5f0555041e04a89a266edbe305da731c4f10c102bc4384536bbb65b",
-  "publishTx": "9S4fRmeit8hJu2tgLNU9CmquLKso9fH6DppvEqGfKcei",
+  "publishTx": "2zLMkGFxSqvhjpoMK8WFNXwrDZus6GWv3Kh2gv4ww3fJ",
   "publishedAt": "2026-06-26",
-  "note": "ARENA_PACKAGE_ID is the submission Package ID. This is the post-audit deployment: settle is constrained to seated owners, join requires owner+registration, buy_intel binds a registered target's real owner/mandate, and reclaim adds a timeout escape. Treasury is a shared object; upgrade and buy_intel take it by reference and route fees to treasuryAddress. The Avow package (0x4f3e...a3ee) is reused unchanged, not redeployed.",
+  "note": "Tier upgrades now paid in TestUSDC (new test_usdc module, 6 decimals). registry::upgrade takes Coin<TEST_USDC>; cost ladder 5/15/40/100 TUSDC for L0->1..L3->4. The coordinator holds the TreasuryCap and mints the exact cost inside the upgrade tx. Supersedes the SUI-upgrade package. Avow package (0x4f3e...a3ee) reused unchanged.",
   "supersedes": {
-    "packageId": "0x814d765880653a9157141d8ab9e82960616903ce967a5dfd3dd0d18abfa317ad",
-    "reason": "Pre-audit deployment, abandoned. Had an unconstrained settle winner (High), no PLAYING-state escape, and no owner/consent gate on join. No real funds were ever escrowed."
+    "packageId": "0xcec9f18005b8e7378bfe444d9ce17b743b9adc42c292e75d8f87d3c9a278be5c",
+    "reason": "Upgrades were paid in SUI; replaced to charge TestUSDC per the tier economy."
   }
 }

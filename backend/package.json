@@ -15,7 +15,10 @@
     "intel": "tsx src/scripts/runIntel.ts",
     "db:migrate": "tsx src/scripts/migrate.ts",
     "typecheck": "tsc --noEmit",
-    "records": "tsx src/scripts/records.ts"
+    "records": "tsx src/scripts/records.ts",
+    "tiertest": "tsx src/scripts/tierTest.ts",
+    "benchmark": "tsx src/scripts/benchmark.ts",
+    "modelcheck": "tsx src/scripts/modelCheck.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.106.0",

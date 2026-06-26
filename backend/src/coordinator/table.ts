@@ -1,6 +1,7 @@
 import { Hand, otherSeat } from "../poker/engine.js";
+import { blindsForHand } from "../poker/blinds.js";
 import type { Seat } from "../poker/types.js";
-import { planForLevel } from "../reason/levels.js";
+import { planForLevel, intelBudgetForLevel } from "../reason/levels.js";
 import { decide } from "../runners/pokerRunner.js";
 import { anchorMove, verifyLatestForMandate, type AgentAvow } from "../avow/anchorMove.js";
 import { recallNotes, rememberNote } from "../avow/memory.js";
@@ -38,15 +39,26 @@ export interface MatchOptions {
   anchor?: boolean;
   /** The underdog buys a dossier on its opponent before the hand at this index. */
   intel?: { buyerSeat: Seat; beforeHand: number };
+  /** Play a freezeout until one agent busts (a natural single winner). Default true. */
+  untilBust?: boolean;
+  /** Safety cap on hands when playing to bust. */
+  maxHands?: number;
+  /** Blinds double every this many hands, to force a bust. */
+  escalateEvery?: number;
 }
 
 const DEFAULTS = {
   hands: 2,
   buyinMist: 50_000_000n, // 0.05 SUI
-  startingChips: 1000,
+  // Small stacks and modest blinds so the freezeout reaches a bust in a handful of hands.
+  startingChips: 300,
   smallBlind: 10,
   bigBlind: 20,
   anchor: true,
+  untilBust: true,
+  maxHands: 24,
+  // Blinds double every few hands so the freezeout reaches a bust quickly.
+  escalateEvery: 3,
 };
 
 function toMatchAgent(e: RosterEntry): MatchAgent {
@@ -92,22 +104,32 @@ export async function playMatch(opts: MatchOptions = {}): Promise<{ matchId: str
   const chips: Record<Seat, number> = { A: o.startingChips, B: o.startingChips };
   // Dossiers bought mid-match are injected into the buyer's decisions as notes.
   const injected: Record<Seat, string[]> = { A: [], B: [] };
+  // How many dossiers each seat has bought this match, against its per-tier cap.
+  const intelBought: Record<Seat, number> = { A: 0, B: 0 };
 
-  for (let handIndex = 0; handIndex < o.hands; handIndex++) {
-    if (chips.A <= o.bigBlind || chips.B <= o.bigBlind) {
-      log(matchId, "status", { status: "busted", detail: `after ${handIndex} hands` });
+  // A freezeout: play until one agent can no longer post the big blind (busted), or the
+  // safety cap. Either way the match yields exactly one winner.
+  const cap = o.untilBust ? o.maxHands : o.hands;
+  let handsPlayed = 0;
+  for (let handIndex = 0; handIndex < cap; handIndex++) {
+    const { sb, bb } = blindsForHand(handIndex, o.smallBlind, o.bigBlind, o.escalateEvery);
+    if (chips.A <= bb || chips.B <= bb) {
+      log(matchId, "status", { status: "busted", detail: `${otherSeat(chips.A <= bb ? "A" : "B")} takes it after ${handIndex} hands` });
       break;
     }
     if (opts.intel && handIndex === opts.intel.beforeHand) {
-      await runIntelBeat(matchId, tableId, opts.intel.buyerSeat, bySeat, injected);
+      await runIntelBeat(matchId, tableId, opts.intel.buyerSeat, bySeat, injected, intelBought);
     }
     const button: Seat = handIndex % 2 === 0 ? "A" : "B";
-    await playHand(matchId, tableId, handIndex, button, bySeat, chips, injected, o);
+    await playHand(matchId, tableId, handIndex, button, bySeat, chips, injected, o, sb, bb);
+    handsPlayed = handIndex + 1;
   }
 
+  // Exactly one winner: the survivor, or the chip leader at the cap (higher seat A on a
+  // dead-even tie, which is vanishingly rare).
   const winner: Seat = chips.A >= chips.B ? "A" : "B";
   const loser = otherSeat(winner);
-  const settleDigest = await settleTable(tableId, coordinatorAddress(), o.hands);
+  const settleDigest = await settleTable(tableId, coordinatorAddress(), handsPlayed);
   broadcast({
     type: "settled",
     payload: {
@@ -156,12 +178,14 @@ async function playHand(
   chips: Record<Seat, number>,
   injected: Record<Seat, string[]>,
   o: typeof DEFAULTS,
+  smallBlind: number,
+  bigBlind: number,
 ): Promise<void> {
   const hand = new Hand({
     button,
     stacks: { A: chips.A, B: chips.B },
-    smallBlind: o.smallBlind,
-    bigBlind: o.bigBlind,
+    smallBlind,
+    bigBlind,
     seed: (Date.now() + handIndex * 7919) % 2_000_000_000,
   });
   log(matchId, "status", { status: "deal", detail: `hand ${handIndex + 1}/${o.hands}, button ${button}` });
@@ -330,9 +354,22 @@ async function runIntelBeat(
   buyerSeat: Seat,
   bySeat: Record<Seat, MatchAgent>,
   injected: Record<Seat, string[]>,
+  intelBought: Record<Seat, number>,
 ): Promise<void> {
   const buyer = bySeat[buyerSeat];
   const target = bySeat[otherSeat(buyerSeat)];
+
+  // Per-tier spending cap: refuse once this tier has used its dossier budget for the
+  // match, so an agent cannot buy a fresh read every street.
+  const budget = intelBudgetForLevel(buyer.level);
+  if (intelBought[buyerSeat] >= budget) {
+    log(matchId, "status", {
+      status: "intel-capped",
+      detail: `${buyer.name} hit its tier intel cap (${intelBought[buyerSeat]}/${budget})`,
+    });
+    return;
+  }
+
   log(matchId, "status", { status: "intel", detail: `${buyer.name} buys a dossier on ${target.name}` });
   try {
     const delivered = await buyAndDeliver({
@@ -354,9 +391,10 @@ async function runIntelBeat(
         summary,
       },
     });
+    intelBought[buyerSeat] += 1;
     log(matchId, "status", {
       status: "intel-delivered",
-      detail: `${delivered.dossier.verifiedCount}/${delivered.dossier.sourceCount} moves verified; loaded into ${buyer.name}`,
+      detail: `${delivered.dossier.verifiedCount}/${delivered.dossier.sourceCount} moves verified; loaded into ${buyer.name} (${intelBought[buyerSeat]}/${budget})`,
     });
   } catch (e) {
     console.warn(`intel beat failed:`, (e as Error).message);

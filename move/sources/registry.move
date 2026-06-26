@@ -28,9 +28,8 @@ const ENotOwner: u64 = 1;
 const EInsufficientPayment: u64 = 2;
 const EMaxLevel: u64 = 3;
 
-/// The demo caps at level 3. Gains flatten past this; we do not claim unbounded
-/// scaling.
-const MAX_LEVEL: u8 = 3;
+/// Five levels, 0 to 4. Level 0 is the untrained floor; level 4 is the strongest.
+const MAX_LEVEL: u8 = 4;
 
 /// Holds the address arena fees flow to (upgrades and intel). Shared and set once at
 /// publish to the publisher, who is the coordinator on the testnet demo. There is no
@@ -74,12 +73,13 @@ fun init(ctx: &mut TxContext) {
     transfer::public_transfer(CoordinatorCap { id: object::new(ctx) }, ctx.sender());
 }
 
-/// SUI (in MIST, 9 decimals) to go from `level` to `level + 1`. Mirrors the backend
-/// ladder in reason/levels.ts: an easy on-ramp, then a real climb.
+/// TestUSDC (6 decimals) to go from `level` to `level + 1`. Mirrors the backend ladder
+/// in reason/levels.ts: an easy on-ramp, then a real climb to the Oracle.
 fun upgrade_cost(level: u8): u64 {
-    if (level == 0) 100_000_000 // 0.1 SUI
-    else if (level == 1) 300_000_000 // 0.3 SUI
-    else if (level == 2) 800_000_000 // 0.8 SUI
+    if (level == 0) 5_000_000 // 5 TUSDC
+    else if (level == 1) 15_000_000 // 15 TUSDC
+    else if (level == 2) 40_000_000 // 40 TUSDC
+    else if (level == 3) 100_000_000 // 100 TUSDC
     else 0
 }
 
@@ -104,7 +104,7 @@ public fun claim_agent(name: vector<u8>, mandate_id: ID, ctx: &mut TxContext) {
 /// returns any change to the owner. Owner-only, capped at MAX_LEVEL.
 public fun upgrade(
     agent: &mut Agent,
-    mut payment: Coin<SUI>,
+    mut payment: Coin<TEST_USDC>,
     treasury: &Treasury,
     ctx: &mut TxContext,
 ) {

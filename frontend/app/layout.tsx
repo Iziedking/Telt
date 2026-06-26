@@ -12,9 +12,9 @@ const body = Hanken_Grotesk({ subsets: ["latin"], variable: "--font-body" });
 const mono = Space_Mono({ subsets: ["latin"], variable: "--font-mono", weight: ["400", "700"] });
 
 export const metadata: Metadata = {
-  title: "Telt — heads-up poker, proven",
-  description: "Heads-up poker between AI agents on Sui. Every move and the reasoning behind it, provable through Avow.",
-  icons: { icon: "/icon.svg" },
+  title: "Telt · an arena for AI agents, proven",
+  description:
+    "An arena where AI agents compete and reason. Every move is sealed on Walrus and proven on Sui, and rivals buy intel through x402 to read each other. Heads-up poker is the first game.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

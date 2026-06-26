@@ -8,13 +8,18 @@ import { config, reasonConfigured } from "../config/index.js";
 // model layer (it meant 0G TEE before, so `verified` is null here); proof now
 // lives at the Avow anchor on the move layer.
 
-export type ReasonSource = "anthropic" | "offline-dev";
+export type ReasonSource = "anthropic" | "openrouter" | "offline-dev";
+export type Provider = "anthropic" | "openrouter";
 
 export interface CallParams {
   systemPrompt: string;
   userPrompt: string;
   maxTokens: number;
   temperature: number;
+  // The tier picks the engine: a cheap OpenRouter model for low tiers, Claude Haiku
+  // for the top. Omitted falls back to the configured default.
+  provider?: Provider;
+  model?: string;
 }
 
 export interface CallResult {
@@ -52,37 +57,97 @@ function getClient(): Anthropic {
 }
 
 export async function callModel(params: CallParams): Promise<CallResult> {
-  const mode = resolveMode();
+  if (resolveMode() === "offline-dev") return offlineResult();
 
-  if (mode === "anthropic") {
-    const model = config.reason.model;
-    const t0 = Date.now();
-    const message = await getClient().messages.create({
+  // The tier requests a provider; if its key is missing, fall back to whatever is
+  // configured so a partial setup still runs rather than erroring.
+  const wants: Provider = params.provider ?? (config.reason.anthropicKey ? "anthropic" : "openrouter");
+  const haveAnthropic = Boolean(config.reason.anthropicKey);
+  const haveOpenrouter = Boolean(config.reason.openrouterKey);
+  const provider: Provider = wants === "openrouter" && !haveOpenrouter ? "anthropic" : wants === "anthropic" && !haveAnthropic ? "openrouter" : wants;
+
+  if (provider === "openrouter" && haveOpenrouter) {
+    return callOpenrouter(params);
+  }
+  if (provider === "anthropic" && haveAnthropic) {
+    return callAnthropic(params);
+  }
+  return offlineResult();
+}
+
+async function callAnthropic(params: CallParams): Promise<CallResult> {
+  const model = params.model ?? config.reason.model;
+  const t0 = Date.now();
+  const message = await getClient().messages.create({
+    model,
+    max_tokens: params.maxTokens,
+    temperature: params.temperature,
+    system: params.systemPrompt,
+    messages: [{ role: "user", content: params.userPrompt }],
+  });
+  const text = message.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("")
+    .trim();
+  return {
+    text,
+    source: "anthropic",
+    provider: "anthropic",
+    model,
+    chatID: message.id ?? null,
+    verified: null,
+    latencyMs: Date.now() - t0,
+  };
+}
+
+// OpenRouter speaks the OpenAI chat-completions shape, so a plain fetch is enough,
+// no extra SDK. System prompt becomes a system message; the rest mirrors Anthropic.
+async function callOpenrouter(params: CallParams): Promise<CallResult> {
+  const model = params.model ?? config.reason.openrouterModel;
+  const t0 = Date.now();
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${config.reason.openrouterKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://telt.arena",
+      "X-Title": "Telt",
+    },
+    body: JSON.stringify({
       model,
       max_tokens: params.maxTokens,
       temperature: params.temperature,
-      system: params.systemPrompt,
-      messages: [{ role: "user", content: params.userPrompt }],
-    });
-    // Concatenate every text block; tool/thinking blocks are not used here.
-    const text = message.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("")
-      .trim();
-    return {
-      text,
-      source: "anthropic",
-      provider: "anthropic",
-      model,
-      chatID: message.id ?? null,
-      verified: null,
-      latencyMs: Date.now() - t0,
-    };
+      messages: [
+        { role: "system", content: params.systemPrompt },
+        { role: "user", content: params.userPrompt },
+      ],
+    }),
+    signal: AbortSignal.timeout(config.reason.callTimeoutMs),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`openrouter ${res.status}: ${body.slice(0, 200)}`);
   }
+  const data = (await res.json()) as {
+    id?: string;
+    choices?: { message?: { content?: string } }[];
+  };
+  const text = (data.choices?.[0]?.message?.content ?? "").trim();
+  return {
+    text,
+    source: "openrouter",
+    provider: "openrouter",
+    model,
+    chatID: data.id ?? null,
+    verified: null,
+    latencyMs: Date.now() - t0,
+  };
+}
 
-  // offline-dev: deterministic, no network. Clearly labeled so it never reads as
-  // a real model answer. Used only to exercise the pipeline before a key is set.
+// offline-dev: deterministic, no network. Clearly labeled so it never reads as a real
+// model answer. Used only to exercise the pipeline before any key is set.
+function offlineResult(): CallResult {
   const t0 = Date.now();
   return {
     text: offlineAnswer(),

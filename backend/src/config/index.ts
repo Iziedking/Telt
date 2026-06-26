@@ -35,6 +35,9 @@ export const config = {
     treasury: process.env.ARENA_TREASURY ?? "",
     // SUI is the demo stake and fee asset, so we drop a token dependency.
     stakeAsset: optional("STAKE_ASSET", "SUI"),
+    // TreasuryCap<TEST_USDC>, held by the coordinator, used to mint the exact upgrade
+    // cost in TestUSDC inside the upgrade transaction.
+    testUsdcCap: process.env.ARENA_TESTUSDC_CAP ?? "",
   },
   avow: {
     packageId: optional("AVOW_PACKAGE_ID", AVOW_PACKAGE_ID_DEFAULT),
@@ -43,6 +46,18 @@ export const config = {
     anthropicKey: process.env.ANTHROPIC_API_KEY ?? "",
     model: optional("ANTHROPIC_MODEL", "claude-haiku-4-5"),
     callTimeoutMs: Number(optional("REASON_TIMEOUT_MS", "60000")),
+    // OpenRouter (OpenAI-compatible) powers the cheaper lower tiers. A tier's strength
+    // comes from its model: the ladder climbs from a small cheap model at level 0 to
+    // Claude Haiku at level 4. Each is overridable in .env (TIER0_MODEL..TIER4_MODEL).
+    openrouterKey: process.env.OPENROUTER_API_KEY ?? "",
+    openrouterModel: optional("LLM_MODEL", "google/gemini-2.5-flash"),
+    tierModels: [
+      { provider: "openrouter" as const, model: optional("TIER0_MODEL", "meta-llama/llama-3.2-1b-instruct") },
+      { provider: "openrouter" as const, model: optional("TIER1_MODEL", "meta-llama/llama-3.2-3b-instruct") },
+      { provider: "openrouter" as const, model: optional("TIER2_MODEL", "meta-llama/llama-3.1-8b-instruct") },
+      { provider: "openrouter" as const, model: optional("TIER3_MODEL", "openai/gpt-4o-mini") },
+      { provider: "anthropic" as const, model: optional("TIER4_MODEL", optional("ANTHROPIC_MODEL", "claude-haiku-4-5")) },
+    ],
   },
   memory: {
     // MemWal (memory.walrus.xyz). Without these, Avow memory is a no-op and we
@@ -63,7 +78,7 @@ export function suiConfigured(): boolean {
 }
 
 export function reasonConfigured(): boolean {
-  return Boolean(config.reason.anthropicKey);
+  return Boolean(config.reason.anthropicKey || config.reason.openrouterKey);
 }
 
 export function memoryConfigured(): boolean {

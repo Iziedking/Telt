@@ -1,5 +1,6 @@
 import { callModel, type CallResult } from "../reason/client.js";
 import type { InferencePlan } from "../reason/levels.js";
+import { pokerSkill } from "../skills/poker.js";
 import type { ActionType, Card, Seat } from "../poker/types.js";
 
 // One agent making one poker decision. The whole point of Telt lives in callModel:
@@ -54,6 +55,9 @@ interface Proposal {
   raw: string;
 }
 
+// Every tier is told to play well. The difference between tiers is the model executing
+// this advice (cheap and weak at level 0, Haiku at level 4) plus the reasoning passes
+// and the expert skill, not a prompt telling anyone to play badly.
 const SYSTEM_PROMPT =
   "You are a sharp, disciplined heads-up No-Limit Texas Hold'em player. You are given the full " +
   "state and the exact legal actions. Reply with ONLY a JSON object, no prose, in this form: " +
@@ -68,6 +72,9 @@ const PRIORITY: Record<ActionType, number> = { check: 0, call: 1, fold: 2, raise
 
 export async function decide(ctx: DecisionContext, plan: InferencePlan): Promise<Decision> {
   const userPrompt = buildPrompt(ctx);
+  // Tier = reasoning (plan.samples passes) + training (the level's expert skill, injected
+  // into the system prompt). A higher tier both thinks more and knows more.
+  const systemPrompt = SYSTEM_PROMPT + pokerSkill(ctx.level).system + plan.hint;
   const proposals: Proposal[] = [];
   let latencyMs = 0;
   let lastRaw = "";
@@ -78,10 +85,12 @@ export async function decide(ctx: DecisionContext, plan: InferencePlan): Promise
     try {
       res = await callWithRetry(
         {
-          systemPrompt: SYSTEM_PROMPT + plan.hint,
+          systemPrompt,
           userPrompt,
           maxTokens: plan.maxTokens,
           temperature: plan.temperature,
+          provider: plan.provider,
+          model: plan.model,
         },
         plan.retries,
       );
