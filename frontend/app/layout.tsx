@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fredoka, Hanken_Grotesk, Space_Mono } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
+import { TopNav, SiteFooter } from "./shell";
 
 // Display: Fredoka, a rounded, chunky, friendly grotesk. It gives the headings and
 // numerals a touch of cartoon warmth that fits the chip-character mascots, without
@@ -21,7 +22,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          <TopNav />
+          {children}
+          <SiteFooter />
+        </Providers>
       </body>
     </html>
   );

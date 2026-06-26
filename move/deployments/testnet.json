@@ -1,17 +1,17 @@
 {
   "network": "testnet",
-  "packageId": "0x4270e685384ff9a81e0a4f7a54cd4e5109db38a52d7c5e6a86a8bb2971e98df6",
-  "modules": ["registry", "table", "intel", "test_usdc"],
-  "coordinatorCap": "0x951980d4d8e5b598162ba9b98974916200a7ad6e7ab9a5278d7c209978a22f4b",
-  "treasuryObject": "0x079ad1371c0dae813c1b42e8d72d1d95194588976d779012ed958dd2253b1149",
-  "testUsdcTreasuryCap": "0x9b7ef80d39a71098710708d39e87b0b39cfb82d162ccd6ab91af91fa51d48900",
+  "packageId": "0x00c9f42ee2280964c9a41fda2bbca1e288eac6ed3ba768e58d3dde1ea4417ad8",
+  "modules": ["registry", "table", "intel", "test_usdc", "contest"],
+  "coordinatorCap": "0x5520b38df40d136e9a12ba055834ef073eff976bf0b7d7b2979c6ac96eb98037",
+  "treasuryObject": "0xa370e54ce59264fc642682729e1a81ce8d5218d3ad054258f9953f0aafddb502",
+  "testUsdcTreasuryCap": "0x52d9f04b1a6d57eeded1411bb1767317f66dceee1562da975f13293bf4b52fb4",
   "treasuryAddress": "0xc11c77d7f5f0555041e04a89a266edbe305da731c4f10c102bc4384536bbb65b",
   "publisher": "0xc11c77d7f5f0555041e04a89a266edbe305da731c4f10c102bc4384536bbb65b",
-  "publishTx": "2JZoc7vFDiKst2stcFfHb72EvM6bJvNJx2NXAJeD7HbZ",
+  "publishTx": "AKukVCWgkoBxRECxEcuUDHEmuqB9Phiaj1W6kbSrEvh2",
   "publishedAt": "2026-06-26",
-  "note": "Upgrades are paid in SUI again, and the fee now accumulates in the Treasury object's balance for the coordinator to sweep with claim_treasury (CoordinatorCap-gated). The test_usdc module stays published: tUSDC is the in-app currency users hold to fund contests and challenge duels, minted by the coordinator's TreasuryCap. SUI upgrade ladder 0.1/0.3/0.8/1.5. Avow package (0x4f3e...a3ee) reused unchanged.",
+  "note": "Adds the contest module: operator-created contests/duels paid in tUSDC. create (operator picks 1v1 or multi, level band, entry), fund (anyone tops up the pool), join (real entrant pays entry), join_as_house (CoordinatorCap-gated free filler, never wins), settle (CoordinatorCap names the winner, pool pays out, house skipped). Upgrades stay SUI with fees pooling in the Treasury. Avow package (0x4f3e...a3ee) reused unchanged.",
   "supersedes": {
-    "packageId": "0xd670d1f0c8685acaf99f8f33babf5bb6bd88f8390824f64dc43638189134fae3",
-    "reason": "That build charged upgrades in TestUSDC. Reverted: SUI is the upgrade currency; tUSDC is repurposed as the in-app currency, and upgrade fees now pool in the Treasury for claiming."
+    "packageId": "0x4270e685384ff9a81e0a4f7a54cd4e5109db38a52d7c5e6a86a8bb2971e98df6",
+    "reason": "Added the contest module for the tUSDC contest/duel economy."
   }
 }

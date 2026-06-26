@@ -157,6 +157,95 @@ export async function claimTreasury(signer?: Ed25519Keypair): Promise<string> {
   return (await execute(tx, signer)).digest;
 }
 
+// Faucet: mint tUSDC (the in-app currency for contests and duels) to a recipient. The
+// coordinator holds the mint authority, so this is signed by the coordinator. `amount`
+// is in base units (6 decimals).
+export async function faucetMintUsdc(recipient: string, amount: bigint): Promise<string> {
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${PKG()}::test_usdc::mint`,
+    arguments: [tx.object(config.arena.testUsdcCap), tx.pure.u64(amount), tx.pure.address(recipient)],
+  });
+  return (await execute(tx)).digest;
+}
+
+// --- contests / challenge duels (paid in tUSDC) ---
+
+export const CONTEST_FORMAT = { duel: 0, multi: 1 } as const;
+
+export async function createContest(opts: {
+  game?: number;
+  format: number;
+  levelMin: number;
+  levelMax: number;
+  entryFeeUsdc: bigint;
+  maxEntries: number;
+}): Promise<{ contestId: string; digest: string }> {
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${PKG()}::contest::create`,
+    arguments: [
+      tx.pure.u8(opts.game ?? 0),
+      tx.pure.u8(opts.format),
+      tx.pure.u8(opts.levelMin),
+      tx.pure.u8(opts.levelMax),
+      tx.pure.u64(opts.entryFeeUsdc),
+      tx.pure.u64(BigInt(opts.maxEntries)),
+    ],
+  });
+  const r = await execute(tx);
+  return { contestId: createdId(r.objectChanges, "::contest::Contest"), digest: r.digest };
+}
+
+// Anyone can top up a contest pool. The coordinator mints the tUSDC and funds in one tx;
+// a real user would pass their own coin.
+export async function fundContest(contestId: string, amountUsdc: bigint, signer?: Ed25519Keypair): Promise<string> {
+  const tx = new Transaction();
+  const pay = tx.moveCall({
+    target: `${PKG()}::test_usdc::mint_coin`,
+    arguments: [tx.object(config.arena.testUsdcCap), tx.pure.u64(amountUsdc)],
+  });
+  tx.moveCall({ target: `${PKG()}::contest::fund`, arguments: [tx.object(contestId), pay] });
+  return (await execute(tx, signer)).digest;
+}
+
+// Real entrant joins paying the entry. The coordinator mints the entry and pays it in the
+// same tx (it owns the demo agents).
+export async function joinContest(
+  contestId: string,
+  agentId: string,
+  entryFeeUsdc: bigint,
+  signer?: Ed25519Keypair,
+): Promise<string> {
+  const tx = new Transaction();
+  const pay = tx.moveCall({
+    target: `${PKG()}::test_usdc::mint_coin`,
+    arguments: [tx.object(config.arena.testUsdcCap), tx.pure.u64(entryFeeUsdc)],
+  });
+  tx.moveCall({ target: `${PKG()}::contest::join`, arguments: [tx.object(contestId), tx.object(agentId), pay] });
+  return (await execute(tx, signer)).digest;
+}
+
+// Seat a house filler agent for free. CoordinatorCap-gated; never wins.
+export async function joinContestAsHouse(contestId: string, agentId: string): Promise<string> {
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${PKG()}::contest::join_as_house`,
+    arguments: [tx.object(config.arena.coordinatorCap), tx.object(contestId), tx.object(agentId)],
+  });
+  return (await execute(tx)).digest;
+}
+
+// Name the winner; the whole pool pays out to the winning agent's owner.
+export async function settleContest(contestId: string, winnerAgentId: string): Promise<string> {
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${PKG()}::contest::settle`,
+    arguments: [tx.object(config.arena.coordinatorCap), tx.object(contestId), tx.pure.id(winnerAgentId)],
+  });
+  return (await execute(tx)).digest;
+}
+
 export async function recordResult(agentId: string, won: boolean): Promise<string> {
   const tx = new Transaction();
   tx.moveCall({

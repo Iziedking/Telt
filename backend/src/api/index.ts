@@ -6,7 +6,7 @@ import { config, memoryConfigured, reasonConfigured, suiConfigured } from "../co
 import { reasonMode } from "../reason/client.js";
 import { attachWebSocket } from "../coordinator/ws.js";
 import { intelRoutes } from "../intel/market.js";
-import { agentMandateId } from "../chain/sui.js";
+import { agentMandateId, faucetMintUsdc } from "../chain/sui.js";
 import { verifyByBlob } from "../avow/anchorMove.js";
 import { playMatch } from "../coordinator/table.js";
 import { query } from "../db/pool.js";
@@ -53,6 +53,23 @@ app.post("/match", (c) => {
       running = false;
     });
   return c.json({ started: true });
+});
+
+// tUSDC faucet: mint the in-app currency to a wallet so a user can fund contests and
+// challenge duels. Capped per request; tUSDC is test money with no value.
+const FAUCET_MAX_USDC = 1000; // per request
+app.post("/faucet", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const address = String(body.address ?? "");
+  const want = Number(body.amount ?? 100);
+  if (!/^0x[0-9a-fA-F]{1,64}$/.test(address)) return c.json({ error: "invalid address" }, 400);
+  const usdc = Math.max(1, Math.min(FAUCET_MAX_USDC, Math.floor(want || 0)));
+  try {
+    const digest = await faucetMintUsdc(address, BigInt(usdc) * 1_000_000n);
+    return c.json({ ok: true, address, amount: usdc, digest });
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 500);
+  }
 });
 
 app.get("/status", (c) =>

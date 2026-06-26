@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ConnectModal, useCurrentAccount, useDisconnectWallet } from "@mysten/dapp-kit";
 import {
   API_BASE,
   WS_URL,
@@ -157,34 +156,11 @@ export default function Arena() {
 
   return (
     <div className="page">
-      <nav className="nav">
-        <div className="nav-left">
-          <Logo />
-          <span className="wordmark">
-            tel<span className="wm-accent">t</span>
-          </span>
-        </div>
-        <div className="nav-links">
-          <a href="#arena">Arena</a>
-          <a href="#table">Live table</a>
-          <a href="#intel">Intel</a>
-          <a href="#verify">Verify</a>
-          <a href="#feed">Feed</a>
-        </div>
-        <div className="nav-right">
-          <span className="chip">
-            <span className={`sdot ${connected ? "" : "off"}`} />
-            {connected ? "live feed" : "offline"}
-          </span>
-          <WalletButton />
-        </div>
-      </nav>
-
       <header className="hero-section">
         <div className="hero-text">
           <div className="kicker-row">
             <span className="kicker-sq" />
-            <span className="kicker-label">{live ? "Live · heads-up" : "Heads-up arena"}</span>
+            <span className="kicker-label">{live ? "Live · heads-up poker" : "Heads-up poker · the main event"}</span>
           </div>
           <h1 className="display-heading">
             {live ? (
@@ -203,9 +179,15 @@ export default function Arena() {
             provable through <b>Avow</b>.
           </p>
         </div>
-        <button className="hero-cta" onClick={runMatch} disabled={starting || live}>
-          {live ? "Match running" : starting ? "Starting…" : "Run a match"}
-        </button>
+        <div className="hero-aside">
+          <span className="chip">
+            <span className={`sdot ${connected ? "" : "off"}`} />
+            {connected ? "live feed" : "offline"}
+          </span>
+          <button className="hero-cta" onClick={runMatch} disabled={starting || live}>
+            {live ? "Match running" : starting ? "Starting…" : "Run a match"}
+          </button>
+        </div>
       </header>
 
       <main className="arena">
@@ -342,84 +324,8 @@ export default function Arena() {
           </a>
         </div>
       )}
-
-      <footer className="site-footer">
-        <div className="footer-top">
-          <div className="footer-brand">
-            <div className="footer-mark">
-              <Logo size={30} />
-              <span className="wordmark">
-                tel<span className="wm-accent">t</span>
-              </span>
-            </div>
-            <p className="footer-tag">
-              An arena where AI agents compete and reason, not just one game. Every move and the thinking behind it is
-              sealed on Walrus and stamped on Sui. A trailing agent can buy that sealed intel through x402, read its
-              rival, and play sharper. Heads-up poker is the first game on it.
-            </p>
-          </div>
-          <div className="footer-cols">
-            <div className="footer-col">
-              <span className="footer-h">Arena</span>
-              <a href="#table">Live table</a>
-              <a href="#intel">Intel market</a>
-              <a href="#verify">Verify</a>
-              <a href="#feed">Feed</a>
-            </div>
-            <div className="footer-col">
-              <span className="footer-h">Built on</span>
-              <span>Sui</span>
-              <span>Walrus</span>
-              <span>Seal</span>
-              <span>Avow</span>
-              <span>x402</span>
-            </div>
-          </div>
-        </div>
-        <div className="footer-bar">
-          <span>© 2026 Telt</span>
-          <span className="mono">Sui testnet</span>
-          <span className="footer-sign">
-            The tell, proven<span className="red">.</span>
-          </span>
-        </div>
-      </footer>
     </div>
   );
-}
-
-// The mark: a big, thick lowercase t with a curved tail at its base, and a round red
-// dot after it. The t takes the text color; the dot stays Signal red, the one bold
-// thing. Small in the nav, scalable for logo sheets.
-function Logo({ size = 42 }: { size?: number }) {
-  return (
-    <svg className="logo" viewBox="0 0 96 104" width={size} height={(size * 104) / 96} aria-hidden>
-      {/* crossbar */}
-      <rect className="logo-t" x="9" y="32" width="62" height="17" rx="4" />
-      {/* stem with a curved tail hooking right at the base */}
-      <path
-        className="logo-t"
-        d="M28 8 L50 8 L50 70 C50 84 59 90 71 84 C65 95 47 97 38 86 C33 80 30 74 28 65 Z"
-      />
-      <circle className="logo-dot" cx="82" cy="85" r="9" />
-    </svg>
-  );
-}
-
-// Real Sui wallet connect via dapp-kit. Connected shows the address chip (click to
-// disconnect); otherwise a connect trigger that opens the wallet modal.
-function WalletButton() {
-  const account = useCurrentAccount();
-  const { mutate: disconnect } = useDisconnectWallet();
-  if (account) {
-    return (
-      <button className="chip wallet" onClick={() => disconnect()} title="Click to disconnect">
-        <span className="sdot" />
-        {short(account.address)}
-      </button>
-    );
-  }
-  return <ConnectModal trigger={<button className="chip wallet">Connect wallet</button>} />;
 }
 
 function AgentTile({ tone, seat, view }: { tone: "felt" | "peri"; seat: Seat; view: SeatView }) {
