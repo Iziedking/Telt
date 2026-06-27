@@ -57,7 +57,15 @@ export async function solve(puzzle: Puzzle, plan: InferencePlan): Promise<Solver
   }
 
   if (votes.length === 0) {
-    return { answer: 0, rationale: "no answer parsed", confidence: 0, samples: plan.samples, agreement: 0 };
+    // A weak model that never produced a parseable choice guesses, rather than always
+    // defaulting to the first option (which would bias every failed answer to A).
+    return {
+      answer: Math.floor(Math.random() * puzzle.options.length),
+      rationale: "guessed (no clear answer)",
+      confidence: 0,
+      samples: plan.samples,
+      agreement: 0,
+    };
   }
 
   // Majority vote on the option index.

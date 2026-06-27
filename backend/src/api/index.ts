@@ -10,6 +10,7 @@ import { agentMandateId, faucetMintUsdc, sui, createMandateAndAccess, coordinato
 import { loadRoster } from "../coordinator/roster.js";
 import { verifyByBlob } from "../avow/anchorMove.js";
 import { playMatch } from "../coordinator/table.js";
+import { playSolverMatch } from "../coordinator/solverMatch.js";
 import { runAutopilotCycle, recentContests, difficultyTiers, autopilotEnabled } from "../coordinator/autopilot.js";
 import { query } from "../db/pool.js";
 
@@ -55,6 +56,21 @@ app.post("/match", (c) => {
       running = false;
     });
   return c.json({ started: true });
+});
+
+// Kick a solver match in the background: live puzzles, both agents answer, anchored on
+// Walrus, scored, recorded. Progress streams over /ws. ?puzzles=N sets the count.
+let solverRunning = false;
+app.post("/solver", (c) => {
+  if (solverRunning) return c.json({ started: false, reason: "a solver match is already running" });
+  solverRunning = true;
+  const puzzles = Math.max(1, Math.min(20, Number(c.req.query("puzzles") ?? "10")));
+  void playSolverMatch({ puzzles })
+    .catch((e) => console.error("solver match failed:", (e as Error).message))
+    .finally(() => {
+      solverRunning = false;
+    });
+  return c.json({ started: true, puzzles });
 });
 
 // tUSDC faucet: a modest drip, claimable twice a week per wallet. Kept small on purpose so
