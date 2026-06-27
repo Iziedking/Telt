@@ -6,11 +6,23 @@ import { config, memoryConfigured, reasonConfigured, suiConfigured } from "../co
 import { reasonMode } from "../reason/client.js";
 import { attachWebSocket } from "../coordinator/ws.js";
 import { intelRoutes } from "../intel/market.js";
-import { agentMandateId, faucetMintUsdc, sui, createMandateAndAccess, coordinatorAddress } from "../chain/sui.js";
+import {
+  agentMandateId,
+  faucetMintUsdc,
+  sui,
+  createMandateAndAccess,
+  coordinatorAddress,
+  createContest,
+  fundContest,
+  readContests,
+  CONTEST_FORMAT,
+} from "../chain/sui.js";
 import { loadRoster } from "../coordinator/roster.js";
 import { verifyByBlob } from "../avow/anchorMove.js";
 import { playMatch } from "../coordinator/table.js";
 import { playSolverMatch } from "../coordinator/solverMatch.js";
+import { provisionAgentEntry, type Participant } from "../coordinator/provision.js";
+import { runContest } from "../coordinator/runContest.js";
 import { runAutopilotCycle, recentContests, difficultyTiers, autopilotEnabled } from "../coordinator/autopilot.js";
 import { query } from "../db/pool.js";
 
@@ -50,12 +62,24 @@ let running = false;
 app.post("/match", (c) => {
   if (running) return c.json({ started: false, reason: "a match is already running" });
   running = true;
-  void playMatch({ hands: 2, intel: { buyerSeat: "A", beforeHand: 1 } })
+  // ?with=<agentId> seats the caller's own agent against the top platform agent.
+  const withAgent = c.req.query("with") || "";
+  void (async () => {
+    if (/^0x[0-9a-f]{1,64}$/.test(withAgent)) {
+      const roster = loadRoster().agents;
+      const opponent = roster[roster.length - 1]!;
+      const me = await provisionAgentEntry(withAgent, "A");
+      const participants: Participant[] = [me, { ...opponent, key: "B" }];
+      await playMatch({ participants });
+    } else {
+      await playMatch({ intel: { buyerSeat: "A", beforeHand: 1 } });
+    }
+  })()
     .catch((e) => console.error("match failed:", (e as Error).message))
     .finally(() => {
       running = false;
     });
-  return c.json({ started: true });
+  return c.json({ started: true, withAgent: withAgent || null });
 });
 
 // Kick a solver match in the background: live puzzles, both agents answer, anchored on
@@ -65,12 +89,33 @@ app.post("/solver", (c) => {
   if (solverRunning) return c.json({ started: false, reason: "a solver match is already running" });
   solverRunning = true;
   const puzzles = Math.max(1, Math.min(20, Number(c.req.query("puzzles") ?? "10")));
-  void playSolverMatch({ puzzles })
+  // ?with=<agentId> seats the caller's own agent against the top platform agent, so a user
+  // can test their agent against the house. Without it, two platform agents play.
+  const withAgent = c.req.query("with") || "";
+  void (async () => {
+    let participants: Participant[] | undefined;
+    if (/^0x[0-9a-f]{1,64}$/.test(withAgent)) {
+      const roster = loadRoster().agents;
+      const opponent = roster[roster.length - 1]!; // the strongest platform agent: a real test
+      const me = await provisionAgentEntry(withAgent, "A");
+      participants = [me, { ...opponent, key: "B" }];
+    }
+    await playSolverMatch({ puzzles, participants });
+  })()
     .catch((e) => console.error("solver match failed:", (e as Error).message))
     .finally(() => {
       solverRunning = false;
     });
-  return c.json({ started: true, puzzles });
+  return c.json({ started: true, puzzles, withAgent: withAgent || null });
+});
+
+// Run a specific contest: seat its entrants (adding platform house fillers for general
+// contests, never for duels), play the game, and settle the pool to the winner.
+app.post("/contests/:id/run", (c) => {
+  const id = c.req.param("id");
+  if (!/^0x[0-9a-f]{1,64}$/.test(id)) return c.json({ error: "invalid contest id" }, 400);
+  void runContest(id).catch((e) => console.error("contest run failed:", (e as Error).message));
+  return c.json({ started: true, contestId: id });
 });
 
 // tUSDC faucet: a modest drip, claimable twice a week per wallet. Kept small on purpose so
@@ -219,10 +264,57 @@ app.get("/leaderboard", async (c) => {
   return c.json({ game: "poker", rows });
 });
 
-// The Contests view: the difficulty tiers missions scale across, and recent finished ones.
-app.get("/contests", (c) =>
-  c.json({ autopilot: autopilotEnabled(), tiers: difficultyTiers(), recent: recentContests() }),
-);
+// The Contests view: the difficulty tiers, recent finished missions, and the contests that
+// are open right now for an agent to join. Open contests are read live from chain (any
+// ContestCreated that is still status open).
+app.get("/contests", async (c) => {
+  let open: unknown[] = [];
+  try {
+    const ev = await sui.queryEvents({
+      query: { MoveEventType: `${config.arena.packageId}::contest::ContestCreated` },
+      limit: 20,
+      order: "descending",
+    });
+    const ids = [...new Set(ev.data.map((e) => String((e as any).parsedJson?.contest)).filter(Boolean))];
+    const states = await readContests(ids);
+    open = states
+      .filter((s) => s.status === 0)
+      .map((s) => ({
+        contestId: s.contestId,
+        game: s.game === 1 ? "solver" : "poker",
+        format: s.format === CONTEST_FORMAT.duel ? "duel" : "general",
+        entryFee: Number(s.entryFee) / 1_000_000,
+        pool: Number(s.pool) / 1_000_000,
+        entrants: s.entrants.length,
+        maxEntries: s.maxEntries,
+        levelMin: s.levelMin,
+        levelMax: s.levelMax,
+      }));
+  } catch {
+    /* leave open empty on read failure */
+  }
+  return c.json({ autopilot: autopilotEnabled(), tiers: difficultyTiers(), recent: recentContests(), open });
+});
+
+// Open a contest for agents to join. A general contest lets platform agents fill it; a duel
+// stays platform-free. Optionally seed a tUSDC reward into the pool.
+app.post("/contests/create", async (c) => {
+  const b = await c.req.json().catch(() => ({}));
+  const game = b.game === "solver" ? 1 : 0;
+  const format = b.format === "duel" ? CONTEST_FORMAT.duel : CONTEST_FORMAT.multi;
+  const levelMin = Math.max(0, Math.min(4, Number(b.levelMin ?? 0)));
+  const levelMax = Math.max(levelMin, Math.min(4, Number(b.levelMax ?? 4)));
+  const entryFeeUsdc = BigInt(Math.max(0, Number(b.entryFeeUsdc ?? 0))) * 1_000_000n;
+  const rewardUsdc = BigInt(Math.max(0, Number(b.rewardUsdc ?? 0))) * 1_000_000n;
+  const maxEntries = Math.max(2, Math.min(8, Number(b.maxEntries ?? 2)));
+  try {
+    const { contestId } = await createContest({ game, format, levelMin, levelMax, entryFeeUsdc, maxEntries });
+    if (rewardUsdc > 0n) await fundContest(contestId, rewardUsdc);
+    return c.json({ ok: true, contestId });
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 500);
+  }
+});
 
 app.get("/status", (c) =>
   c.json({

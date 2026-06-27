@@ -2481,3 +2481,88 @@ a.home-card:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* --- Game tabs (Arena game switcher) --- */
+.game-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.game-tab {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--dim);
+  text-decoration: none;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.game-tab:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.game-tab.active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+.game-tab.soon {
+  opacity: 0.4;
+  cursor: default;
+}
+.game-tab.soon:hover {
+  color: var(--dim);
+  border-color: var(--line);
+}
+
+/* --- Open contests (join + run) --- */
+.ct-open-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.ct-msg {
+  font-size: 13px;
+  color: var(--dim);
+}
+.ct-open-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid rgba(20, 24, 31, 0.08);
+  flex-wrap: wrap;
+}
+.ct-open-row:first-of-type {
+  border-top: none;
+}
+.ct-open-meta {
+  font-size: 13px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ct-open-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Create buttons sit on the dark arena panel, so give them light contrast. */
+.ct-open-bar .ws-mini {
+  border-color: rgba(244, 241, 234, 0.45);
+  color: #f4f1ea;
+}
+.ct-open-bar .ws-mini:hover {
+  border-color: #fff;
+  color: #fff;
+}

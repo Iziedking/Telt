@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useCurrentAccount } from "@mysten/dapp-kit";
 import {
   API_BASE,
   WS_URL,
@@ -10,6 +11,7 @@ import {
   type SettledPayload,
   type MoveVerification,
 } from "./feed";
+import GameTabs from "./GameTabs";
 
 type Seat = "A" | "B";
 
@@ -82,6 +84,8 @@ function tierName(level: number): string {
 }
 
 export default function Arena() {
+  const account = useCurrentAccount();
+  const [myAgent, setMyAgent] = useState<{ agentId: string; name: string } | null>(null);
   const [vm, setVm] = useState<ViewModel>(INITIAL);
   const [connected, setConnected] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -119,13 +123,29 @@ export default function Arena() {
     };
   }, []);
 
-  const runMatch = useCallback(async () => {
+  // The connected wallet's own agent, so it can enter against the house.
+  useEffect(() => {
+    if (!account) {
+      setMyAgent(null);
+      return;
+    }
+    fetch(`${API_BASE}/agents?owner=${account.address}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const list = d.agents ?? [];
+        const a = list.find((x: { registered?: boolean }) => x.registered) ?? list[0];
+        setMyAgent(a ? { agentId: a.agentId, name: a.name } : null);
+      })
+      .catch(() => {});
+  }, [account]);
+
+  const runMatch = useCallback(async (withAgent?: string) => {
     setStarting(true);
     setVm(INITIAL);
     setSelected(null);
     setVerifyState({ loading: false, result: null });
     try {
-      await fetch(`${API_BASE}/match`, { method: "POST" });
+      await fetch(`${API_BASE}/match${withAgent ? `?with=${withAgent}` : ""}`, { method: "POST" });
     } catch {
       /* backend may be down; the status tile stays idle */
     } finally {
@@ -156,6 +176,7 @@ export default function Arena() {
 
   return (
     <div className="page">
+      <GameTabs />
       <header className="hero-section">
         <div className="hero-text">
           <div className="kicker-row">
@@ -184,9 +205,14 @@ export default function Arena() {
             <span className={`sdot ${connected ? "" : "off"}`} />
             {connected ? "live feed" : "offline"}
           </span>
-          <button className="hero-cta" onClick={runMatch} disabled={starting || live}>
+          <button className="hero-cta" onClick={() => runMatch()} disabled={starting || live}>
             {live ? "Match running" : starting ? "Starting…" : "Run a match"}
           </button>
+          {myAgent && (
+            <button className="ws-mini primary" onClick={() => runMatch(myAgent.agentId)} disabled={starting || live}>
+              Play with {myAgent.name}
+            </button>
+          )}
         </div>
       </header>
 

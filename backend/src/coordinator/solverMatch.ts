@@ -3,13 +3,15 @@ import { solve } from "../solver/solverRunner.js";
 import { anchorAnswer } from "../solver/anchorAnswer.js";
 import { planForLevel } from "../reason/levels.js";
 import { solverSourcesConfigured } from "../solver/sources.js";
-import { loadRoster, avowFor, type RosterEntry } from "./roster.js";
+import { loadRoster, avowFor } from "./roster.js";
+import { type Participant } from "./provision.js";
 import { broadcast } from "./ws.js";
-import { recordResult } from "../chain/sui.js";
+import { recordResult, settleContest } from "../chain/sui.js";
 
-// A solver match: generate live puzzles, have both agents answer each, anchor every answer
-// on Walrus, score against the held-back answers, and record the result on chain. Progress
-// streams over /ws so the Arena can show it live, the same way the poker table does.
+// A solver match: generate live puzzles, have every seated agent answer each, anchor every
+// answer on Walrus, score against the held-back answers, and settle. Seats whoever is
+// passed in (a user's agent and/or platform agents); defaults to the two platform agents.
+// House agents play but cannot win or take a payout. Progress streams over /ws.
 
 async function bestEffort<T>(fn: () => Promise<T>): Promise<T | null> {
   try {
@@ -24,22 +26,24 @@ export interface SolverMatchOptions {
   puzzles?: number;
   // Anchoring writes to Walrus and Sui; turn it off for a quick dry run.
   anchor?: boolean;
+  // Who plays. Defaults to the first two platform agents.
+  participants?: Participant[];
+  // If set, the contest pool pays out to the winner instead of just recording a result.
+  contestId?: string;
 }
 
 export interface SolverMatchResult {
   matchId: string;
   winner: string;
+  winnerAgentId: string;
   scores: Record<string, number>;
 }
 
 export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<SolverMatchResult> {
   const count = opts.puzzles ?? 10;
   const doAnchor = opts.anchor ?? true;
-  const roster = loadRoster().agents;
-  if (roster.length < 2) throw new Error("need at least two agents in the roster");
-  const a = roster[0]!;
-  const b = roster[1]!;
-  const players = [a, b];
+  const players: Participant[] = opts.participants ?? loadRoster().agents.slice(0, 2).map((e) => ({ ...e }));
+  if (players.length < 2) throw new Error("need at least two agents to play");
   const matchId = `solver-${Date.now()}`;
 
   broadcast({
@@ -52,8 +56,12 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
     },
   });
 
-  const scores: Record<string, number> = { [a.key]: 0, [b.key]: 0 };
-  const agreementTotals: Record<string, number> = { [a.key]: 0, [b.key]: 0 };
+  const scores: Record<string, number> = {};
+  const agreementTotals: Record<string, number> = {};
+  for (const p of players) {
+    scores[p.key] = 0;
+    agreementTotals[p.key] = 0;
+  }
   const puzzles = await generatePuzzles(count);
 
   for (const [i, pz] of puzzles.entries()) {
@@ -63,7 +71,7 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
     });
 
     for (const p of players) {
-      const opponent = p === a ? b : a;
+      const opponent = players.find((q) => q.agentId !== p.agentId) ?? p;
       const d = await solve(pz, planForLevel(p.level));
       const correct = d.answer === pz.answer;
       if (correct) scores[p.key] = (scores[p.key] ?? 0) + 1;
@@ -109,21 +117,26 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
     });
   }
 
-  // Winner: more correct answers. Ties go to the more decisive agent (higher summed
-  // agreement), and if still even, to the underdog so a weaker model that keeps pace wins.
-  const sa = scores[a.key] ?? 0;
-  const sb = scores[b.key] ?? 0;
-  const ga = agreementTotals[a.key] ?? 0;
-  const gb = agreementTotals[b.key] ?? 0;
-  let winner: RosterEntry;
-  if (sa !== sb) winner = sa > sb ? a : b;
-  else if (ga !== gb) winner = ga > gb ? a : b;
-  else winner = a.level <= b.level ? a : b;
-  const loser = winner === a ? b : a;
+  // Winner: most correct among non-house agents. Ties go to the more decisive agent (higher
+  // summed agreement), then to the underdog so a weaker model that keeps pace is rewarded.
+  const eligible = players.filter((p) => !p.isHouse);
+  const pool = eligible.length ? eligible : players;
+  const winner = pool.reduce((best, p) => {
+    const sp = scores[p.key] ?? 0;
+    const sb = scores[best.key] ?? 0;
+    if (sp !== sb) return sp > sb ? p : best;
+    const gp = agreementTotals[p.key] ?? 0;
+    const gb = agreementTotals[best.key] ?? 0;
+    if (gp !== gb) return gp > gb ? p : best;
+    return p.level <= best.level ? p : best;
+  }, pool[0]!);
 
-  await bestEffort(() => recordResult(winner.agentId, true));
-  await bestEffort(() => recordResult(loser.agentId, false));
+  // Record win/loss for the non-house players, and pay out the contest pool if this was one.
+  for (const p of eligible) {
+    await bestEffort(() => recordResult(p.agentId, p.agentId === winner.agentId));
+  }
+  if (opts.contestId) await bestEffort(() => settleContest(opts.contestId!, winner.agentId));
 
   broadcast({ type: "solverSettled", payload: { matchId, winnerSeat: winner.key, winnerName: winner.name, scores: { ...scores } } });
-  return { matchId, winner: winner.name, scores };
+  return { matchId, winner: winner.name, winnerAgentId: winner.agentId, scores };
 }

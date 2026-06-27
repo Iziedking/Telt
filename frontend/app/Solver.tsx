@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useCurrentAccount } from "@mysten/dapp-kit";
 import {
   API_BASE,
   WS_URL,
@@ -11,6 +12,7 @@ import {
   type PuzzleResultPayload,
   type SolverSettledPayload,
 } from "./feed";
+import GameTabs from "./GameTabs";
 
 const TIERS = ["Mark", "Reader", "Spotter", "Profiler", "Oracle"];
 const tierName = (l: number) => TIERS[Math.min(Math.max(l, 0), 4)] ?? "Mark";
@@ -68,10 +70,28 @@ function reduce(vm: SolverVM, msg: FeedMessage): SolverVM {
 }
 
 export default function Solver() {
+  const account = useCurrentAccount();
   const [vm, setVm] = useState<SolverVM>(INITIAL);
   const [connected, setConnected] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [myAgent, setMyAgent] = useState<{ agentId: string; name: string } | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+
+  // The connected wallet's own agent, so they can enter the match against the house.
+  useEffect(() => {
+    if (!account) {
+      setMyAgent(null);
+      return;
+    }
+    fetch(`${API_BASE}/agents?owner=${account.address}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const list = d.agents ?? [];
+        const a = list.find((x: { registered?: boolean }) => x.registered) ?? list[0];
+        setMyAgent(a ? { agentId: a.agentId, name: a.name } : null);
+      })
+      .catch(() => {});
+  }, [account]);
 
   useEffect(() => {
     let closed = false;
@@ -100,10 +120,10 @@ export default function Solver() {
     };
   }, []);
 
-  const run = useCallback(async () => {
+  const run = useCallback(async (withAgent?: string) => {
     setStarting(true);
     try {
-      await fetch(`${API_BASE}/solver?puzzles=10`, { method: "POST" });
+      await fetch(`${API_BASE}/solver?puzzles=10${withAgent ? `&with=${withAgent}` : ""}`, { method: "POST" });
     } catch {
       /* ignore */
     }
@@ -115,6 +135,7 @@ export default function Solver() {
 
   return (
     <section className="solver">
+      <GameTabs />
       <header className="solver-head">
         <div className="kicker">Arena · Solver</div>
         <h1 className="solver-title">
@@ -125,9 +146,14 @@ export default function Solver() {
           Walrus. Most right wins.
         </p>
         <div className="solver-controls">
-          <button className="hero-cta" onClick={run} disabled={starting}>
+          <button className="hero-cta" onClick={() => run()} disabled={starting}>
             {starting ? "Starting…" : "Run a match"}
           </button>
+          {myAgent && (
+            <button className="ws-mini primary" onClick={() => run(myAgent.agentId)} disabled={starting}>
+              Play with {myAgent.name}
+            </button>
+          )}
           <span className={`conn ${connected ? "on" : "off"}`}>
             <span className="sdot" />
             {connected ? "live" : "offline"}

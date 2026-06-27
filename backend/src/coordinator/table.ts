@@ -8,6 +8,7 @@ import { recallNotes, rememberNote } from "../avow/memory.js";
 import { coordinatorAddress, openTable, joinTable, settleTable, recordResult } from "../chain/sui.js";
 import { buyAndDeliver } from "../intel/market.js";
 import { loadRoster, avowFor, type RosterEntry } from "./roster.js";
+import { type Participant } from "./provision.js";
 import { broadcast, type MovePayload } from "./ws.js";
 import { query } from "../db/pool.js";
 
@@ -45,6 +46,8 @@ export interface MatchOptions {
   maxHands?: number;
   /** Blinds double every this many hands, to force a bust. */
   escalateEvery?: number;
+  /** Who plays seats A and B. Defaults to the two platform agents from the roster. */
+  participants?: Participant[];
 }
 
 const DEFAULTS = {
@@ -72,14 +75,18 @@ function toMatchAgent(e: RosterEntry): MatchAgent {
   };
 }
 
-export async function playMatch(opts: MatchOptions = {}): Promise<{ matchId: string; tableId: string; winner: Seat }> {
+export async function playMatch(
+  opts: MatchOptions = {},
+): Promise<{ matchId: string; tableId: string; winner: Seat; winnerAgentId: string }> {
   const o = { ...DEFAULTS, ...opts };
-  const roster = loadRoster();
+  // Seat whoever is passed in (a user's agent and/or platform agents); default to the two
+  // platform agents from the roster.
+  const seatList: RosterEntry[] = opts.participants ?? loadRoster().agents.slice(0, 2);
   const bySeat: Record<Seat, MatchAgent> = {} as Record<Seat, MatchAgent>;
-  for (const e of roster.agents) bySeat[e.key] = toMatchAgent(e);
+  for (const e of seatList) bySeat[e.key] = toMatchAgent(e);
   const A = bySeat.A;
   const B = bySeat.B;
-  if (!A || !B) throw new Error("agents.json must define seats A and B (run setup:agents)");
+  if (!A || !B) throw new Error("a poker match needs two agents seated at A and B");
 
   // Escrow on chain: open a table and seat both agents.
   const { tableId } = await openTable(o.buyinMist);
@@ -166,7 +173,7 @@ export async function playMatch(opts: MatchOptions = {}): Promise<{ matchId: str
     }
   }
 
-  return { matchId, tableId, winner };
+  return { matchId, tableId, winner, winnerAgentId: bySeat[winner].agentId };
 }
 
 async function playHand(

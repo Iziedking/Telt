@@ -266,6 +266,68 @@ export async function settleContest(contestId: string, winnerAgentId: string): P
   return (await execute(tx)).digest;
 }
 
+export interface ContestEntrant {
+  agentId: string;
+  owner: string;
+  isHouse: boolean;
+}
+export interface ContestState {
+  contestId: string;
+  game: number;
+  format: number;
+  status: number;
+  levelMin: number;
+  levelMax: number;
+  entryFee: bigint;
+  maxEntries: number;
+  pool: bigint;
+  entrants: ContestEntrant[];
+}
+
+function parseContestFields(contestId: string, f: Record<string, any>): ContestState {
+  const entrants: ContestEntrant[] = (f.entrants ?? []).map((e: any) => {
+    const ef = e?.fields ?? e;
+    return { agentId: String(ef.agent), owner: String(ef.owner), isHouse: Boolean(ef.is_house) };
+  });
+  const poolRaw = typeof f.pool === "object" ? (f.pool?.fields?.value ?? f.pool?.value ?? 0) : (f.pool ?? 0);
+  return {
+    contestId,
+    game: Number(f.game ?? 0),
+    format: Number(f.format ?? 0),
+    status: Number(f.status ?? 0),
+    levelMin: Number(f.level_min ?? 0),
+    levelMax: Number(f.level_max ?? 0),
+    entryFee: BigInt(f.entry_fee ?? 0),
+    maxEntries: Number(f.max_entries ?? 0),
+    pool: BigInt(poolRaw),
+    entrants,
+  };
+}
+
+// Read a contest's live state, including who has entered and which seats are house fillers.
+export async function readContest(contestId: string): Promise<ContestState | null> {
+  const obj = (await sui.getObject({ id: contestId, options: { showContent: true } })) as {
+    data?: { content?: { fields?: Record<string, any> } };
+  };
+  const f = obj.data?.content?.fields;
+  return f ? parseContestFields(contestId, f) : null;
+}
+
+// Read many contests in a single RPC call (much faster than one getObject each).
+export async function readContests(ids: string[]): Promise<ContestState[]> {
+  if (ids.length === 0) return [];
+  const objs = (await sui.multiGetObjects({ ids, options: { showContent: true } })) as {
+    data?: { objectId?: string; content?: { fields?: Record<string, any> } };
+  }[];
+  const out: ContestState[] = [];
+  for (const o of objs) {
+    const id = o.data?.objectId;
+    const f = o.data?.content?.fields;
+    if (id && f) out.push(parseContestFields(id, f));
+  }
+  return out;
+}
+
 export async function recordResult(agentId: string, won: boolean): Promise<string> {
   const tx = new Transaction();
   tx.moveCall({

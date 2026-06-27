@@ -1,8 +1,13 @@
 import { config } from "../config/index.js";
 import { createContest, fundContest, joinContest, settleContest, CONTEST_FORMAT } from "../chain/sui.js";
 import { playMatch } from "./table.js";
+import { playSolverMatch } from "./solverMatch.js";
 import { loadRoster, type RosterEntry } from "./roster.js";
 import type { Seat } from "../poker/types.js";
+
+// Games the autopilot rotates through. 0 = poker, 1 = solver.
+const GAME_POKER = 0;
+const GAME_SOLVER = 1;
 
 // The autopilot keeps the arena busy on its own: on a schedule it opens a contest, seats
 // the agents as real entrants, runs the match over the coordinator, and settles the tUSDC
@@ -40,6 +45,7 @@ let running = false;
 
 export interface CycleResult {
   event: string;
+  game: string;
   difficulty: string;
   sensitivity: number;
   rewardUsdc: number;
@@ -47,6 +53,9 @@ export interface CycleResult {
   winner: string;
   at: number;
 }
+
+// Alternate poker and solver each cycle so both games stay live in the rotation.
+let cycleCount = 0;
 
 // Recent finished missions, newest first, for the Contests view.
 const recent: CycleResult[] = [];
@@ -63,7 +72,9 @@ export async function runAutopilotCycle(): Promise<CycleResult> {
     const reward = randomReward();
     const diff = difficultyFor(reward);
     const rewardBase = BigInt(reward) * 1_000_000n;
-    const name = `${diff.label} mission`;
+    const game = cycleCount++ % 2 === 0 ? GAME_POKER : GAME_SOLVER;
+    const gameName = game === GAME_SOLVER ? "solver" : "poker";
+    const name = `${diff.label} ${gameName} mission`;
 
     const roster = loadRoster();
     const bySeat = {} as Record<Seat, RosterEntry>;
@@ -73,9 +84,11 @@ export async function runAutopilotCycle(): Promise<CycleResult> {
     if (!A || !B) throw new Error("need two agents (run setup:agents)");
 
     console.log(`[autopilot] ${name}, reward ${reward} tUSDC (sensitivity ${diff.sensitivity})`);
+    // General (multi) contests, so platform agents are allowed to fill them; duels stay
+    // platform-free for real agent-vs-agent challenges.
     const { contestId } = await createContest({
-      game: 0,
-      format: CONTEST_FORMAT.duel,
+      game,
+      format: CONTEST_FORMAT.multi,
       levelMin: 0,
       levelMax: 4,
       entryFeeUsdc: 0n, // missions are platform-funded; agents enter free
@@ -86,18 +99,34 @@ export async function runAutopilotCycle(): Promise<CycleResult> {
     await joinContest(contestId, B.agentId, 0n);
     console.log(`[autopilot] contest ${contestId.slice(0, 10)} open, ${A.name} and ${B.name} entered`);
 
-    const { winner } = await playMatch({ intel: { buyerSeat: "A", beforeHand: 1 } });
-    const winnerAgent = winner === "A" ? A : B;
-    await settleContest(contestId, winnerAgent.agentId);
+    let winnerName: string;
+    if (game === GAME_SOLVER) {
+      // playSolverMatch settles the contest pool to the winner itself.
+      const res = await playSolverMatch({
+        puzzles: 6,
+        participants: [
+          { ...A, key: "A" },
+          { ...B, key: "B" },
+        ],
+        contestId,
+      });
+      winnerName = res.winner;
+    } else {
+      const { winner } = await playMatch({ intel: { buyerSeat: "A", beforeHand: 1 } });
+      const winnerAgent = winner === "A" ? A : B;
+      await settleContest(contestId, winnerAgent.agentId);
+      winnerName = winnerAgent.name;
+    }
 
-    console.log(`[autopilot] ${winnerAgent.name} won the ${diff.label} mission, ${reward} tUSDC`);
+    console.log(`[autopilot] ${winnerName} won the ${diff.label} ${gameName} mission, ${reward} tUSDC`);
     const result: CycleResult = {
       event: name,
+      game: gameName,
       difficulty: diff.label,
       sensitivity: diff.sensitivity,
       rewardUsdc: reward,
       contestId,
-      winner: winnerAgent.name,
+      winner: winnerName,
       at: Date.now(),
     };
     recent.unshift(result);
