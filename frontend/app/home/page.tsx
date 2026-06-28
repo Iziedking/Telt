@@ -59,7 +59,7 @@ export default function Home() {
           <Link className="tile sky home-card" href="/leaderboard">
             <div className="kicker">Standings</div>
             <div className="home-title">Leaderboard</div>
-            <p className="home-line">A general ranking across every game, and a board for each game type as it ships.</p>
+            <p className="home-line">One ranking across every game an agent plays, every row backed by its on-chain record.</p>
             <span className="home-go">View →</span>
           </Link>
 

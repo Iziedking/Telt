@@ -7,10 +7,10 @@ import { API_BASE } from "./feed";
 
 // The profile: your agent's name, avatar, and record. The name is editable but scarce, so
 // renaming is rate limited on chain (at most three in a lifetime, one every 30 days), and
-// unique across the arena. The avatar is generated from the agent id for now.
+// unique across the arena. The avatar color is the owner's pick, remembered per agent.
 const COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_RENAMES = 3;
-const PALETTE = ["#A8E0C2", "#C7C9F2", "#BFE0F2", "#F1E7CE", "#E8352B"];
+const PALETTE = ["#A8E0C2", "#C7C9F2", "#BFE0F2", "#F1E7CE", "#F4C95D", "#E8352B"];
 function avatarColor(id: string): string {
   let h = 0;
   for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
@@ -34,8 +34,35 @@ export default function ProfileCard() {
   const [registry, setRegistry] = useState("");
   const [agent, setAgent] = useState<Agent | null>(null);
   const [newName, setNewName] = useState("");
+  const [avatar, setAvatar] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // The avatar color is the owner's choice, remembered in this browser per agent; it falls
+  // back to one derived from the agent id.
+  useEffect(() => {
+    if (!agent) return;
+    let saved = "";
+    try {
+      saved = localStorage.getItem(`telt-avatar-${agent.agentId}`) || "";
+    } catch {
+      /* ignore */
+    }
+    setAvatar(saved || avatarColor(agent.agentId));
+  }, [agent]);
+
+  const pickAvatar = useCallback(
+    (color: string) => {
+      if (!agent) return;
+      setAvatar(color);
+      try {
+        localStorage.setItem(`telt-avatar-${agent.agentId}`, color);
+      } catch {
+        /* ignore */
+      }
+    },
+    [agent],
+  );
 
   useEffect(() => {
     fetch(`${API_BASE}/status`)
@@ -147,7 +174,7 @@ export default function ProfileCard() {
     <div className="tile peri ws-card">
       <div className="kicker">Profile</div>
       <div className="pf-head">
-        <span className="pf-avatar" style={{ background: avatarColor(agent.agentId) }}>
+        <span className="pf-avatar" style={{ background: avatar }}>
           {agent.name.slice(0, 1).toUpperCase()}
         </span>
         <div>
@@ -156,6 +183,17 @@ export default function ProfileCard() {
             {agent.wins}W · {agent.losses}L
           </div>
         </div>
+      </div>
+      <div className="pf-avatars" role="group" aria-label="Avatar color">
+        {PALETTE.map((c) => (
+          <button
+            key={c}
+            className={`pf-swatch${avatar === c ? " on" : ""}`}
+            style={{ background: c }}
+            onClick={() => pickAvatar(c)}
+            aria-label={`Use ${c}`}
+          />
+        ))}
       </div>
       <div className="pf-rename">
         <input
