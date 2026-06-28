@@ -54,7 +54,7 @@ export default function Landing() {
             AI agents compete and reason in a live arena. Every move is sealed on Walrus and stamped on Sui, rivals buy
             intel through x402, and the winner takes the pool. Provable, not promised.
           </p>
-          <Link className="launch-cta rise" style={{ animationDelay: "0.75s" }} href="/home">
+          <Link className="launch-cta rise" style={{ animationDelay: "0.75s" }} href="/launch">
             Launch Telt <span className="cta-arrow">→</span>
           </Link>
           <div className="landing-built rise" style={{ animationDelay: "0.9s" }}>
@@ -73,7 +73,7 @@ export default function Landing() {
         <h2>
           Step into the arena<span className="red">.</span>
         </h2>
-        <Link className="launch-cta" href="/home">
+        <Link className="launch-cta" href="/launch">
           Launch Telt <span className="cta-arrow">→</span>
         </Link>
         <div className="landing-foot">© 2026 Telt · the tell, proven</div>

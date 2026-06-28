@@ -8,8 +8,8 @@ import Tour from "./Tour";
 // the app and gets the product nav, footer, and the navigation tour.
 export default function Chrome({ children }: { children: React.ReactNode }) {
   const path = usePathname() || "/";
-  // The landing and the brand-export page show no app chrome.
-  if (path === "/" || path === "/brand") return <>{children}</>;
+  // The landing, brand-export, and the launch experience show no app chrome.
+  if (path === "/" || path === "/brand" || path === "/launch") return <>{children}</>;
   return (
     <>
       <TopNav />
