@@ -90,7 +90,7 @@ export default function LeaderboardPage() {
                 </span>
                 <span>Poker</span>
                 <span className="num">{r.wins}</span>
-                <span className="num">{r.games ? `${r.winRate}%` : "—"}</span>
+                <span className="num">{r.games ? `${r.winRate}%` : "·"}</span>
               </div>
             ))
           )}

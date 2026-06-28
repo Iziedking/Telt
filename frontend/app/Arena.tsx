@@ -44,7 +44,7 @@ interface ViewModel {
 }
 
 const EMPTY_SEAT: SeatView = {
-  name: "—",
+  name: "·",
   level: 0,
   agentId: "",
   chips: null,
@@ -238,7 +238,7 @@ export default function Arena() {
             <div className="agent-foot" style={{ marginTop: 8 }}>
               <Stat k="A hands won" v={A.handsWon} />
               <Stat k="B hands won" v={B.handsWon} />
-              <Stat k="leader" v={leader ? vm.seats[leader].name : "—"} />
+              <Stat k="leader" v={leader ? vm.seats[leader].name : "·"} />
             </div>
             <div>
               {live ? (
@@ -371,7 +371,7 @@ function AgentTile({ tone, seat, view }: { tone: "felt" | "peri"; seat: Seat; vi
       </div>
 
       <div className="agent-chips">
-        <span className="n">{view.chips ?? "—"}</span>
+        <span className="n">{view.chips ?? "·"}</span>
         <span className="muted-small">chips</span>
       </div>
 
@@ -403,7 +403,7 @@ function AgentTile({ tone, seat, view }: { tone: "felt" | "peri"; seat: Seat; vi
       <div className="agent-foot">
         <Stat k="moves" v={view.moves} />
         <Stat k="hands won" v={view.handsWon} />
-        <Stat k="last passes" v={view.lastSamples || "—"} />
+        <Stat k="last passes" v={view.lastSamples || "·"} />
       </div>
     </div>
   );
@@ -431,7 +431,7 @@ function SeatBox({ seat, view, active, live }: { seat: Seat; view: SeatView; act
       <div className="lvl">
         Seat {seat} · {tierName(view.level)} L{view.level}
       </div>
-      <div className="chips">{view.chips ?? "—"}</div>
+      <div className="chips">{view.chips ?? "·"}</div>
       <div className="last">{view.lastMove}</div>
     </div>
   );
@@ -459,11 +459,11 @@ function VerifyPanel({
       {state.error && <div className="muted-small" style={{ color: "#9a2b22" }}>{state.error}</div>}
       <div className="idline">
         <span className="label">Walrus blob</span>
-        <span className="val mono">{r?.blobId ?? move.blobId ?? "—"}</span>
+        <span className="val mono">{r?.blobId ?? move.blobId ?? "·"}</span>
       </div>
       <div className="idline">
         <span className="label">Evidence hash</span>
-        <span className="val mono">{move.evidenceHash ?? "—"}</span>
+        <span className="val mono">{move.evidenceHash ?? "·"}</span>
       </div>
       <div className="idline">
         <span className="label">Sui tx digest</span>
@@ -473,7 +473,7 @@ function VerifyPanel({
               {r.txDigest}
             </a>
           ) : (
-            move.anchorDigest ?? "—"
+            move.anchorDigest ?? "·"
           )}
         </span>
       </div>

@@ -278,7 +278,9 @@ app.get("/contests", async (c) => {
     const ids = [...new Set(ev.data.map((e) => String((e as any).parsedJson?.contest)).filter(Boolean))];
     const states = await readContests(ids);
     open = states
-      .filter((s) => s.status === 0)
+      // Open, and not a stuck legacy contest already full of house-only seats (those can
+      // never settle, since a house agent cannot win).
+      .filter((s) => s.status === 0 && !(s.entrants.length >= s.maxEntries && s.entrants.length > 0 && s.entrants.every((e) => e.isHouse)))
       .map((s) => ({
         contestId: s.contestId,
         game: s.game === 1 ? "solver" : "poker",

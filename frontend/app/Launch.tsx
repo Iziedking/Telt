@@ -32,20 +32,17 @@ export default function Launch() {
   const [phase, setPhase] = useState<Phase>("connect");
   const [signing, setSigning] = useState(false);
 
-  // After signing, the on-chain agents decide first-time vs returning.
+  // After signing, the on-chain agents decide first-time vs returning. The rule is simple:
+  // a wallet with a claimed agent is returning (it owns a profile) and gets the welcome;
+  // a wallet with no agent is a new user and goes through the onboarding, every time, until
+  // it claims one.
   const decide = useCallback((address: string) => {
     setPhase("checking");
     fetch(`${API_BASE}/agents?owner=${address}`)
       .then((r) => r.json())
       .then((d) => {
         const hasAgent = (d.agents ?? []).length > 0;
-        let onboarded = false;
-        try {
-          onboarded = !!localStorage.getItem("telt-onboarded-v1");
-        } catch {
-          /* ignore */
-        }
-        setPhase(hasAgent || onboarded ? "spark" : "onboarding");
+        setPhase(hasAgent ? "spark" : "onboarding");
       })
       .catch(() => setPhase("onboarding"));
   }, []);
@@ -90,11 +87,6 @@ export default function Launch() {
   }, [account, signPersonalMessage, decide]);
 
   const finishOnboarding = useCallback(() => {
-    try {
-      localStorage.setItem("telt-onboarded-v1", "1");
-    } catch {
-      /* ignore */
-    }
     router.push("/home");
   }, [router]);
 

@@ -167,7 +167,7 @@ export default function ContestsPage() {
       setMsg("Running the contest…");
       try {
         await fetch(`${API_BASE}/contests/${contestId}/run`, { method: "POST" });
-        setMsg("Running — watch it live in the Arena.");
+        setMsg("Running. Watch it live in the Arena.");
         setTimeout(load, 3000);
       } catch {
         setMsg("could not run the contest");

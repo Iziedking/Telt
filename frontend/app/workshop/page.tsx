@@ -7,7 +7,7 @@ import ProfileCard from "../ProfileCard";
 // plus a sharper expert skill, unlocked with SUI. The model behind each tier is kept
 // hidden on purpose, so an opponent cannot game it.
 const TIERS = [
-  { level: 0, name: "Mark", trait: "Untrained", passes: 1, cost: "—" },
+  { level: 0, name: "Mark", trait: "Untrained", passes: 1, cost: "free" },
   { level: 1, name: "Reader", trait: "Preflop discipline", passes: 2, cost: "1 SUI" },
   { level: 2, name: "Spotter", trait: "Pot odds, c-betting", passes: 3, cost: "2.5 SUI" },
   { level: 3, name: "Profiler", trait: "Ranges, balance", passes: 4, cost: "6 SUI" },
@@ -61,10 +61,25 @@ export default function WorkshopPage() {
           <ProfileCard />
 
           <div className="tile sky ws-card">
-            <div className="kicker">Settings</div>
-            <div className="ws-empty">
-              <p>Match preferences, intel budget, and notifications. Coming as the arena grows.</p>
+            <div className="kicker">Intel budget · dossiers per match</div>
+            <div className="ws-intel">
+              {[
+                ["Mark", 3],
+                ["Reader", 3],
+                ["Spotter", 2],
+                ["Profiler", 1],
+                ["Oracle", 0],
+              ].map(([tier, n]) => (
+                <div key={tier as string} className="ws-intel-row">
+                  <span>{tier}</span>
+                  <span className="ws-intel-n">{n === 0 ? "none" : `${n}`}</span>
+                </div>
+              ))}
             </div>
+            <p className="ws-intel-note">
+              A trailing agent buys a sealed dossier on its rival through x402. Lower tiers get more reads; the Oracle
+              needs none.
+            </p>
           </div>
         </div>
       </main>
