@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
-import { API_BASE } from "../feed";
+import { API_BASE, prettyError } from "../feed";
+import PlatformBadge from "../PlatformBadge";
 
 interface Tier {
   label: string;
@@ -55,6 +56,7 @@ export default function ContestsPage() {
   const [myAgent, setMyAgent] = useState<{ agentId: string; name: string } | null>(null);
   const [msg, setMsg] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [game, setGame] = useState<"solver" | "poker">("solver");
 
   const load = useCallback(() => {
     fetch(`${API_BASE}/contests`)
@@ -112,13 +114,13 @@ export default function ContestsPage() {
   }, [load]);
 
   const create = useCallback(
-    async (game: string, format: string) => {
+    async (kind: string) => {
       setMsg("Opening a contest…");
       try {
         await fetch(`${API_BASE}/contests/create`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ game, format, entryFeeUsdc: 0, rewardUsdc: 30 }),
+          body: JSON.stringify({ game, kind, entryFeeUsdc: 0, rewardUsdc: 20 }),
         });
         setMsg("");
         setTimeout(load, 2500);
@@ -126,7 +128,7 @@ export default function ContestsPage() {
         setMsg("could not open the contest");
       }
     },
-    [load],
+    [game, load],
   );
 
   const join = useCallback(
@@ -154,11 +156,11 @@ export default function ContestsPage() {
               setMsg(`${myAgent.name} joined.`);
               setTimeout(load, 2500);
             },
-            onError: (e) => setMsg(e.message || "join failed"),
+            onError: (e) => setMsg(prettyError(e)),
           },
         );
       } catch (e) {
-        setMsg((e as Error).message || "join failed");
+        setMsg(prettyError(e));
       }
     },
     [account, pkg, myAgent, suiClient, signAndExecute, load],
@@ -204,19 +206,43 @@ export default function ContestsPage() {
       </header>
 
       <main className="arena">
-        <div className="panel-label">Open contests · join with your agent</div>
+        <div className="panel-label">Open a contest · then join with your agent</div>
         <div className="ct-open-bar">
-          <button className="ws-mini" onClick={() => create("solver", "general")}>
-            Open Solver general
+          <div className="ct-game-toggle" role="group" aria-label="Game">
+            <button className={game === "solver" ? "on" : ""} onClick={() => setGame("solver")}>
+              Solver
+            </button>
+            <button className={game === "poker" ? "on" : ""} onClick={() => setGame("poker")}>
+              Poker
+            </button>
+          </div>
+          <button
+            className="ws-mini"
+            onClick={() => create("challenge")}
+            title="A 1v1 against a random platform agent, to test your own agent against the house."
+          >
+            Challenge the house
           </button>
-          <button className="ws-mini" onClick={() => create("solver", "duel")}>
-            Open Solver duel
+          <button
+            className="ws-mini"
+            onClick={() => create("duel")}
+            title="A 1v1 open only to real users. No platform agents. Runs once two real agents have joined."
+          >
+            Duel
           </button>
-          <button className="ws-mini" onClick={() => create("poker", "general")}>
-            Open Poker general
+          <button
+            className="ws-mini"
+            onClick={() => create("general")}
+            title="Anyone can join. Platform agents fill the empty seats to keep it lively, but they never win and rank last."
+          >
+            General
           </button>
-          <button className="ws-mini" onClick={() => create("poker", "duel")}>
-            Open Poker duel
+          <button
+            className="ws-mini"
+            onClick={() => create("custom")}
+            title="Your own event: anyone can join, but no platform agents take part."
+          >
+            Custom
           </button>
           {msg && <span className="ct-msg">{msg}</span>}
         </div>
@@ -230,14 +256,25 @@ export default function ContestsPage() {
             open.map((ct) => (
               <div key={ct.contestId} className="ct-open-row">
                 <span className="ct-open-meta">
-                  <span className="ct-badge s1">{ct.game}</span> {ct.format} · {ct.entrants}/{ct.maxEntries} in · pool{" "}
-                  {ct.pool} tUSDC · L{ct.levelMin}-{ct.levelMax}
+                  <span className="ct-badge s1">{ct.game}</span>
+                  <span className="ct-kind">{ct.format}</span>
+                  {ct.format === "general" && <PlatformBadge small />}· {ct.entrants}/{ct.maxEntries} in · pool {ct.pool}{" "}
+                  tUSDC · L{ct.levelMin}-{ct.levelMax}
                 </span>
                 <span className="ct-open-actions">
-                  <button className="ws-mini primary" onClick={() => join(ct)} disabled={isPending || !myAgent}>
+                  <button
+                    className="ws-mini primary"
+                    onClick={() => join(ct)}
+                    disabled={isPending || !myAgent}
+                    title={myAgent ? "Enter this contest with your agent" : "Connect a wallet that owns an agent first"}
+                  >
                     Join with my agent
                   </button>
-                  <button className="ws-mini" onClick={() => run(ct.contestId)}>
+                  <button
+                    className="ws-mini"
+                    onClick={() => run(ct.contestId)}
+                    title="Play this contest out and settle the pool to the winner"
+                  >
                     Run
                   </button>
                 </span>

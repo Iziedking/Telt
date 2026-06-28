@@ -2231,7 +2231,8 @@ a.home-card:hover {
 .solver-controls {
   display: flex;
   align-items: center;
-  gap: 14px;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-top: 22px;
 }
 .conn {
@@ -3326,6 +3327,26 @@ input:focus:not(:focus-visible) {
   }
 }
 
+/* A gentle fade as each app page mounts, so navigation feels considered. */
+.page,
+.solver {
+  animation: appIn 0.32s ease both;
+}
+@keyframes appIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page,
+  .solver {
+    animation: none;
+  }
+}
+
 /* The launch experience animations respect reduced-motion. */
 @media (prefers-reduced-motion: reduce) {
   .onb-stage,
@@ -3372,4 +3393,93 @@ input:focus:not(:focus-visible) {
     transform: none !important;
     stroke-dashoffset: 0 !important;
   }
+}
+
+/* --- Platform (house) agent badge --- */
+.plat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6d6fd6;
+  background: rgba(124, 127, 240, 0.12);
+  border: 1px solid rgba(124, 127, 240, 0.35);
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-left: 8px;
+  vertical-align: middle;
+  cursor: help;
+  white-space: nowrap;
+}
+.plat-badge.sm {
+  font-size: 9px;
+  padding: 1px 7px;
+}
+.lb-row.platform {
+  opacity: 0.7;
+}
+
+/* Game toggle + kind label on the contests bar */
+.ct-game-toggle {
+  display: inline-flex;
+  border: 1px solid rgba(244, 241, 234, 0.25);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.ct-game-toggle button {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 7px 16px;
+  background: none;
+  border: none;
+  color: rgba(244, 241, 234, 0.65);
+  cursor: pointer;
+}
+.ct-game-toggle button.on {
+  background: var(--signal);
+  color: #fff;
+}
+.ct-kind {
+  text-transform: capitalize;
+}
+
+/* Onboarding: the house (platform agent) visual */
+.art-house {
+  filter: drop-shadow(0 8px 14px rgba(124, 127, 240, 0.22));
+}
+.ho-diamond {
+  stroke: #7c7ff0;
+  stroke-width: 3;
+  stroke-linejoin: round;
+  stroke-dasharray: 420;
+  stroke-dashoffset: 420;
+  animation: emblemDraw 0.9s ease forwards 0.1s;
+}
+.ho-chip {
+  fill: #ececfb;
+  stroke: #7c7ff0;
+  stroke-width: 3;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: chipPop 0.55s cubic-bezier(0.2, 0.9, 0.2, 1) both 0.5s;
+}
+.ho-eye {
+  fill: var(--ink);
+  opacity: 0;
+  animation: emblemIn 0.3s ease forwards 0.9s;
+}
+.ho-smile {
+  stroke: var(--ink);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  fill: none;
+  opacity: 0;
+  animation: emblemIn 0.3s ease forwards 1s;
 }

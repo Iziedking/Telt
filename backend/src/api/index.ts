@@ -23,6 +23,7 @@ import { playMatch } from "../coordinator/table.js";
 import { playSolverMatch } from "../coordinator/solverMatch.js";
 import { provisionAgentEntry, type Participant } from "../coordinator/provision.js";
 import { runContest } from "../coordinator/runContest.js";
+import { customContests, challengeContests } from "../coordinator/contestKinds.js";
 import { runAutopilotCycle, recentContests, difficultyTiers, autopilotEnabled } from "../coordinator/autopilot.js";
 import { query } from "../db/pool.js";
 
@@ -232,36 +233,60 @@ app.post("/provision-mandate", async (c) => {
 // Leaderboard: rank the registered agents by their on-chain record. Wins and losses are
 // recorded against each Agent at settlement, so the table is backed by real results.
 app.get("/leaderboard", async (c) => {
-  let agents: { agentId: string; name: string; level: number }[];
+  const platformIds = new Set<string>();
   try {
-    agents = loadRoster().agents;
+    for (const a of loadRoster().agents) platformIds.add(a.agentId);
   } catch {
-    return c.json({ game: "poker", rows: [] });
+    /* roster not set up yet */
   }
-  const rows = await Promise.all(
-    agents.map(async (a) => {
-      try {
-        const o = (await sui.getObject({ id: a.agentId, options: { showContent: true } })) as any;
-        const f = o.data?.content?.fields ?? {};
+  let rows: {
+    name: string;
+    level: number;
+    wins: number;
+    losses: number;
+    games: number;
+    winRate: number;
+    agentId: string;
+    platform: boolean;
+  }[] = [];
+  try {
+    const ev = await sui.queryEvents({
+      query: { MoveEventType: `${config.arena.packageId}::registry::AgentClaimed` },
+      limit: 60,
+      order: "descending",
+    });
+    const ids = [...new Set(ev.data.map((e) => String((e as any).parsedJson?.agent)).filter(Boolean))];
+    const objs = ids.length ? ((await sui.multiGetObjects({ ids, options: { showContent: true } })) as any[]) : [];
+    rows = objs
+      .map((o) => {
+        const id = o.data?.objectId;
+        const f = o.data?.content?.fields;
+        if (!id || !f) return null;
         const wins = Number(f.wins ?? 0);
         const losses = Number(f.losses ?? 0);
         const games = wins + losses;
         return {
-          name: String(f.name ?? a.name),
-          level: Number(f.level ?? a.level),
+          name: String(f.name ?? "agent"),
+          level: Number(f.level ?? 0),
           wins,
           losses,
           games,
           winRate: games ? Math.round((100 * wins) / games) : 0,
-          agentId: a.agentId,
+          agentId: id,
+          platform: platformIds.has(id),
         };
-      } catch {
-        return { name: a.name, level: a.level, wins: 0, losses: 0, games: 0, winRate: 0, agentId: a.agentId };
-      }
-    }),
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+  } catch {
+    rows = [];
+  }
+  // Real agents rank first by record; platform (house) agents always come after, never
+  // ahead of a real competitor no matter how they performed.
+  rows.sort(
+    (x, y) =>
+      Number(x.platform) - Number(y.platform) || y.wins - x.wins || y.winRate - x.winRate || y.level - x.level,
   );
-  rows.sort((x, y) => y.wins - x.wins || y.winRate - x.winRate || y.level - x.level);
-  return c.json({ game: "poker", rows });
+  return c.json({ rows });
 });
 
 // The Contests view: the difficulty tiers, recent finished missions, and the contests that
@@ -284,7 +309,14 @@ app.get("/contests", async (c) => {
       .map((s) => ({
         contestId: s.contestId,
         game: s.game === 1 ? "solver" : "poker",
-        format: s.format === CONTEST_FORMAT.duel ? "duel" : "general",
+        format:
+          s.format === CONTEST_FORMAT.duel
+            ? challengeContests.has(s.contestId)
+              ? "challenge"
+              : "duel"
+            : customContests.has(s.contestId)
+              ? "custom"
+              : "general",
         entryFee: Number(s.entryFee) / 1_000_000,
         pool: Number(s.pool) / 1_000_000,
         entrants: s.entrants.length,
@@ -298,21 +330,28 @@ app.get("/contests", async (c) => {
   return c.json({ autopilot: autopilotEnabled(), tiers: difficultyTiers(), recent: recentContests(), open });
 });
 
-// Open a contest for agents to join. A general contest lets platform agents fill it; a duel
-// stays platform-free. Optionally seed a tUSDC reward into the pool.
+// Open a contest, keyed by kind:
+//   - challenge: a duel against a random platform agent.
+//   - duel: a 1v1 for two real agents, no platform agents.
+//   - general: multi-entry, platform agents fill the empty seats (they never win).
+//   - custom: multi-entry, a creator's event with no platform agents.
 app.post("/contests/create", async (c) => {
   const b = await c.req.json().catch(() => ({}));
+  const kind = ["challenge", "duel", "general", "custom"].includes(b.kind) ? b.kind : "general";
   const game = b.game === "solver" ? 1 : 0;
-  const format = b.format === "duel" ? CONTEST_FORMAT.duel : CONTEST_FORMAT.multi;
+  const isDuel = kind === "challenge" || kind === "duel";
+  const format = isDuel ? CONTEST_FORMAT.duel : CONTEST_FORMAT.multi;
   const levelMin = Math.max(0, Math.min(4, Number(b.levelMin ?? 0)));
   const levelMax = Math.max(levelMin, Math.min(4, Number(b.levelMax ?? 4)));
   const entryFeeUsdc = BigInt(Math.max(0, Number(b.entryFeeUsdc ?? 0))) * 1_000_000n;
   const rewardUsdc = BigInt(Math.max(0, Number(b.rewardUsdc ?? 0))) * 1_000_000n;
-  const maxEntries = Math.max(2, Math.min(8, Number(b.maxEntries ?? 2)));
+  const maxEntries = isDuel ? 2 : Math.max(2, Math.min(8, Number(b.maxEntries ?? 4)));
   try {
     const { contestId } = await createContest({ game, format, levelMin, levelMax, entryFeeUsdc, maxEntries });
     if (rewardUsdc > 0n) await fundContest(contestId, rewardUsdc);
-    return c.json({ ok: true, contestId });
+    if (kind === "custom") customContests.add(contestId);
+    if (kind === "challenge") challengeContests.add(contestId);
+    return c.json({ ok: true, contestId, kind });
   } catch (e) {
     return c.json({ error: (e as Error).message }, 500);
   }

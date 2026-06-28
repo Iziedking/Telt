@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { API_BASE } from "../feed";
+import PlatformBadge from "../PlatformBadge";
 
 const TIERS = ["Mark", "Reader", "Spotter", "Profiler", "Oracle"];
 const tierName = (l: number) => TIERS[Math.min(Math.max(l, 0), 4)] ?? "Mark";
@@ -14,6 +15,7 @@ interface Row {
   games: number;
   winRate: number;
   agentId: string;
+  platform?: boolean;
 }
 
 export default function LeaderboardPage() {
@@ -71,9 +73,12 @@ export default function LeaderboardPage() {
             </div>
           ) : (
             rows.map((r, i) => (
-              <div key={r.agentId} className="lb-row">
+              <div key={r.agentId} className={`lb-row${r.platform ? " platform" : ""}`}>
                 <span>{i + 1}</span>
-                <span className="lb-name">{r.name}</span>
+                <span className="lb-name">
+                  {r.name}
+                  {r.platform && <PlatformBadge small />}
+                </span>
                 <span>
                   {tierName(r.level)} <span className="lb-lvl">L{r.level}</span>
                 </span>

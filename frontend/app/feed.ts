@@ -132,3 +132,20 @@ export interface MoveVerification {
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8787";
 export const WS_URL = (process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8787").replace(/^http/, "ws") + "/ws";
+
+// Turn a raw wallet or chain error into something a person can act on. Falls back to a
+// trimmed version of the original message.
+export function prettyError(e: unknown): string {
+  const raw = String((e as { message?: string })?.message ?? e ?? "");
+  const m = raw.toLowerCase();
+  if (/reject|denied|cancel|user.*declin/.test(m)) return "You cancelled the request.";
+  if (/insufficient|no valid gas|gas|balance/.test(m)) return "Not enough SUI for gas. Top up and try again.";
+  if (/name.*taken|taken.*name|enametaken/.test(m)) return "That name is taken. Pick another.";
+  if (/already.*join|ealreadyjoined/.test(m)) return "That agent has already joined this contest.";
+  if (/full|efull/.test(m)) return "This contest is already full.";
+  if (/badlevel|level.*band|ebadlevel/.test(m)) return "Your agent's tier is outside this contest's band.";
+  if (/notregistered|not.*register|enotregistered/.test(m)) return "Register your agent for the arena first.";
+  if (/underpaid|eunderpaid/.test(m)) return "Not enough tUSDC for the entry. Claim from the faucet.";
+  if (/fetch failed|network|timeout|econn/.test(m)) return "Network hiccup. Give it a moment and retry.";
+  return raw ? raw.slice(0, 120) : "Something went wrong.";
+}

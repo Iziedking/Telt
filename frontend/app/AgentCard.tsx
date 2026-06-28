@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentAccount, useSignAndExecuteTransaction } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
-import { API_BASE } from "./feed";
+import { API_BASE, prettyError } from "./feed";
 
 // Your agent, owned by the connected wallet. Claim provisions a mandate on the backend
 // (Avow + coordinator key) and the wallet signs the claim, so the agent is owned on chain.
@@ -95,13 +95,13 @@ export default function AgentCard() {
             setTimeout(load, 2500);
           },
           onError: (e) => {
-            setMsg(e.message || "claim failed");
+            setMsg(prettyError(e));
             setBusy(false);
           },
         },
       );
     } catch (e) {
-      setMsg((e as Error).message || "claim failed");
+      setMsg(prettyError(e));
       setBusy(false);
     }
   }, [account, pkg, registry, name, signAndExecute, load]);
@@ -118,7 +118,7 @@ export default function AgentCard() {
             setMsg(`${a.name} registered for the arena.`);
             setTimeout(load, 2500);
           },
-          onError: (e) => setMsg(e.message || "register failed"),
+          onError: (e) => setMsg(prettyError(e)),
         },
       );
     },
@@ -142,7 +142,7 @@ export default function AgentCard() {
             setMsg(`${a.name} upgraded to ${tierName(a.level + 1)}.`);
             setTimeout(load, 2500);
           },
-          onError: (e) => setMsg(e.message || "upgrade failed"),
+          onError: (e) => setMsg(prettyError(e)),
         },
       );
     },

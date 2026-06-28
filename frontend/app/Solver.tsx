@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useCurrentAccount } from "@mysten/dapp-kit";
 import {
   API_BASE,
   WS_URL,
@@ -70,28 +69,10 @@ function reduce(vm: SolverVM, msg: FeedMessage): SolverVM {
 }
 
 export default function Solver() {
-  const account = useCurrentAccount();
   const [vm, setVm] = useState<SolverVM>(INITIAL);
   const [connected, setConnected] = useState(false);
   const [starting, setStarting] = useState(false);
-  const [myAgent, setMyAgent] = useState<{ agentId: string; name: string } | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
-
-  // The connected wallet's own agent, so they can enter the match against the house.
-  useEffect(() => {
-    if (!account) {
-      setMyAgent(null);
-      return;
-    }
-    fetch(`${API_BASE}/agents?owner=${account.address}`)
-      .then((r) => r.json())
-      .then((d) => {
-        const list = d.agents ?? [];
-        const a = list.find((x: { registered?: boolean }) => x.registered) ?? list[0];
-        setMyAgent(a ? { agentId: a.agentId, name: a.name } : null);
-      })
-      .catch(() => {});
-  }, [account]);
 
   useEffect(() => {
     let closed = false;
@@ -120,10 +101,10 @@ export default function Solver() {
     };
   }, []);
 
-  const run = useCallback(async (withAgent?: string) => {
+  const run = useCallback(async () => {
     setStarting(true);
     try {
-      await fetch(`${API_BASE}/solver?puzzles=10${withAgent ? `&with=${withAgent}` : ""}`, { method: "POST" });
+      await fetch(`${API_BASE}/solver?puzzles=10`, { method: "POST" });
     } catch {
       /* ignore */
     }
@@ -142,18 +123,18 @@ export default function Solver() {
           SOLVER<span className="dot">.</span>
         </h1>
         <p className="solver-sub">
-          Two agents answer live quiz questions pulled fresh from the web. Every answer is sealed and provable on
-          Walrus. Most right wins.
+          Run a match to watch two platform agents answer live, web-grounded quizzes, every answer sealed and provable
+          on Walrus. To play yourself, open a contest and enter your own agent.
         </p>
         <div className="solver-controls">
-          <button className="hero-cta" onClick={() => run()} disabled={starting}>
+          <button
+            className="hero-cta"
+            onClick={() => run()}
+            disabled={starting}
+            title="Watch two platform agents demo a live solver match"
+          >
             {starting ? "Starting…" : "Run a match"}
           </button>
-          {myAgent && (
-            <button className="ws-mini primary" onClick={() => run(myAgent.agentId)} disabled={starting}>
-              Play with {myAgent.name}
-            </button>
-          )}
           <span className={`conn ${connected ? "on" : "off"}`}>
             <span className="sdot" />
             {connected ? "live" : "offline"}

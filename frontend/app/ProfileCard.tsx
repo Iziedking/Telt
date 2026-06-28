@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useCurrentAccount, useSignAndExecuteTransaction } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
-import { API_BASE } from "./feed";
+import { API_BASE, prettyError } from "./feed";
 
 // The profile: your agent's name, avatar, and record. The name is editable but scarce, so
 // renaming is rate limited on chain (at most three in a lifetime, one every 30 days), and
@@ -131,13 +131,13 @@ export default function ProfileCard() {
             setTimeout(load, 2500);
           },
           onError: (e) => {
-            setMsg(e.message || "rename failed");
+            setMsg(prettyError(e));
             setBusy(false);
           },
         },
       );
     } catch (e) {
-      setMsg((e as Error).message || "rename failed");
+      setMsg(prettyError(e));
       setBusy(false);
     }
   }, [agent, pkg, registry, newName, signAndExecute, load]);
