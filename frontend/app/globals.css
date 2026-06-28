@@ -2586,7 +2586,7 @@ a.home-card:hover {
   justify-content: center;
   gap: 18px;
   background: radial-gradient(circle at 50% 42%, #fdf8ee 0%, #f3e8d6 58%, #ecdfc9 100%);
-  animation: sparkFade 3s ease forwards;
+  animation: sparkFade 5s ease forwards;
 }
 @keyframes sparkFade {
   0%,
@@ -3126,4 +3126,92 @@ a.home-card:hover {
   .onb-visual {
     transform: scale(0.85);
   }
+}
+
+/* --- Entry gate (connect + sign) --- */
+.gate {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(circle at 50% 30%, #fdf8ee 0%, #f4ead8 58%, #ecdfc9 100%);
+}
+.gate-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 380px;
+  animation: onbIn 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.gate-emblem {
+  animation: floatY 4s ease-in-out infinite;
+}
+.gate-word {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 40px;
+  color: var(--ink);
+  margin: 14px 0 6px;
+}
+.gate-word-t {
+  color: var(--signal);
+}
+.gate-text {
+  font-size: 15px;
+  line-height: 1.55;
+  color: rgba(20, 24, 31, 0.62);
+  margin: 8px 0 22px;
+}
+.gate-cta {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  background: var(--signal);
+  border: none;
+  color: #fff;
+  border-radius: 12px;
+  padding: 13px 28px;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(232, 53, 43, 0.28);
+  transition: transform 0.12s ease;
+}
+.gate-cta:hover {
+  transform: translateY(-1px);
+}
+.gate-cta:disabled {
+  opacity: 0.7;
+  cursor: default;
+  transform: none;
+}
+
+/* Locked profile (until an agent is claimed) */
+.pf-locked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 26px 12px;
+}
+.pf-locked svg {
+  opacity: 0.75;
+}
+.pf-locked-title {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--ink);
+  margin: 6px 0 0;
+}
+.pf-locked-text {
+  font-size: 13px;
+  color: #4b5560;
+  margin: 0;
+  max-width: 250px;
+  line-height: 1.5;
 }

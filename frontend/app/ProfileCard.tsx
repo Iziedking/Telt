@@ -129,8 +129,14 @@ export default function ProfileCard() {
     return (
       <div className="tile peri ws-card">
         <div className="kicker">Profile</div>
-        <div className="ws-empty">
-          <p>No agent yet. Claim one in Your agent, then set up its profile here.</p>
+        <div className="pf-locked">
+          <svg viewBox="0 0 40 40" width="34" height="34" aria-hidden>
+            <rect x="9" y="18" width="22" height="16" rx="3" fill="var(--ink)" />
+            <path d="M13 18 v-4 a7 7 0 0 1 14 0 v4" fill="none" stroke="var(--ink)" strokeWidth="3" />
+            <circle cx="20" cy="25" r="2.5" fill="#fffdf7" />
+          </svg>
+          <p className="pf-locked-title">Your profile is locked.</p>
+          <p className="pf-locked-text">Claim an agent in Your agent above to unlock your profile, name, and record.</p>
         </div>
       </div>
     );

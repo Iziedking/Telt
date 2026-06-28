@@ -6,7 +6,7 @@ import { useEffect } from "react";
 // wordmark settles, and after three seconds it hands off to the home page.
 export default function Spark({ onDone }: { onDone: () => void }) {
   useEffect(() => {
-    const t = setTimeout(onDone, 3000);
+    const t = setTimeout(onDone, 5000);
     return () => clearTimeout(t);
   }, [onDone]);
 
