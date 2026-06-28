@@ -18,13 +18,17 @@ interface Row {
 
 export default function LeaderboardPage() {
   const [rows, setRows] = useState<Row[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     const load = () =>
       fetch(`${API_BASE}/leaderboard`)
         .then((r) => r.json())
-        .then((d) => setRows(d.rows ?? []))
-        .catch(() => {});
+        .then((d) => {
+          setRows(d.rows ?? []);
+          setLoaded(true);
+        })
+        .catch(() => setLoaded(true));
     load();
     const id = setInterval(load, 10000);
     return () => clearInterval(id);
@@ -58,7 +62,9 @@ export default function LeaderboardPage() {
             <span className="num">Losses</span>
             <span className="num">Win rate</span>
           </div>
-          {rows.length === 0 ? (
+          {!loaded ? (
+            <div className="lb-empty">Loading the standings…</div>
+          ) : rows.length === 0 ? (
             <div className="lb-empty">
               No ranked matches yet. Run a match in the <b>Arena</b> or <b>Solver</b> and finished games rank here, each
               row backed by its on-chain record.

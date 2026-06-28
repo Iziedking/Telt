@@ -905,32 +905,6 @@ a.home-card:hover {
 }
 
 /* Leaderboard */
-.lb-tabs {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.lb-tab {
-  font-family: var(--font-mono), monospace;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: rgba(244, 241, 234, 0.07);
-  color: var(--cream);
-}
-.lb-tab.active {
-  background: var(--signal);
-  color: #fff;
-}
-.lb-tab.soon {
-  opacity: 0.5;
-}
-.lb-tab em {
-  font-style: normal;
-  opacity: 0.7;
-}
 .lb-row {
   display: grid;
   grid-template-columns: 36px 1.8fr 1.2fr 70px 70px 96px;
@@ -3266,4 +3240,136 @@ a.home-card:hover {
   color: #4b5560;
   line-height: 1.5;
   margin: 0;
+}
+
+/* --- Mobile nav menu --- */
+.nav-burger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+.nav-burger:hover {
+  border-color: var(--text);
+}
+.nav-mobile {
+  display: none;
+}
+@media (max-width: 900px) {
+  .nav-burger {
+    display: inline-flex;
+  }
+  .nav-mobile {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    box-shadow: 0 16px 30px rgba(20, 24, 31, 0.12);
+    padding: 6px 0;
+    animation: navDrop 0.18s ease both;
+  }
+  .nav-mobile a {
+    font-family: var(--font-display), sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--text);
+    text-decoration: none;
+    padding: 13px 30px;
+  }
+  .nav-mobile a.active {
+    color: var(--signal);
+  }
+  .nav-mobile a:hover {
+    background: rgba(20, 24, 31, 0.04);
+  }
+}
+@keyframes navDrop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --- Accessibility: a clear, on-brand focus ring for keyboard users only --- */
+:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+a:focus:not(:focus-visible),
+button:focus:not(:focus-visible),
+input:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* The standings table scrolls sideways on narrow screens rather than squishing. */
+@media (max-width: 560px) {
+  .lb-panel {
+    overflow-x: auto;
+  }
+  .lb-row {
+    min-width: 460px;
+  }
+}
+
+/* The launch experience animations respect reduced-motion. */
+@media (prefers-reduced-motion: reduce) {
+  .onb-stage,
+  .spark-emblem,
+  .spark-ring,
+  .spark-t,
+  .spark-cross,
+  .spark-dot,
+  .spark-rays span,
+  .spark-word,
+  .spark-tag,
+  .gate-emblem,
+  .v-rays,
+  .ar-ring,
+  .ar-chip,
+  .ar-spark,
+  .se-ribbon,
+  .se-stamp,
+  .ag-crown,
+  .ag-chip,
+  .ag-eye,
+  .ag-smile,
+  .cd,
+  .vp-lock,
+  .vp-check,
+  .in-mag,
+  .vi-coin,
+  .navDrop,
+  .nav-mobile {
+    animation: none !important;
+  }
+  .onb-stage,
+  .spark-emblem,
+  .spark-ring,
+  .spark-t,
+  .spark-cross,
+  .spark-dot,
+  .cd,
+  .ag-eye,
+  .ag-crown,
+  .vp-lock,
+  .vp-check {
+    opacity: 1 !important;
+    transform: none !important;
+    stroke-dashoffset: 0 !important;
+  }
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConnectModal, useCurrentAccount, useDisconnectWallet } from "@mysten/dapp-kit";
@@ -51,6 +52,8 @@ const NAV = [
 // poker-only tabs (Live table, Intel, Verify, Feed) live inside the Arena page.
 export function TopNav() {
   const path = usePathname() || "/";
+  const [menuOpen, setMenuOpen] = useState(false);
+  const isActive = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   return (
     <nav className="nav">
       <Link href="/" className="nav-left" title="Back to the landing page">
@@ -60,14 +63,11 @@ export function TopNav() {
         </span>
       </Link>
       <div className="nav-links">
-        {NAV.map((n) => {
-          const active = n.href === "/" ? path === "/" : path.startsWith(n.href);
-          return (
-            <Link key={n.href} href={n.href} className={active ? "active" : ""} data-tour={n.tour}>
-              {n.label}
-            </Link>
-          );
-        })}
+        {NAV.map((n) => (
+          <Link key={n.href} href={n.href} className={isActive(n.href) ? "active" : ""} data-tour={n.tour}>
+            {n.label}
+          </Link>
+        ))}
       </div>
       <div className="nav-right">
         <button
@@ -79,7 +79,35 @@ export function TopNav() {
           ?
         </button>
         <WalletButton />
+        <button
+          className="nav-burger"
+          onClick={() => setMenuOpen((o) => !o)}
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={menuOpen}
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+            {menuOpen ? (
+              <path d="M5 5 L19 19 M19 5 L5 19" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+            ) : (
+              <path d="M4 7 H20 M4 12 H20 M4 17 H20" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+            )}
+          </svg>
+        </button>
       </div>
+      {menuOpen && (
+        <div className="nav-mobile">
+          {NAV.map((n) => (
+            <Link
+              key={n.href}
+              href={n.href}
+              className={isActive(n.href) ? "active" : ""}
+              onClick={() => setMenuOpen(false)}
+            >
+              {n.label}
+            </Link>
+          ))}
+        </div>
+      )}
     </nav>
   );
 }
@@ -98,13 +126,15 @@ export function SiteFooter() {
           <p className="footer-tag">
             An arena where AI agents compete and reason, not just one game. Every move and the thinking behind it is
             sealed on Walrus and stamped on Sui. A trailing agent can buy that sealed intel through x402, read its rival,
-            and play sharper. Heads-up poker is the first game on it.
+            and play sharper. Heads-up poker and a live quiz solver are the first games on it.
           </p>
         </div>
         <div className="footer-cols">
           <div className="footer-col">
             <span className="footer-h">Play</span>
             <Link href="/arena">Arena</Link>
+            <Link href="/solver">Solver</Link>
+            <Link href="/contests">Contests</Link>
             <Link href="/leaderboard">Leaderboard</Link>
             <Link href="/workshop">Workshop</Link>
           </div>

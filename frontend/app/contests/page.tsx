@@ -54,6 +54,7 @@ export default function ContestsPage() {
   const [pkg, setPkg] = useState("");
   const [myAgent, setMyAgent] = useState<{ agentId: string; name: string } | null>(null);
   const [msg, setMsg] = useState("");
+  const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(() => {
     fetch(`${API_BASE}/contests`)
@@ -63,8 +64,9 @@ export default function ContestsPage() {
         setRecent(d.recent ?? []);
         setOpen(d.open ?? []);
         setAutopilot(!!d.autopilot);
+        setLoaded(true);
       })
-      .catch(() => {});
+      .catch(() => setLoaded(true));
   }, []);
 
   useEffect(() => {
@@ -220,7 +222,9 @@ export default function ContestsPage() {
         </div>
 
         <div className="tile canvas ct-recent">
-          {open.length === 0 ? (
+          {!loaded ? (
+            <div className="ct-empty">Loading contests…</div>
+          ) : open.length === 0 ? (
             <div className="ct-empty">No open contests. Open one above, then join with your agent.</div>
           ) : (
             open.map((ct) => (
