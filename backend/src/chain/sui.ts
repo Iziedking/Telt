@@ -35,22 +35,50 @@ export interface TxResult {
   status: string;
 }
 
-// Run a built transaction with the coordinator (or a given signer) and surface object
-// changes so callers can read created object ids.
-export async function execute(tx: Transaction, signer: Ed25519Keypair = coordinator()): Promise<TxResult> {
-  const res = await sui.signAndExecuteTransaction({
-    transaction: tx,
-    signer,
-    options: { showEffects: true, showObjectChanges: true },
-  });
-  const status = res.effects?.status?.status ?? "unknown";
-  if (status !== "success") {
-    throw new Error(`tx ${res.digest} failed: ${JSON.stringify(res.effects?.status)}`);
+async function doExecute(tx: Transaction, signer: Ed25519Keypair): Promise<TxResult> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await sui.signAndExecuteTransaction({
+        transaction: tx,
+        signer,
+        options: { showEffects: true, showObjectChanges: true },
+      });
+      const status = res.effects?.status?.status ?? "unknown";
+      if (status !== "success") {
+        throw new Error(`tx ${res.digest} failed: ${JSON.stringify(res.effects?.status)}`);
+      }
+      // Wait until the node has indexed this transaction before returning.
+      await sui.waitForTransaction({ digest: res.digest });
+      return { digest: res.digest, objectChanges: res.objectChanges ?? [], status };
+    } catch (e) {
+      lastErr = e;
+      const m = String((e as Error).message || "");
+      // Transient network blips on the load-balanced RPC: wait and retry the same tx.
+      if (/fetch failed|ECONN|ETIMEDOUT|timeout|502|503|429/i.test(m) && attempt < 2) {
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+        continue;
+      }
+      throw e;
+    }
   }
-  // Wait until the node has indexed this transaction before returning, so the next
-  // transaction's gas-coin selection sees the new version instead of racing it.
-  await sui.waitForTransaction({ digest: res.digest });
-  return { digest: res.digest, objectChanges: res.objectChanges ?? [], status };
+  throw lastErr;
+}
+
+// The coordinator drives every platform transaction from a single key. Running them
+// concurrently makes them fight over the same gas coin (object-version locks). Serialize
+// them through a queue so each one settles before the next starts.
+let txQueue: Promise<unknown> = Promise.resolve();
+
+// Run a built transaction with the coordinator (or a given signer) and surface object
+// changes so callers can read created object ids. Serialized to avoid gas contention.
+export async function execute(tx: Transaction, signer: Ed25519Keypair = coordinator()): Promise<TxResult> {
+  const run = txQueue.then(() => doExecute(tx, signer));
+  txQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
 }
 
 // Pull the id of the first created object whose type ends with `suffix`.
