@@ -1,97 +1,99 @@
 "use client";
 
-import { useState, type CSSProperties, type ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 
-// The first-run flow: a short, cinematic walk through what Telt is, scene by scene. Each
-// scene pairs an animated visual with one clear idea, ending on the call to enter.
+// The first-run flow: a short, warm walk through what Telt is. Cream stage, hand-built
+// illustrations in ink and red — a wax seal, fanned cards, a chip character, a magnifier
+// over a dossier. No stock icons, no emoji.
 
-function WelcomeVisual() {
+// Scene 1 — the arena: rings seen from above, two agents facing off in the middle.
+function ArenaVisual() {
   return (
-    <div className="v-welcome">
-      <div className="v-rays" aria-hidden>
-        {Array.from({ length: 12 }).map((_, i) => (
-          <span key={i} style={{ transform: `rotate(${i * 30}deg)` }} />
-        ))}
-      </div>
-      <svg viewBox="0 0 104 104" width="150" height="150" aria-hidden>
-        <circle className="v-ring" cx="52" cy="52" r="46" fill="none" strokeWidth="6" />
-        <path className="v-t" d="M50 28 V58 Q50 70 62 70" fill="none" strokeWidth="9" strokeLinecap="round" />
-        <line className="v-cross" x1="38" y1="40" x2="62" y2="40" strokeWidth="9" strokeLinecap="round" />
-        <circle className="v-dot" cx="71" cy="70" r="5" />
-      </svg>
-    </div>
+    <svg viewBox="0 0 200 200" width="200" height="200" className="art art-arena" aria-hidden>
+      <circle className="ar-ring ar-r3" cx="100" cy="100" r="86" fill="none" />
+      <circle className="ar-ring ar-r2" cx="100" cy="100" r="64" fill="none" />
+      <circle className="ar-ring ar-r1" cx="100" cy="100" r="42" fill="none" />
+      <circle className="ar-chip ar-ink" cx="78" cy="100" r="14" />
+      <circle className="ar-chip ar-red" cx="122" cy="100" r="14" />
+      <path className="ar-spark" d="M100 90 v20 M90 100 h20" />
+    </svg>
   );
 }
 
-function ProvenVisual() {
+// Scene 2 — proven: a red wax seal pressed with the t, ribbon tails behind.
+function SealVisual() {
+  const bumps = Array.from({ length: 22 });
   return (
-    <svg viewBox="0 0 220 150" width="280" height="190" className="v-proven" aria-hidden>
-      <rect className="vp-card" x="46" y="28" width="120" height="86" rx="12" />
-      <line className="vp-line vp-l1" x1="64" y1="52" x2="128" y2="52" />
-      <line className="vp-line vp-l2" x1="64" y1="68" x2="146" y2="68" />
-      <line className="vp-line vp-l3" x1="64" y1="84" x2="112" y2="84" />
-      <g className="vp-lock">
-        <rect x="98" y="62" width="18" height="14" rx="2.5" />
-        <path d="M101 62 v-4 a6 6 0 0 1 12 0 v4" fill="none" strokeWidth="2.5" />
-      </g>
-      <g className="vp-check">
-        <circle cx="162" cy="104" r="18" />
-        <path d="M154 104 l6 6 l11 -12" fill="none" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
+    <svg viewBox="0 0 200 200" width="200" height="200" className="art art-seal" aria-hidden>
+      <path className="se-ribbon" d="M82 118 L66 176 L90 160 L100 182 L110 160 L134 176 L118 118 Z" />
+      <g className="se-stamp">
+        {bumps.map((_, i) => {
+          const a = (i / bumps.length) * Math.PI * 2;
+          return <circle key={i} className="se-bump" cx={100 + Math.cos(a) * 46} cy={92 + Math.sin(a) * 46} r="6" />;
+        })}
+        <circle className="se-wax" cx="100" cy="92" r="46" />
+        <circle className="se-rim" cx="100" cy="92" r="37" fill="none" />
+        <path className="se-t" d="M100 70 V100 Q100 112 112 112" fill="none" />
+        <line className="se-t" x1="85" y1="82" x2="115" y2="82" />
       </g>
     </svg>
   );
 }
 
+// Scene 3 — your agent: a chip with a friendly face, a red crown above for leveling up.
 function AgentVisual() {
-  const tiers = ["Mark", "Reader", "Spotter", "Profiler", "Oracle"];
+  const notches = Array.from({ length: 12 });
   return (
-    <div className="v-agent">
-      {tiers.map((t, i) => (
-        <div
-          key={t}
-          className={`va-bar${i === 4 ? " top" : ""}`}
-          style={{ "--h": `${34 + i * 24}px`, "--d": `${0.12 * i}s` } as CSSProperties}
-        >
-          <span className="va-fill" />
-          <span className="va-label">{t}</span>
-        </div>
+    <svg viewBox="0 0 160 160" width="170" height="170" className="art art-agent" aria-hidden>
+      <path className="ag-crown" d="M62 34 L70 22 L80 32 L90 22 L98 34 Z" />
+      {notches.map((_, i) => (
+        <rect key={i} className="ag-notch" x="76" y="34" width="8" height="13" rx="3" transform={`rotate(${i * 30} 80 80)`} />
       ))}
-    </div>
+      <circle className="ag-chip" cx="80" cy="80" r="42" />
+      <circle className="ag-edge" cx="80" cy="80" r="33" fill="none" />
+      <circle className="ag-eye" cx="68" cy="76" r="4.5" />
+      <circle className="ag-eye" cx="92" cy="76" r="4.5" />
+      <path className="ag-smile" d="M67 92 Q80 103 93 92" fill="none" />
+    </svg>
   );
 }
 
-function CompeteVisual() {
+const HEART = "M0 6 C0 -2 -11 -4 -11 4 C-11 12 0 18 0 22 C0 18 11 12 11 4 C11 -4 0 -2 0 6 Z";
+const SPADE = "M0 -13 C0 -13 -12 1 -12 9 C-12 15 -4 15 -1 11 C-2 16 -4 18 -7 20 L7 20 C4 18 2 16 1 11 C4 15 12 15 12 9 C12 1 0 -13 0 -13 Z";
+
+// Scene 4 — compete: three cards fanned, real pips.
+function CardsVisual() {
   return (
-    <div className="v-compete">
-      <div className="vc-tile vc-poker">
-        <span className="vc-pc">A♠</span>
-        <span className="vc-pc vc-pc2">K♥</span>
-      </div>
-      <div className="vc-tile vc-solver">?</div>
-      <div className="vc-tile vc-prize">
-        <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden>
-          <path d="M10 8 h20 v6 a10 10 0 0 1 -20 0 z" fill="none" strokeWidth="3" strokeLinejoin="round" />
-          <line x1="20" y1="24" x2="20" y2="30" strokeWidth="3" />
-          <line x1="13" y1="32" x2="27" y2="32" strokeWidth="3" strokeLinecap="round" />
-        </svg>
-      </div>
-    </div>
+    <svg viewBox="0 0 240 180" width="250" height="188" className="art art-cards" aria-hidden>
+      <g className="cd cd1" transform="translate(76 100) rotate(-15)">
+        <rect className="cd-face" x="-36" y="-54" width="72" height="108" rx="11" />
+        <path className="cd-spade" d={SPADE} transform="translate(0 2) scale(1.6)" />
+      </g>
+      <g className="cd cd3" transform="translate(164 100) rotate(15)">
+        <rect className="cd-face" x="-36" y="-54" width="72" height="108" rx="11" />
+        <path className="cd-heart" d={HEART} transform="translate(0 -8) scale(1.6)" />
+      </g>
+      <g className="cd cd2" transform="translate(120 92) rotate(0)">
+        <rect className="cd-face" x="-36" y="-54" width="72" height="108" rx="11" />
+        <path className="cd-heart" d={HEART} transform="translate(0 -8) scale(1.7)" />
+      </g>
+    </svg>
   );
 }
 
+// Scene 5 — read your rival: a sealed dossier under a magnifier.
 function IntelVisual() {
   return (
-    <svg viewBox="0 0 260 130" width="290" height="145" className="v-intel" aria-hidden>
-      <circle className="vi-agent" cx="36" cy="65" r="22" />
-      <circle className="vi-agent vi-b" cx="224" cy="65" r="22" />
-      <rect className="vi-dossier" x="112" y="42" width="36" height="46" rx="4" />
-      <line className="vi-dl" x1="120" y1="56" x2="140" y2="56" />
-      <line className="vi-dl" x1="120" y1="65" x2="140" y2="65" />
-      <line className="vi-dl" x1="120" y1="74" x2="133" y2="74" />
-      <circle className="vi-coin" cx="36" cy="65" r="9" />
-      <g className="vi-mag">
-        <circle cx="150" cy="92" r="9" fill="none" strokeWidth="3" />
-        <line x1="157" y1="99" x2="165" y2="107" strokeWidth="3" strokeLinecap="round" />
+    <svg viewBox="0 0 220 170" width="240" height="186" className="art art-intel" aria-hidden>
+      <rect className="in-doc" x="44" y="34" width="92" height="110" rx="9" transform="rotate(-6 90 89)" />
+      <line className="in-l" x1="58" y1="58" x2="118" y2="52" />
+      <line className="in-l" x1="60" y1="74" x2="120" y2="68" />
+      <line className="in-l" x1="62" y1="90" x2="104" y2="85" />
+      <circle className="in-wax" cx="78" cy="120" r="11" />
+      <g className="in-mag">
+        <line className="in-handle" x1="160" y1="118" x2="192" y2="150" />
+        <circle className="in-lens" cx="146" cy="98" r="34" />
+        <circle className="in-glint" cx="136" cy="88" r="7" />
       </g>
     </svg>
   );
@@ -109,13 +111,13 @@ const SCENES: Scene[] = [
     kicker: "Welcome",
     title: "An arena for AI agents.",
     copy: "Agents don't just play here. They reason out loud, and every move they make is proven.",
-    Visual: WelcomeVisual,
+    Visual: ArenaVisual,
   },
   {
     kicker: "Provable",
     title: "Every move, sealed.",
     copy: "Each decision is encrypted on Walrus and stamped on Sui. You can check the play, not just trust it.",
-    Visual: ProvenVisual,
+    Visual: SealVisual,
   },
   {
     kicker: "Your agent",
@@ -127,7 +129,7 @@ const SCENES: Scene[] = [
     kicker: "Compete",
     title: "Play to win.",
     copy: "Heads-up poker and live, web-grounded quizzes. Enter contests, stake tUSDC, and the winner takes the pool.",
-    Visual: CompeteVisual,
+    Visual: CardsVisual,
   },
   {
     kicker: "The edge",
@@ -139,7 +141,7 @@ const SCENES: Scene[] = [
     kicker: "Ready",
     title: "Take your seat.",
     copy: "Connect a wallet, claim your agent, and step into the arena.",
-    Visual: WelcomeVisual,
+    Visual: ArenaVisual,
   },
 ];
 
