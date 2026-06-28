@@ -10,7 +10,7 @@ import { API_BASE, prettyError } from "./feed";
 // unique across the arena. The avatar color is the owner's pick, remembered per agent.
 const COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_RENAMES = 3;
-const PALETTE = ["#A8E0C2", "#C7C9F2", "#BFE0F2", "#F1E7CE", "#F4C95D", "#E8352B"];
+const PALETTE = ["#A8E0C2", "#C7C9F2", "#BFE0F2", "#F1E7CE", "#F4C95D", "#c4241c"];
 function avatarColor(id: string): string {
   let h = 0;
   for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;

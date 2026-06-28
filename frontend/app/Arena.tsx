@@ -11,6 +11,7 @@ import {
   type MoveVerification,
 } from "./feed";
 import GameTabs from "./GameTabs";
+import PlatformBadge from "./PlatformBadge";
 
 type Seat = "A" | "B";
 
@@ -18,6 +19,7 @@ interface SeatView {
   name: string;
   level: number;
   agentId: string;
+  platform: boolean;
   chips: number | null;
   lastMove: string;
   lastWhy: string;
@@ -46,6 +48,7 @@ const EMPTY_SEAT: SeatView = {
   name: "·",
   level: 0,
   agentId: "",
+  platform: false,
   chips: null,
   lastMove: "",
   lastWhy: "",
@@ -344,7 +347,10 @@ function AgentTile({ tone, seat, view }: { tone: "felt" | "peri"; seat: Seat; vi
           <ChipFace fill={tone === "felt" ? "#A8E0C2" : "#C7C9F2"} />
         </span>
         <div>
-          <div className="agent-name">{view.name}</div>
+          <div className="agent-name">
+            {view.name}
+            {view.platform && <PlatformBadge small />}
+          </div>
           <div className="agent-perk">
             {tierName(view.level)} · level {view.level}
           </div>
@@ -494,7 +500,7 @@ function ChipFace({ fill }: { fill: string }) {
       <circle cx="32" cy="32" r="21" fill={fill} stroke="#14181F" strokeWidth="2" />
       <circle cx="26" cy="29" r="2.6" fill="#14181F" />
       <circle cx="38" cy="29" r="2.6" fill="#14181F" />
-      <path d="M25 37 l5 5 l10 -11" fill="none" stroke="#E8352B" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M25 37 l5 5 l10 -11" fill="none" stroke="#c4241c" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -503,7 +509,7 @@ function IntelCoin() {
   return (
     <svg viewBox="0 0 64 64" width="40" height="40" aria-hidden>
       <circle cx="32" cy="32" r="28" fill="#fff" stroke="#14181F" strokeWidth="3" />
-      <text x="32" y="42" textAnchor="middle" fontSize="30" fontWeight="800" fill="#E8352B" fontFamily="var(--font-display)">
+      <text x="32" y="42" textAnchor="middle" fontSize="30" fontWeight="800" fill="#c4241c" fontFamily="var(--font-display)">
         ?
       </text>
     </svg>
@@ -522,7 +528,7 @@ function reduce(prev: ViewModel, msg: FeedMessage): ViewModel {
       const seats = { A: { ...EMPTY_SEAT }, B: { ...EMPTY_SEAT } };
       for (const a of msg.payload.agents) {
         const s = a.seat as Seat;
-        seats[s] = { ...EMPTY_SEAT, name: a.name, level: a.level, agentId: a.agentId };
+        seats[s] = { ...EMPTY_SEAT, name: a.name, level: a.level, agentId: a.agentId, platform: !!a.platform };
       }
       return { ...INITIAL, status: "seated", buyin: msg.payload.buyin, seats };
     }

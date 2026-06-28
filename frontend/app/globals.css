@@ -7,7 +7,7 @@
   /* Constants */
   --ink: #14181f;
   --cream: #f4f1ea;
-  --signal: #e8352b;
+  --signal: #c4241c;
   --sand: #f1e7ce;
   --felt: #a8e0c2;
   --peri: #c7c9f2;
@@ -1322,7 +1322,7 @@ a.home-card:hover {
   color: #f4f1ea;
 }
 .bk-accent {
-  color: #e8352b;
+  color: #c4241c;
 }
 
 /* --- Marketing landing (always dark, cinematic, no app chrome) --- */
@@ -1379,7 +1379,7 @@ a.home-card:hover {
   animation-delay: -11s;
 }
 .blob.signal {
-  background: #e8352b;
+  background: #c4241c;
   bottom: -10%;
   right: 12%;
   opacity: 0.18;
@@ -1420,7 +1420,7 @@ a.home-card:hover {
   color: #f4f1ea;
 }
 .landing-wordmark .lw-accent {
-  color: #e8352b;
+  color: #c4241c;
 }
 .landing-kicker {
   font-family: var(--font-mono), monospace;
@@ -1440,7 +1440,7 @@ a.home-card:hover {
   margin: 0;
 }
 .landing-title .red {
-  color: #e8352b;
+  color: #c4241c;
 }
 .landing-sub {
   margin: 26px 0 0;
@@ -1458,7 +1458,7 @@ a.home-card:hover {
   font-size: 18px;
   text-transform: uppercase;
   letter-spacing: 0.02em;
-  background: #e8352b;
+  background: #c4241c;
   color: #fff;
   text-decoration: none;
   border-radius: 14px;
@@ -1638,7 +1638,7 @@ a.home-card:hover {
 .ls-item .ls-num {
   font-family: var(--font-mono), monospace;
   font-size: 13px;
-  color: #e8352b;
+  color: #c4241c;
 }
 .ls-item h3 {
   font-family: var(--font-display), sans-serif;
@@ -1666,7 +1666,7 @@ a.home-card:hover {
   margin: 0 0 30px;
 }
 .landing-cta-band h2 .red {
-  color: #e8352b;
+  color: #c4241c;
 }
 .landing-foot {
   margin-top: 42px;
@@ -1806,17 +1806,17 @@ a.home-card:hover {
   position: absolute;
   inset: 0;
   border-radius: 14px;
-  box-shadow: 0 0 0 0 rgba(232, 53, 43, 0.5);
+  box-shadow: 0 0 0 0 rgba(196, 36, 28, 0.5);
   animation: ctaglow 2.6s ease-out infinite;
   pointer-events: none;
 }
 @keyframes ctaglow {
   0% {
-    box-shadow: 0 0 0 0 rgba(232, 53, 43, 0.45);
+    box-shadow: 0 0 0 0 rgba(196, 36, 28, 0.45);
   }
   70%,
   100% {
-    box-shadow: 0 0 0 20px rgba(232, 53, 43, 0);
+    box-shadow: 0 0 0 20px rgba(196, 36, 28, 0);
   }
 }
 .cta-arrow {
@@ -1893,7 +1893,7 @@ a.home-card:hover {
   margin: 0;
 }
 .story-h2 .red {
-  color: #e8352b;
+  color: #c4241c;
 }
 .story-chapter {
   display: grid;
@@ -1927,7 +1927,7 @@ a.home-card:hover {
 .story-n {
   font-family: var(--font-mono), monospace;
   font-size: 14px;
-  color: #e8352b;
+  color: #c4241c;
   letter-spacing: 0.1em;
 }
 .story-kicker {
@@ -1958,7 +1958,7 @@ a.home-card:hover {
   overflow: visible;
 }
 .viz-core {
-  fill: #e8352b;
+  fill: #c4241c;
 }
 .viz-node {
   fill: #f4f1ea;
@@ -1967,7 +1967,7 @@ a.home-card:hover {
   animation: floaty 4s ease-in-out infinite;
 }
 .viz-node.n0 {
-  fill: #e8352b;
+  fill: #c4241c;
 }
 .viz-node.n1 {
   animation-delay: -0.5s;
@@ -2044,7 +2044,7 @@ a.home-card:hover {
 }
 .viz-pulse {
   fill: none;
-  stroke: #e8352b;
+  stroke: #c4241c;
   stroke-width: 3;
   transform-origin: 100px 100px;
   animation: pulsering 2.6s ease-out infinite;
@@ -2061,7 +2061,7 @@ a.home-card:hover {
 }
 .viz-check {
   fill: none;
-  stroke: #e8352b;
+  stroke: #c4241c;
   stroke-width: 8;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -2077,7 +2077,7 @@ a.home-card:hover {
   }
 }
 .viz-dot-r {
-  fill: #e8352b;
+  fill: #c4241c;
 }
 .viz-layer {
   fill: rgba(244, 241, 234, 0.85);
@@ -2101,7 +2101,7 @@ a.home-card:hover {
   fill: #a8e0c2;
 }
 .viz-layer-new {
-  fill: #e8352b;
+  fill: #c4241c;
   opacity: 0;
 }
 .story-chapter.in .viz-layer-new {
@@ -2378,7 +2378,7 @@ a.home-card:hover {
 }
 .sp-opt.wrong {
   border-color: var(--signal);
-  background: rgba(232, 53, 43, 0.06);
+  background: rgba(196, 36, 28, 0.06);
 }
 .sp-letter {
   font-family: var(--font-display), sans-serif;
@@ -2667,7 +2667,7 @@ a.home-card:hover {
   width: 2px;
   height: 40px;
   transform-origin: 50% 0;
-  background: linear-gradient(to bottom, rgba(232, 53, 43, 0.85), rgba(232, 53, 43, 0));
+  background: linear-gradient(to bottom, rgba(196, 36, 28, 0.85), rgba(196, 36, 28, 0));
   opacity: 0;
   animation: rayBurst 0.9s ease-out forwards 0.45s;
 }
@@ -2868,7 +2868,7 @@ a.home-card:hover {
   border-radius: 12px;
   padding: 12px 24px;
   cursor: pointer;
-  box-shadow: 0 8px 22px rgba(232, 53, 43, 0.28);
+  box-shadow: 0 8px 22px rgba(196, 36, 28, 0.28);
   transition: transform 0.12s ease;
 }
 .onb-next:hover {
@@ -3173,7 +3173,7 @@ a.home-card:hover {
   border-radius: 12px;
   padding: 13px 28px;
   cursor: pointer;
-  box-shadow: 0 8px 22px rgba(232, 53, 43, 0.28);
+  box-shadow: 0 8px 22px rgba(196, 36, 28, 0.28);
   transition: transform 0.12s ease;
 }
 .gate-cta:hover {
@@ -3448,6 +3448,37 @@ input:focus:not(:focus-visible) {
 }
 .ct-kind {
   text-transform: capitalize;
+}
+.ct-kind-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ct-group-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(244, 241, 234, 0.45);
+}
+.ct-stake {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  color: rgba(244, 241, 234, 0.7);
+}
+.ct-stake input {
+  width: 58px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(244, 241, 234, 0.25);
+  background: rgba(244, 241, 234, 0.06);
+  color: #f4f1ea;
+  font-family: var(--font-mono), monospace;
+  font-size: 13px;
 }
 
 /* Onboarding: the house (platform agent) visual */

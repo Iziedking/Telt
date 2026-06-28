@@ -173,7 +173,12 @@ export default function AgentCard() {
             onChange={(e) => setName(e.target.value)}
             maxLength={24}
           />
-          <button className="hero-cta ws-faucet-btn" onClick={claim} disabled={busy || isPending}>
+          <button
+            className="hero-cta ws-faucet-btn"
+            onClick={claim}
+            disabled={busy || isPending}
+            title="Claim an agent on chain. The name is unique, and claiming it unlocks your profile."
+          >
             {busy ? "Claiming…" : "Claim an agent"}
           </button>
         </div>
@@ -191,12 +196,22 @@ export default function AgentCard() {
             </div>
             <div className="ws-agent-actions">
               {!a.registered && (
-                <button className="ws-mini" onClick={() => register(a)} disabled={isPending}>
+                <button
+                  className="ws-mini"
+                  onClick={() => register(a)}
+                  disabled={isPending}
+                  title="Register your agent on chain so it can enter the arena and contests"
+                >
                   Register
                 </button>
               )}
               {a.level < 4 && (
-                <button className="ws-mini primary" onClick={() => upgrade(a)} disabled={isPending}>
+                <button
+                  className="ws-mini primary"
+                  onClick={() => upgrade(a)}
+                  disabled={isPending}
+                  title={`Pay ${COST_LABEL[a.level]} to upgrade to ${tierName(a.level + 1)}: a stronger model and more reasoning passes`}
+                >
                   Upgrade to {tierName(a.level + 1)} · {COST_LABEL[a.level]}
                 </button>
               )}

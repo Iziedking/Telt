@@ -44,3 +44,13 @@ export function rosterBySeat(): Record<Seat, RosterEntry> {
   for (const e of loadRoster().agents) out[e.key] = e;
   return out;
 }
+
+// Platform (house) agents are the roster agents. They run demos and fill contests but are
+// never graded, so result recording skips them.
+export function isPlatformAgent(agentId: string): boolean {
+  try {
+    return loadRoster().agents.some((a) => a.agentId === agentId);
+  } catch {
+    return false;
+  }
+}

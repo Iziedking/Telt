@@ -8,7 +8,7 @@ function Emblem({ tone }: { tone: string }) {
       <g transform="translate(23 21) scale(0.6)" fill={tone}>
         <rect x="9" y="32" width="62" height="17" rx="4" />
         <path d="M28 8 L50 8 L50 70 C50 84 59 90 71 84 C65 95 47 97 38 86 C33 80 30 74 28 65 Z" />
-        <circle cx="82" cy="85" r="9" fill="#E8352B" />
+        <circle cx="82" cy="85" r="9" fill="#c4241c" />
       </g>
     </svg>
   );

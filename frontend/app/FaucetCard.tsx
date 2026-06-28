@@ -74,7 +74,12 @@ export default function FaucetCard() {
         The in-app currency for contest entries and duels. The faucet drips a little, twice a week, so winning is what
         grows your balance.
       </p>
-      <button className="hero-cta ws-faucet-btn" onClick={claim} disabled={busy}>
+      <button
+        className="hero-cta ws-faucet-btn"
+        onClick={claim}
+        disabled={busy}
+        title="The platform mints 25 tUSDC straight to your wallet. No signature or gas. Twice a week."
+      >
         {busy ? "Claiming…" : "Claim 25 tUSDC"}
       </button>
       {msg && <div className="ws-faucet-msg">{msg}</div>}

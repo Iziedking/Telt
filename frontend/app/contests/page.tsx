@@ -57,6 +57,7 @@ export default function ContestsPage() {
   const [msg, setMsg] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [game, setGame] = useState<"solver" | "poker">("solver");
+  const [stake, setStake] = useState(5);
 
   const load = useCallback(() => {
     fetch(`${API_BASE}/contests`)
@@ -115,12 +116,20 @@ export default function ContestsPage() {
 
   const create = useCallback(
     async (kind: string) => {
+      // General and challenge are platform-seeded: a platform reward, free entry. Duels and
+      // custom events carry the creator's tUSDC stake as the entry.
+      const staked = kind === "duel" || kind === "custom";
       setMsg("Opening a contest…");
       try {
         await fetch(`${API_BASE}/contests/create`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ game, kind, entryFeeUsdc: 0, rewardUsdc: 20 }),
+          body: JSON.stringify({
+            game,
+            kind,
+            entryFeeUsdc: staked ? Math.max(0, stake) : 0,
+            rewardUsdc: staked ? 0 : 20,
+          }),
         });
         setMsg("");
         setTimeout(load, 2500);
@@ -128,7 +137,7 @@ export default function ContestsPage() {
         setMsg("could not open the contest");
       }
     },
-    [game, load],
+    [game, stake, load],
   );
 
   const join = useCallback(
@@ -194,8 +203,9 @@ export default function ContestsPage() {
             The wheel turns<span className="red">.</span>
           </h1>
           <p className="hero-sub">
-            The platform puts up a reward and agents compete for it. Open a contest, join with your agent, and the winner
-            takes the pool in <b>tUSDC</b>. General contests let platform agents fill in; duels are agent versus agent.
+            Open a contest and the winner takes the pool in <b>tUSDC</b>. <b>Challenge</b> and <b>general</b> contests are
+            platform-seeded, so they are free to enter; you only pay gas. <b>Duels</b> and <b>custom</b> events carry a
+            stake you set, and platform agents never take part.
           </p>
         </div>
         <div className="hero-aside">
@@ -216,34 +226,53 @@ export default function ContestsPage() {
               Poker
             </button>
           </div>
-          <button
-            className="ws-mini"
-            onClick={() => create("challenge")}
-            title="A 1v1 against a random platform agent, to test your own agent against the house."
-          >
-            Challenge the house
-          </button>
-          <button
-            className="ws-mini"
-            onClick={() => create("duel")}
-            title="A 1v1 open only to real users. No platform agents. Runs once two real agents have joined."
-          >
-            Duel
-          </button>
-          <button
-            className="ws-mini"
-            onClick={() => create("general")}
-            title="Anyone can join. Platform agents fill the empty seats to keep it lively, but they never win and rank last."
-          >
-            General
-          </button>
-          <button
-            className="ws-mini"
-            onClick={() => create("custom")}
-            title="Your own event: anyone can join, but no platform agents take part."
-          >
-            Custom
-          </button>
+
+          <div className="ct-kind-group">
+            <span className="ct-group-label">Platform-seeded · free to enter</span>
+            <button
+              className="ws-mini"
+              onClick={() => create("challenge")}
+              title="A 1v1 against a random platform agent, to test your agent against the house. Platform funds the pool; you only pay gas to enter."
+            >
+              Challenge the house
+            </button>
+            <button
+              className="ws-mini"
+              onClick={() => create("general")}
+              title="Anyone joins, free to enter (the platform funds the pool). Platform agents fill empty seats but never win and rank last."
+            >
+              General
+            </button>
+          </div>
+
+          <div className="ct-kind-group">
+            <span className="ct-group-label">Your stake</span>
+            <label className="ct-stake">
+              <input
+                type="number"
+                min={0}
+                max={1000}
+                value={stake}
+                onChange={(e) => setStake(Math.max(0, Number(e.target.value) || 0))}
+                aria-label="Stake in tUSDC"
+              />
+              <span>tUSDC</span>
+            </label>
+            <button
+              className="ws-mini"
+              onClick={() => create("duel")}
+              title="A 1v1 for two real users, no platform agents. Both stake the tUSDC above; the winner takes the pool."
+            >
+              Duel
+            </button>
+            <button
+              className="ws-mini"
+              onClick={() => create("custom")}
+              title="Your own event, no platform agents. Entrants stake the tUSDC above; the winner takes the pool."
+            >
+              Custom
+            </button>
+          </div>
           {msg && <span className="ct-msg">{msg}</span>}
         </div>
 
@@ -258,8 +287,9 @@ export default function ContestsPage() {
                 <span className="ct-open-meta">
                   <span className="ct-badge s1">{ct.game}</span>
                   <span className="ct-kind">{ct.format}</span>
-                  {ct.format === "general" && <PlatformBadge small />}· {ct.entrants}/{ct.maxEntries} in · pool {ct.pool}{" "}
-                  tUSDC · L{ct.levelMin}-{ct.levelMax}
+                  {ct.format === "general" && <PlatformBadge small />}· {ct.entrants}/{ct.maxEntries} in ·{" "}
+                  {ct.entryFee > 0 ? `stake ${ct.entryFee} tUSDC` : "free entry"} · pool {ct.pool} tUSDC · L{ct.levelMin}-
+                  {ct.levelMax}
                 </span>
                 <span className="ct-open-actions">
                   <button

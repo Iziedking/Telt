@@ -7,7 +7,7 @@ import { anchorMove, verifyLatestForMandate, type AgentAvow } from "../avow/anch
 import { recallNotes, rememberNote } from "../avow/memory.js";
 import { coordinatorAddress, openTable, joinTable, settleTable, recordResult } from "../chain/sui.js";
 import { buyAndDeliver } from "../intel/market.js";
-import { loadRoster, avowFor, type RosterEntry } from "./roster.js";
+import { loadRoster, avowFor, isPlatformAgent, type RosterEntry } from "./roster.js";
 import { type Participant } from "./provision.js";
 import { broadcast, type MovePayload } from "./ws.js";
 import { query } from "../db/pool.js";
@@ -101,8 +101,8 @@ export async function playMatch(
       tableId,
       buyin: Number(o.buyinMist),
       agents: [
-        { seat: "A", name: A.name, level: A.level, agentId: A.agentId },
-        { seat: "B", name: B.name, level: B.level, agentId: B.agentId },
+        { seat: "A", name: A.name, level: A.level, agentId: A.agentId, platform: isPlatformAgent(A.agentId) },
+        { seat: "B", name: B.name, level: B.level, agentId: B.agentId, platform: isPlatformAgent(B.agentId) },
       ],
     },
   });
@@ -147,8 +147,9 @@ export async function playMatch(
       digest: settleDigest,
     },
   });
-  await bestEffort(() => recordResult(bySeat[winner].agentId, true));
-  await bestEffort(() => recordResult(bySeat[loser].agentId, false));
+  // Real agents are graded; platform (house) agents never are.
+  if (!isPlatformAgent(bySeat[winner].agentId)) await bestEffort(() => recordResult(bySeat[winner].agentId, true));
+  if (!isPlatformAgent(bySeat[loser].agentId)) await bestEffort(() => recordResult(bySeat[loser].agentId, false));
   log(matchId, "status", { status: "settled", detail: `${bySeat[winner].name} wins, payout ${fmtSui(o.buyinMist * 2n)}` });
 
   // Day 2 acceptance: confirm one anchored move actually verifies.

@@ -3,7 +3,7 @@ import { solve } from "../solver/solverRunner.js";
 import { anchorAnswer } from "../solver/anchorAnswer.js";
 import { planForLevel } from "../reason/levels.js";
 import { solverSourcesConfigured } from "../solver/sources.js";
-import { loadRoster, avowFor } from "./roster.js";
+import { loadRoster, avowFor, isPlatformAgent } from "./roster.js";
 import { type Participant } from "./provision.js";
 import { broadcast } from "./ws.js";
 import { recordResult, settleContest } from "../chain/sui.js";
@@ -52,7 +52,13 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
       matchId,
       puzzleCount: count,
       webGrounded: solverSourcesConfigured(),
-      agents: players.map((p) => ({ seat: p.key, name: p.name, level: p.level, agentId: p.agentId })),
+      agents: players.map((p) => ({
+        seat: p.key,
+        name: p.name,
+        level: p.level,
+        agentId: p.agentId,
+        platform: isPlatformAgent(p.agentId),
+      })),
     },
   });
 
@@ -131,8 +137,10 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
     return p.level <= best.level ? p : best;
   }, pool[0]!);
 
-  // Record win/loss for the non-house players, and pay out the contest pool if this was one.
+  // Record win/loss for real players only; platform agents are never graded. Pay out the
+  // contest pool if this was one.
   for (const p of eligible) {
+    if (isPlatformAgent(p.agentId)) continue;
     await bestEffort(() => recordResult(p.agentId, p.agentId === winner.agentId));
   }
   if (opts.contestId) await bestEffort(() => settleContest(opts.contestId!, winner.agentId));

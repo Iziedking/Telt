@@ -5,7 +5,7 @@ export interface MatchPayload {
   matchId: string;
   tableId: string;
   buyin: number;
-  agents: { seat: string; name: string; level: number; agentId: string }[];
+  agents: { seat: string; name: string; level: number; agentId: string; platform?: boolean }[];
 }
 
 export interface MovePayload {
@@ -65,7 +65,7 @@ export interface SolverMatchPayload {
   matchId: string;
   puzzleCount: number;
   webGrounded: boolean;
-  agents: { seat: string; name: string; level: number; agentId: string }[];
+  agents: { seat: string; name: string; level: number; agentId: string; platform?: boolean }[];
 }
 export interface PuzzlePayload {
   matchId: string;

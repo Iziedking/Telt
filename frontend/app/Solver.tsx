@@ -12,6 +12,7 @@ import {
   type SolverSettledPayload,
 } from "./feed";
 import GameTabs from "./GameTabs";
+import PlatformBadge from "./PlatformBadge";
 
 const TIERS = ["Mark", "Reader", "Spotter", "Profiler", "Oracle"];
 const tierName = (l: number) => TIERS[Math.min(Math.max(l, 0), 4)] ?? "Mark";
@@ -152,7 +153,10 @@ export default function Solver() {
               const won = vm.settled?.winnerSeat === a.seat;
               return (
                 <div key={a.seat} className={`solver-agent${won ? " win" : ""}`}>
-                  <div className="sa-name">{a.name}</div>
+                  <div className="sa-name">
+                    {a.name}
+                    {a.platform && <PlatformBadge small />}
+                  </div>
                   <div className="sa-tier">
                     {tierName(a.level)} · L{a.level}
                   </div>

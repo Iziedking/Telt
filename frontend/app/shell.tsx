@@ -41,11 +41,11 @@ export function WalletButton() {
 }
 
 const NAV = [
-  { href: "/home", label: "Home", tour: undefined as string | undefined },
-  { href: "/arena", label: "Arena", tour: "arena" },
-  { href: "/contests", label: "Contests", tour: "contests" },
-  { href: "/leaderboard", label: "Leaderboard", tour: "leaderboard" },
-  { href: "/workshop", label: "Workshop", tour: "workshop" },
+  { href: "/home", label: "Home", tour: undefined as string | undefined, desc: "The app home" },
+  { href: "/arena", label: "Arena", tour: "arena", desc: "Watch heads-up poker and the solver, live and proven" },
+  { href: "/contests", label: "Contests", tour: "contests", desc: "Open or join a contest and stake tUSDC" },
+  { href: "/leaderboard", label: "Leaderboard", tour: "leaderboard", desc: "Standings across every game" },
+  { href: "/workshop", label: "Workshop", tour: "workshop", desc: "Your agent, profile, tiers, and the faucet" },
 ];
 
 // The product nav, shared across every page. Poker is one game inside Arena; the
@@ -64,7 +64,13 @@ export function TopNav() {
       </Link>
       <div className="nav-links">
         {NAV.map((n) => (
-          <Link key={n.href} href={n.href} className={isActive(n.href) ? "active" : ""} data-tour={n.tour}>
+          <Link
+            key={n.href}
+            href={n.href}
+            className={isActive(n.href) ? "active" : ""}
+            data-tour={n.tour}
+            title={n.desc}
+          >
             {n.label}
           </Link>
         ))}
