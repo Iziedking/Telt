@@ -2562,55 +2562,158 @@ a.home-card:hover {
   min-width: 44px;
   text-align: center;
 }
+/* Quiz cards: a single readable column of dark cards, each showing the question, its options,
+   and one row per agent with the option it picked, right/wrong, and how fast it answered. */
 .sq-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 14px;
 }
-@media (max-width: 760px) {
-  .sq-grid {
-    grid-template-columns: 1fr;
-  }
-}
 .sq-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 16px 18px;
+  background: #14181f;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 20px 24px;
+  font-family: var(--font-mono), monospace;
+  color: #e8edf2;
 }
 .sq-card.active {
   border-color: var(--signal);
-  box-shadow: 0 0 0 2px rgba(196, 36, 28, 0.15);
+  box-shadow: 0 0 0 2px rgba(196, 36, 28, 0.25);
 }
-.sq-card.done {
-  opacity: 0.94;
-}
-.sq-top {
+.sq-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 10px;
+  margin-bottom: 14px;
 }
-.sq-num {
+.sq-puzzle {
   font-family: var(--font-display), sans-serif;
-  font-weight: 700;
-  font-size: 13px;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.02em;
+  color: #fff;
+}
+.sq-tag {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #8b94a0;
+  font-weight: 600;
+}
+.sq-tag.web {
+  color: #4ea1c7;
+}
+.sq-head-right {
+  margin-left: auto;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: #8b94a0;
+}
+.sq-head-right b {
+  color: #4ade80;
 }
 .sq-timer {
-  margin-left: auto;
   font-family: var(--font-mono), monospace;
   font-weight: 700;
   font-size: 12px;
-  color: var(--signal);
-  background: rgba(196, 36, 28, 0.1);
+  color: #fff;
+  background: rgba(196, 36, 28, 0.85);
   border-radius: 6px;
-  padding: 1px 7px;
+  padding: 2px 8px;
 }
 .sq-q {
+  font-size: 15px;
+  line-height: 1.5;
+  color: #e8edf2;
+  margin-bottom: 14px;
+}
+.sq-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sq-opt {
   font-size: 14px;
+  color: #c3cad2;
+  padding: 2px 0;
+}
+.sq-opt-l {
+  color: #8b94a0;
+  font-weight: 700;
+}
+.sq-opt.correct,
+.sq-opt.correct .sq-opt-l {
+  color: #4ade80;
+}
+.sq-agents {
+  margin-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  flex-direction: column;
+}
+.sq-agent {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 14px;
+}
+.sq-agent:last-child {
+  border-bottom: none;
+}
+.sq-av {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  color: #fff;
+  flex: 0 0 auto;
+}
+.sq-handle {
+  color: #e8edf2;
   font-weight: 600;
-  line-height: 1.4;
-  margin-bottom: 10px;
+}
+.sq-agent-sp {
+  flex: 1;
+}
+.sq-agent-pick {
+  font-weight: 700;
+  color: #c3cad2;
+}
+.sq-agent-mark {
+  font-weight: 700;
+  width: 16px;
+  text-align: center;
+}
+.sq-agent-time {
+  color: #8b94a0;
+  font-size: 12px;
+  min-width: 40px;
+  text-align: right;
+}
+.sq-agent.ok .sq-agent-pick,
+.sq-agent.ok .sq-agent-mark {
+  color: #4ade80;
+}
+.sq-agent.bad .sq-agent-pick,
+.sq-agent.bad .sq-agent-mark {
+  color: #f87171;
+}
+.sq-explain {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  font-family: var(--font-body), sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #b8c0c9;
 }
 .sp-rationales {
   margin-top: 16px;
@@ -4162,6 +4265,9 @@ input:focus:not(:focus-visible) {
 }
 .ct-running.expired {
   color: #8a8f96;
+}
+.ct-running.settled {
+  color: #1f7a4d;
 }
 
 /* --- Tutorial: the quiet corner button and the walkthrough page --- */

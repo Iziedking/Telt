@@ -17,7 +17,15 @@ import PlatformBadge from "./PlatformBadge";
 
 const TIERS = ["Mark", "Reader", "Spotter", "Profiler", "Oracle"];
 const tierName = (l: number) => TIERS[Math.min(Math.max(l, 0), 4)] ?? "Mark";
-const PER_PAGE = 6;
+const PER_PAGE = 5;
+
+// Per-agent row helpers for the quiz cards.
+const letterFor = (n: number) => String.fromCharCode(65 + n);
+const handleFor = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "");
+const initialFor = (name: string) => (name.trim()[0] ?? "?").toUpperCase();
+const AVATAR_COLORS = ["#c4241c", "#1f7a4d", "#5b54d6", "#c77d1a", "#2a7ab0", "#a23a8e"];
+const avatarColor = (name: string) =>
+  AVATAR_COLORS[[...name].reduce((s, c) => s + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
 
 interface ContestInfo {
   contestId: string;
@@ -27,8 +35,9 @@ interface ContestInfo {
   levelMin: number;
   levelMax: number;
   endsAt: number | null;
-  phase: "joining" | "running" | "expired";
+  phase: "joining" | "running" | "expired" | "settled";
   difficulty: string | null;
+  winnerName?: string;
 }
 
 interface SolverVM {
@@ -40,7 +49,8 @@ interface SolverVM {
   webGrounded: boolean;
   questions: SolverQuestion[];
   currentIndex: number;
-  answers: Record<number, Record<string, AnswerPayload>>; // [index][seat]
+  askedAt: Record<number, number>; // [index] -> when the question went live, for response timing
+  answers: Record<number, Record<string, AnswerPayload & { answeredAt: number }>>; // [index][seat]
   results: Record<number, PuzzleResultPayload>; // [index]
   settled: SolverSettledPayload | null;
 }
@@ -54,6 +64,7 @@ const INITIAL: SolverVM = {
   webGrounded: false,
   questions: [],
   currentIndex: -1,
+  askedAt: {},
   answers: {},
   results: {},
   settled: null,
@@ -78,10 +89,18 @@ function reduce(vm: SolverVM, msg: FeedMessage): SolverVM {
     case "solverPuzzles":
       return { ...vm, questions: msg.payload.puzzles };
     case "puzzle":
-      return { ...vm, currentIndex: msg.payload.index, status: `Question ${msg.payload.index + 1} of ${msg.payload.total}` };
+      return {
+        ...vm,
+        currentIndex: msg.payload.index,
+        askedAt: { ...vm.askedAt, [msg.payload.index]: Date.now() },
+        status: `Question ${msg.payload.index + 1} of ${msg.payload.total}`,
+      };
     case "answer": {
       const a = msg.payload;
-      return { ...vm, answers: { ...vm.answers, [a.index]: { ...(vm.answers[a.index] ?? {}), [a.seat]: a } } };
+      return {
+        ...vm,
+        answers: { ...vm.answers, [a.index]: { ...(vm.answers[a.index] ?? {}), [a.seat]: { ...a, answeredAt: Date.now() } } },
+      };
     }
     case "answerProven": {
       const p = msg.payload;
@@ -128,7 +147,25 @@ export default function Solver() {
     const load = () =>
       fetch(`${API_BASE}/contests`)
         .then((r) => r.json())
-        .then((d) => setContest((d.open ?? []).find((c: ContestInfo) => c.contestId === contestId) ?? null))
+        .then((d) => {
+          const open = (d.open ?? []).find((c: ContestInfo) => c.contestId === contestId);
+          if (open) return setContest(open);
+          const h = (d.history ?? []).find((x: { contestId: string }) => x.contestId === contestId);
+          if (h)
+            return setContest({
+              contestId,
+              game: "solver",
+              format: "",
+              pool: h.prize ?? 0,
+              levelMin: 0,
+              levelMax: 4,
+              endsAt: null,
+              phase: "settled",
+              difficulty: null,
+              winnerName: h.winner,
+            });
+          setContest(null);
+        })
         .catch(() => {});
     load();
     const id = setInterval(load, 4000);
@@ -241,20 +278,22 @@ export default function Solver() {
               <>
                 <span className="ct-watch-banner">
                   <span className="ct-badge s1">{contest.game}</span>
-                  <span className="ct-kind">{contest.format}</span>
+                  {contest.format && <span className="ct-kind">{contest.format}</span>}
                   {contest.difficulty && (
                     <span className={`ct-diff ${contest.difficulty.toLowerCase()}`}>{contest.difficulty}</span>
                   )}
                   · pool {contest.pool} tUSDC · L{contest.levelMin}-{contest.levelMax}
                   {ctCountdown ? (
                     <span className="ct-countdown">starts in {ctCountdown}</span>
+                  ) : contest.phase === "settled" ? (
+                    <span className="ct-running settled">settled{contest.winnerName ? ` · ${contest.winnerName} won` : ""}</span>
                   ) : contest.phase === "expired" ? (
                     <span className="ct-running expired">expired</span>
                   ) : (
                     <span className="ct-running">live</span>
                   )}
                 </span>
-                {vm.agents.length === 0 && contest.phase !== "running" && (
+                {vm.agents.length === 0 && contest.phase !== "running" && contest.phase !== "settled" && (
                   <button className="hero-cta ct-run-now" onClick={runThisContest} disabled={starting}>
                     {starting ? "Starting…" : "Run now"}
                   </button>
@@ -296,9 +335,13 @@ export default function Solver() {
         {agents.length === 0 ? (
           <div className="solver-empty">
             {watching
-              ? ctCountdown
-                ? `This contest starts when its join window closes (${ctCountdown}).`
-                : "The contest is starting. The questions will appear here in a moment."
+              ? contest?.phase === "settled"
+                ? `This contest has ended.${contest.winnerName ? ` ${contest.winnerName} won the ${contest.pool} tUSDC pool.` : ""}`
+                : contest?.phase === "expired"
+                  ? "This contest expired before it could run."
+                  : ctCountdown
+                    ? `This contest starts when its join window closes (${ctCountdown}).`
+                    : "The contest is starting. The questions will appear here in a moment."
               : "No match yet. Run one and watch the agents reason through it."}
           </div>
         ) : (
@@ -371,48 +414,53 @@ export default function Solver() {
                 const rowAns = vm.answers[q.index] ?? {};
                 return (
                   <div key={q.index} className={`sq-card${isCurrent ? " active" : ""}${result ? " done" : ""}`}>
-                    <div className="sq-top">
-                      <span className="sq-num">Q{q.index + 1}</span>
-                      <span className="sp-topic">{q.topic}</span>
-                      {q.grounded && <span className="solver-tag sm">web</span>}
-                      {isCurrent && remaining !== null && <span className="sq-timer">{remaining}s</span>}
+                    <div className="sq-head">
+                      <span className="sq-puzzle">SOLVER {q.index + 1}</span>
+                      <span className="sq-tag">QUIZ</span>
+                      {q.grounded && <span className="sq-tag web">WEB</span>}
+                      <span className="sq-head-right">
+                        {result ? (
+                          <>
+                            ANSWER · <b>{letterFor(result.answer)}</b>
+                          </>
+                        ) : isCurrent && remaining !== null ? (
+                          <span className="sq-timer">{remaining}s</span>
+                        ) : null}
+                      </span>
                     </div>
                     <div className="sq-q">{q.question}</div>
-                    <div className="sp-options">
-                      {q.options.map((opt, j) => {
-                        const isAnswer = result?.answer === j;
-                        const someonePicked = agents.some((a) => rowAns[a.seat]?.choice === j);
-                        const cls = result ? (isAnswer ? "correct" : someonePicked ? "wrong" : "") : someonePicked ? "picked" : "";
-                        return (
-                          <div key={j} className={`sp-opt ${cls}`}>
-                            <span className="sp-letter">{String.fromCharCode(65 + j)}</span>
-                            <span className="sp-text">{opt}</span>
-                            {result && isAnswer && <span className="sp-check">✓</span>}
-                          </div>
-                        );
-                      })}
+                    <div className="sq-opts">
+                      {q.options.map((opt, j) => (
+                        <div key={j} className={`sq-opt${result && result.answer === j ? " correct" : ""}`}>
+                          <span className="sq-opt-l">{letterFor(j)})</span> {opt}
+                        </div>
+                      ))}
                     </div>
-                    {/* Each agent's pick for this question, marked correct or wrong once judged. */}
+                    {/* One row per agent: avatar, handle, the option it picked, correct/wrong, and how fast. */}
                     {agents.length > 0 && (
-                      <div className="sq-picks">
+                      <div className="sq-agents">
                         {agents.map((a) => {
                           const ans = rowAns[a.seat];
-                          const judged = !!result;
-                          const correct = judged && !!ans && ans.choice === result.answer;
+                          const asked = vm.askedAt[q.index];
+                          const elapsed = ans && asked ? Math.max(0, (ans.answeredAt - asked) / 1000) : null;
+                          const state = ans ? (ans.correct ? "ok" : "bad") : "pending";
                           return (
-                            <div key={a.seat} className={`sq-pick${judged && ans ? (correct ? " ok" : " bad") : ""}`}>
-                              <span className="sq-pick-name">
-                                {a.name}
-                                {a.platform && <PlatformBadge small />}
+                            <div key={a.seat} className={`sq-agent ${state}`}>
+                              <span className="sq-av" style={{ background: avatarColor(a.name) }}>
+                                {initialFor(a.name)}
                               </span>
-                              <span className="sq-pick-letter">{ans ? String.fromCharCode(65 + ans.choice) : "…"}</span>
-                              {judged && ans && <span className="sq-pick-mark">{correct ? "correct" : "wrong"}</span>}
+                              <span className="sq-handle">@{handleFor(a.name)}</span>
+                              {a.platform && <PlatformBadge small />}
+                              <span className="sq-agent-sp" />
+                              <span className="sq-agent-pick">{ans ? letterFor(ans.choice) : "…"}</span>
+                              {ans && <span className="sq-agent-mark">{ans.correct ? "✓" : "✗"}</span>}
+                              {ans && elapsed !== null && <span className="sq-agent-time">{elapsed.toFixed(1)}s</span>}
                             </div>
                           );
                         })}
                       </div>
                     )}
-                    {result && <div className="sp-explain">{result.explanation}</div>}
+                    {result && <div className="sq-explain">{result.explanation}</div>}
                   </div>
                 );
               })}
