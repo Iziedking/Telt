@@ -1,4 +1,5 @@
-import { generatePuzzles } from "../solver/generator.js";
+import { generatePuzzles, generatePuzzle } from "../solver/generator.js";
+import type { Puzzle } from "../solver/types.js";
 import { solve } from "../solver/solverRunner.js";
 import { anchorAnswer } from "../solver/anchorAnswer.js";
 import { planForLevel } from "../reason/levels.js";
@@ -99,13 +100,14 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
     },
   });
 
-  for (const [i, pz] of puzzles.entries()) {
+  // Ask one question: broadcast it, let the given players answer (each solve scored, timed, and
+  // anchored in the background), then reveal the result. Used for the main round and sudden death.
+  const askQuestion = async (idx: number, pz: Puzzle, total: number, who: typeof players): Promise<void> => {
     broadcast({
       type: "puzzle",
-      payload: { matchId, index: i, total: count, topic: pz.topic, question: pz.question, options: pz.options, grounded: pz.grounded },
+      payload: { matchId, index: idx, total, topic: pz.topic, question: pz.question, options: pz.options, grounded: pz.grounded },
     });
-
-    for (const p of players) {
+    for (const p of who) {
       const opponent = players.find((q) => q.agentId !== p.agentId) ?? p;
       const t0 = Date.now();
       const d = await withTimeout(solve(pz, planForLevel(p.level)), SECONDS_PER_QUESTION * 1000).catch(() => ({
@@ -120,9 +122,8 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
       if (correct) scores[p.key] = (scores[p.key] ?? 0) + 1;
       agreementTotals[p.key] = (agreementTotals[p.key] ?? 0) + d.agreement;
 
-      // Anchor in the background so a Walrus write never stalls the quiz: the answer streams
-      // now and its proof (serialized, so it cannot race the gas coin) lands a moment later
-      // as an "answerProven" update.
+      // Anchor in the background so a Walrus write never stalls the quiz: the answer streams now
+      // and its proof (serialized, so it cannot race the gas coin) lands later as "answerProven".
       if (doAnchor) {
         void anchorAnswer(avowFor(p), {
           puzzle: pz,
@@ -134,7 +135,7 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
           .then((proof) => {
             broadcast({
               type: "answerProven",
-              payload: { matchId, index: i, seat: p.key, blobId: proof.blobId, anchorDigest: proof.anchorDigest },
+              payload: { matchId, index: idx, seat: p.key, blobId: proof.blobId, anchorDigest: proof.anchorDigest },
             });
           })
           .catch((e) => console.warn("answer anchor failed:", (e as Error).message));
@@ -144,7 +145,7 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
         type: "answer",
         payload: {
           matchId,
-          index: i,
+          index: idx,
           seat: p.key,
           agentName: p.name,
           agentId: p.agentId,
@@ -161,39 +162,41 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
         },
       });
     }
-
     broadcast({
       type: "puzzleResult",
-      payload: { matchId, index: i, answer: pz.answer, explanation: pz.explanation, sources: pz.sources, scores: { ...scores } },
+      payload: { matchId, index: idx, answer: pz.answer, explanation: pz.explanation, sources: pz.sources, scores: { ...scores } },
     });
+  };
+
+  for (const [i, pz] of puzzles.entries()) {
+    await askQuestion(i, pz, count, players);
   }
 
-  // Winner: most correct among non-house agents. A tie is broken on speed (lowest total answer
-  // time), then on conviction (higher summed agreement), then in favour of the underdog (lower
-  // level) so a weaker model that keeps pace is rewarded. Every step is deterministic.
+  // Sudden death breaks a tie on skill, not speed: higher tiers run more reasoning passes and
+  // are inherently slower, so timing them would unfairly punish the stronger model. Instead, if
+  // the top scorers are level, ask fresh questions that only the tied agents answer until the
+  // score separates. Capped; a genuine dead heat then goes to the higher tier.
   const eligible = players.filter((p) => !p.isHouse);
   const pool = eligible.length ? eligible : players;
-  const ranked = [...pool].sort((a, b) => {
-    const ds = (scores[b.key] ?? 0) - (scores[a.key] ?? 0);
-    if (ds !== 0) return ds;
-    const dt = (timeTotals[a.key] ?? 0) - (timeTotals[b.key] ?? 0); // faster first
-    if (dt !== 0) return dt;
-    const dg = (agreementTotals[b.key] ?? 0) - (agreementTotals[a.key] ?? 0);
-    if (dg !== 0) return dg;
-    return a.level - b.level; // underdog
-  });
-  const winner = ranked[0]!;
-  const runnerUp = ranked[1];
-  // Name how the win was decided so a tie is never just "2 to 2" with no reason.
+  const topScore = () => Math.max(...pool.map((p) => scores[p.key] ?? 0));
+  const tiedAtTop = () => pool.filter((p) => (scores[p.key] ?? 0) === topScore());
   let tiebreak: string | null = null;
-  if (runnerUp && (scores[winner.key] ?? 0) === (scores[runnerUp.key] ?? 0)) {
-    tiebreak =
-      (timeTotals[winner.key] ?? 0) !== (timeTotals[runnerUp.key] ?? 0)
-        ? "speed"
-        : (agreementTotals[winner.key] ?? 0) !== (agreementTotals[runnerUp.key] ?? 0)
-          ? "conviction"
-          : "tier";
+  const MAX_SUDDEN_DEATH = 6;
+  for (let sd = 0; tiedAtTop().length > 1 && sd < MAX_SUDDEN_DEATH; sd++) {
+    tiebreak = "sudden death";
+    const idx = count + sd;
+    const pz = await generatePuzzle(idx);
+    await askQuestion(idx, pz, idx + 1, tiedAtTop());
   }
+  // Winner: top score (now usually unique). A dead heat that survived sudden death goes to the
+  // higher tier, the more capable model.
+  const winner = pool.reduce((best, p) => {
+    const sp = scores[p.key] ?? 0;
+    const sb = scores[best.key] ?? 0;
+    if (sp !== sb) return sp > sb ? p : best;
+    return p.level > best.level ? p : best;
+  }, pool[0]!);
+  if (tiebreak === "sudden death" && tiedAtTop().length > 1) tiebreak = "tier";
 
   // Record win/loss for real players only; platform agents are never graded. Pay out the
   // contest pool if this was one.

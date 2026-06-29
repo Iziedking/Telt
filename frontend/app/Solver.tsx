@@ -82,13 +82,23 @@ function reduce(vm: SolverVM, msg: FeedMessage): SolverVM {
     }
     case "solverPuzzles":
       return { ...vm, questions: msg.payload.puzzles };
-    case "puzzle":
+    case "puzzle": {
+      const p = msg.payload;
+      // Append late questions (sudden-death tie-breakers arrive after the initial set) so they
+      // show in the grid and count toward the total.
+      const questions =
+        p.index >= vm.questions.length
+          ? [...vm.questions, { index: p.index, topic: p.topic, question: p.question, options: p.options, grounded: p.grounded }]
+          : vm.questions;
       return {
         ...vm,
-        currentIndex: msg.payload.index,
-        askedAt: { ...vm.askedAt, [msg.payload.index]: Date.now() },
-        status: `Question ${msg.payload.index + 1} of ${msg.payload.total}`,
+        questions,
+        total: Math.max(vm.total, questions.length),
+        currentIndex: p.index,
+        askedAt: { ...vm.askedAt, [p.index]: Date.now() },
+        status: `Question ${p.index + 1} of ${p.total}`,
       };
+    }
     case "answer": {
       const a = msg.payload;
       return {
@@ -381,13 +391,11 @@ export default function Solver() {
         {vm.settled && (
           <div className="solver-settled">
             {vm.settled.winnerName} wins the round, {Object.values(vm.settled.scores).join(" to ")}
-            {vm.settled.tiebreak === "speed"
-              ? ", a tie broken on speed (faster answers)"
-              : vm.settled.tiebreak === "conviction"
-                ? ", a tie broken on conviction (more decisive answers)"
-                : vm.settled.tiebreak === "tier"
-                  ? ", a dead heat awarded to the lower tier"
-                  : ""}
+            {vm.settled.tiebreak === "sudden death"
+              ? ", decided in sudden death"
+              : vm.settled.tiebreak === "tier"
+                ? ", a dead heat awarded to the higher tier"
+                : ""}
             .
             {contest && contest.pool > 0 && (
               <>
