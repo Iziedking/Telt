@@ -57,6 +57,10 @@ export const config = {
     anthropicKey: process.env.ANTHROPIC_API_KEY ?? "",
     model: optional("ANTHROPIC_MODEL", "claude-haiku-4-5"),
     callTimeoutMs: Number(optional("REASON_TIMEOUT_MS", "60000")),
+    // Conduit is an Anthropic-compatible gateway. When CONDUIT_API_KEY is set, the Anthropic
+    // client points at it (the primary), and OpenRouter stays the fallback.
+    conduitKey: process.env.CONDUIT_API_KEY ?? "",
+    conduitBaseUrl: optional("CONDUIT_BASE_URL", "https://conduit.ozdoev.net"),
     // OpenRouter (OpenAI-compatible) powers the cheaper lower tiers. A tier's strength
     // comes from its model: the ladder climbs from a small cheap model at level 0 to
     // Claude Haiku at level 4. Each is overridable in .env (TIER0_MODEL..TIER4_MODEL).
@@ -109,7 +113,7 @@ export function suiConfigured(): boolean {
 }
 
 export function reasonConfigured(): boolean {
-  return Boolean(config.reason.anthropicKey || config.reason.openrouterKey);
+  return Boolean(config.reason.conduitKey || config.reason.anthropicKey || config.reason.openrouterKey);
 }
 
 export function memoryConfigured(): boolean {

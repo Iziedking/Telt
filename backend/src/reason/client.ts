@@ -49,8 +49,11 @@ export function reasonMode(): ReasonSource {
 let client: Anthropic | null = null;
 function getClient(): Anthropic {
   if (client) return client;
+  // Prefer Conduit (an Anthropic-compatible gateway) when its key is set; it is the primary.
+  const useConduit = Boolean(config.reason.conduitKey);
   client = new Anthropic({
-    apiKey: config.reason.anthropicKey,
+    apiKey: useConduit ? config.reason.conduitKey : config.reason.anthropicKey,
+    baseURL: useConduit ? config.reason.conduitBaseUrl : undefined,
     timeout: config.reason.callTimeoutMs,
   });
   return client;
@@ -61,8 +64,9 @@ export async function callModel(params: CallParams): Promise<CallResult> {
 
   // The tier requests a provider; if its key is missing, fall back to whatever is
   // configured so a partial setup still runs rather than erroring.
-  const wants: Provider = params.provider ?? (config.reason.anthropicKey ? "anthropic" : "openrouter");
-  const haveAnthropic = Boolean(config.reason.anthropicKey);
+  // "anthropic" here means the Anthropic-compatible client, which is Conduit when configured.
+  const haveAnthropic = Boolean(config.reason.conduitKey || config.reason.anthropicKey);
+  const wants: Provider = params.provider ?? (haveAnthropic ? "anthropic" : "openrouter");
   const haveOpenrouter = Boolean(config.reason.openrouterKey);
   const provider: Provider = wants === "openrouter" && !haveOpenrouter ? "anthropic" : wants === "anthropic" && !haveAnthropic ? "openrouter" : wants;
 
@@ -70,7 +74,18 @@ export async function callModel(params: CallParams): Promise<CallResult> {
     return callOpenrouter(params);
   }
   if (provider === "anthropic" && haveAnthropic) {
-    return callAnthropic(params);
+    try {
+      return await callAnthropic(params);
+    } catch (e) {
+      // Anthropic can be configured but unusable at call time (out of credits, rate limited).
+      // If OpenRouter is available, fall back to it so generation and the top tier keep working
+      // (with OpenRouter's default model) instead of erroring.
+      if (haveOpenrouter) {
+        console.warn("[reason] anthropic failed, falling back to openrouter:", (e as Error).message);
+        return callOpenrouter({ ...params, model: undefined });
+      }
+      throw e;
+    }
   }
   return offlineResult();
 }
