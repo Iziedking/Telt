@@ -26,7 +26,7 @@ import { runContest } from "../coordinator/runContest.js";
 import {
   customContests,
   challengeContests,
-  contestOpenedAt,
+  openContestWindow,
   contestEndsAt,
   contestPhase,
 } from "../coordinator/contestKinds.js";
@@ -403,7 +403,7 @@ app.post("/contests/create", async (c) => {
     if (rewardUsdc > 0n) await fundContest(contestId, rewardUsdc);
     if (kind === "custom") customContests.add(contestId);
     if (kind === "challenge") challengeContests.add(contestId);
-    contestOpenedAt.set(contestId, Date.now());
+    openContestWindow(contestId);
     return c.json({ ok: true, contestId, kind });
   } catch (e) {
     return c.json({ error: (e as Error).message }, 500);

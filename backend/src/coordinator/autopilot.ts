@@ -136,20 +136,43 @@ export async function runAutopilotCycle(): Promise<CycleResult> {
   }
 }
 
-// Start the loop: a cycle, then wait, repeat. Survives a failed cycle.
-export function startAutopilot(intervalMs: number): void {
+// Open one demo contest at a random minute inside each configured daily window (morning,
+// noon, evening by default), then replan just after midnight. Change AUTOPILOT_WINDOWS in
+// the env to control how often and when it runs.
+export function startAutopilot(): void {
   if (running) return;
   running = true;
-  const tick = async () => {
-    try {
-      await runAutopilotCycle();
-    } catch (e) {
-      console.error("[autopilot] cycle failed:", (e as Error).message);
+  const windows = config.autopilot.windows;
+  if (windows.length === 0) {
+    console.log("[autopilot] enabled but no windows configured (set AUTOPILOT_WINDOWS)");
+    return;
+  }
+
+  const planDay = () => {
+    const now = new Date();
+    for (const [startH, endH] of windows) {
+      const startMin = startH * 60;
+      const endMin = endH * 60;
+      const randMin = startMin + Math.floor(Math.random() * (endMin - startMin));
+      const fire = new Date(now);
+      fire.setHours(Math.floor(randMin / 60), randMin % 60, 0, 0);
+      const delay = fire.getTime() - now.getTime();
+      if (delay > 0) {
+        setTimeout(() => {
+          runAutopilotCycle().catch((e) => console.error("[autopilot] cycle failed:", (e as Error).message));
+        }, delay);
+        console.log(`[autopilot] ${startH}-${endH}h contest scheduled for ${fire.toTimeString().slice(0, 5)}`);
+      }
     }
-    setTimeout(tick, intervalMs);
+    // Replan tomorrow's windows just after midnight.
+    const tomorrow = new Date(now);
+    tomorrow.setDate(now.getDate() + 1);
+    tomorrow.setHours(0, 1, 0, 0);
+    setTimeout(planDay, tomorrow.getTime() - now.getTime());
   };
-  console.log(`[autopilot] on, every ${Math.round(intervalMs / 1000)}s`);
-  setTimeout(tick, 2000);
+
+  console.log(`[autopilot] on, ${windows.length} contests a day at random times in the configured windows`);
+  planDay();
 }
 
 export function autopilotEnabled(): boolean {

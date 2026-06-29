@@ -15,6 +15,15 @@ function optional(name: string, fallback: string): string {
   return process.env[name] ?? fallback;
 }
 
+// Parse daily windows like "7-10,12-15,18-21" into [startHour, endHour] pairs.
+function parseWindows(s: string): [number, number][] {
+  return s
+    .split(",")
+    .map((part) => part.split("-").map((x) => Number(x.trim())))
+    .filter((pair) => pair.length === 2 && Number.isFinite(pair[0]) && Number.isFinite(pair[1]) && pair[1]! > pair[0]!)
+    .map((pair) => [pair[0]!, pair[1]!] as [number, number]);
+}
+
 // The Avow testnet package id. Never redeployed; the arena points at this.
 const AVOW_PACKAGE_ID_DEFAULT =
   "0x4f3e25d7858a70ce4f1a437a3f91f24700407f52c68bb93775522d752841a3ee";
@@ -81,9 +90,17 @@ export const config = {
     port: Number(optional("PORT", "8787")),
   },
   autopilot: {
-    // When on, the platform runs contests on a schedule to keep the arena busy.
+    // When on, the platform opens a demo contest at a random minute within each daily
+    // window (24h local). Default: morning, noon, evening — three a day. Change the windows
+    // (or add/remove them) to control how often and when the autopilot runs.
     enabled: optional("AUTOPILOT_ENABLED", "off").toLowerCase() === "on",
-    intervalMs: Number(optional("AUTOPILOT_INTERVAL_MS", "3600000")), // default hourly
+    windows: parseWindows(optional("AUTOPILOT_WINDOWS", "7-10,12-15,18-21")),
+  },
+  contest: {
+    // Each contest's join window is a random length between these (minutes), so contests do
+    // not all close at once.
+    joinMinMs: Math.max(1, Number(optional("CONTEST_JOIN_MIN_MINUTES", "3"))) * 60_000,
+    joinMaxMs: Math.max(1, Number(optional("CONTEST_JOIN_MAX_MINUTES", "20"))) * 60_000,
   },
 };
 

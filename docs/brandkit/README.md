@@ -17,7 +17,7 @@ beside the **telt** wordmark in Fredoka (the brand display face): `tel` in ink, 
 
 ## Colors
 
-- Ink `#14181F` · Cream `#F4F1EA` · Signal red `#E8352B`
+- Ink `#14181F` · Cream `#F4F1EA` · Signal red `#C4241C`
 - Pastels: felt `#A8E0C2` · periwinkle `#C7C9F2` · sky `#BFE0F2` · sand `#F1E7CE`
 
 ## Type
