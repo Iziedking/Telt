@@ -25,12 +25,19 @@ async function sweepOnce(): Promise<void> {
   for (const s of states) {
     if (s.status !== 0 || inFlight.has(s.contestId)) continue;
     const endsAt = contestEndsAt(s.contestId);
-    if (endsAt === null || now < endsAt) continue; // window still open, or no recorded window
+    // Skip only while a window is still open. A contest with no recorded window (its in-memory
+    // window was lost on a backend restart) has been open indefinitely, so treat it as closed
+    // and run it, otherwise it strands in the Live list forever.
+    if (endsAt !== null && now < endsAt) continue;
 
     // Decide whether the field is ready to run. General contests always run at the deadline
     // (a platform-vs-platform demo if no one joined). A challenge needs one real agent (a
     // platform opponent is seated for it); a plain duel and a custom event need two real
     // agents and otherwise wait.
+    // A contest runs at the deadline only if it has a real field: general and challenge need
+    // one real agent (a platform opponent / house seats are filled around it), a plain duel
+    // and a custom event need two. With no real entrants there is no winner, so it is left to
+    // expire rather than run a hollow demo.
     const real = s.entrants.filter((e) => !e.isHouse).length;
     let ready: boolean;
     if (s.format === FORMAT_DUEL) {
@@ -38,7 +45,7 @@ async function sweepOnce(): Promise<void> {
     } else if (customContests.has(s.contestId)) {
       ready = real >= 2;
     } else {
-      ready = true;
+      ready = real >= 1;
     }
     if (!ready) continue;
 

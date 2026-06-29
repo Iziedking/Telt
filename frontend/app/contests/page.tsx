@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { API_BASE, prettyError } from "../feed";
@@ -75,6 +76,7 @@ function timeAgo(at: number, now: number): string {
 export default function ContestsPage() {
   const account = useCurrentAccount();
   const suiClient = useSuiClient();
+  const router = useRouter();
   const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [recent, setRecent] = useState<RecentMission[]>([]);
@@ -207,20 +209,17 @@ export default function ContestsPage() {
 
   const run = useCallback(
     async (ct: OpenContest) => {
+      const dest = ct.game === "poker" ? "/arena" : "/solver";
       setMsg("Running the contest…");
-      setWatch({
-        href: ct.game === "poker" ? "/arena" : "/solver",
-        label: `Watch live in the ${ct.game === "poker" ? "Arena" : "Solver"}`,
-      });
       try {
         await fetch(`${API_BASE}/contests/${ct.contestId}/run`, { method: "POST" });
-        setMsg("Running now.");
-        setTimeout(load, 3000);
+        // Take the user straight to the live view: the match streams there as it plays.
+        router.push(dest);
       } catch {
         setMsg("could not run the contest");
       }
     },
-    [load],
+    [router],
   );
 
   const tone = (s: number) => (s === 3 ? "signal" : s === 2 ? "peri" : "sand");
@@ -258,17 +257,21 @@ export default function ContestsPage() {
       <main className="arena">
         <div className="panel-label">Step 1 · open a contest (pick a game and a kind, it appears in Live below)</div>
         <div className="ct-open-bar">
-          <div className="ct-game-toggle" role="group" aria-label="Game">
-            <button className={game === "solver" ? "on" : ""} onClick={() => setGame("solver")}>
-              Solver
-            </button>
-            <button className={game === "poker" ? "on" : ""} onClick={() => setGame("poker")}>
-              Poker
-            </button>
+          <div className="ct-bar-top">
+            <div className="ct-game-toggle" role="group" aria-label="Game">
+              <button className={game === "solver" ? "on" : ""} onClick={() => setGame("solver")}>
+                Solver
+              </button>
+              <button className={game === "poker" ? "on" : ""} onClick={() => setGame("poker")}>
+                Poker
+              </button>
+            </div>
+            <span className="ct-group-label">
+              Challenge and General are platform-seeded and free; Duel and Custom take a stake
+            </span>
           </div>
 
-          <div className="ct-kind-group">
-            <span className="ct-group-label">Platform-seeded · free to enter</span>
+          <div className="ct-bar-kinds">
             <button
               className="ws-mini"
               onClick={() => create("challenge")}
@@ -283,11 +286,8 @@ export default function ContestsPage() {
             >
               General
             </button>
-          </div>
-
-          <div className="ct-kind-group">
-            <span className="ct-group-label">Your stake</span>
             <label className="ct-stake">
+              <span className="ct-stake-label">stake</span>
               <input
                 type="number"
                 min={0}
@@ -417,7 +417,12 @@ export default function ContestsPage() {
                       <button
                         className="ws-mini"
                         onClick={() => run(ct)}
-                        title="Skip the wait and run this contest now (it also runs on its own when the window closes)"
+                        disabled={ct.entrants === 0}
+                        title={
+                          ct.entrants === 0
+                            ? "Join with an agent first; an empty contest expires when its window closes"
+                            : "Skip the wait and run this contest now, then watch it live"
+                        }
                       >
                         Run now
                       </button>

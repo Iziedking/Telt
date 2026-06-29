@@ -317,7 +317,9 @@ app.get("/contests", async (c) => {
         // play), or expired (window closed but it can never run, e.g. a duel that never got
         // its second real agent). General contests always run, so they never expire.
         const endsAt = contestEndsAt(s.contestId);
-        const windowClosed = endsAt !== null && Date.now() >= endsAt;
+        // No recorded window (lost on a restart) counts as closed: the sweeper will run or
+        // expire it rather than leave it stranded as joinable.
+        const windowClosed = endsAt === null || Date.now() >= endsAt;
         const real = s.entrants.filter((e) => !e.isHouse).length;
         const isDuel = s.format === CONTEST_FORMAT.duel;
         let phase: "joining" | "running" | "expired";
@@ -330,7 +332,7 @@ app.get("/contests", async (c) => {
               : real >= 2
             : customContests.has(s.contestId)
               ? real >= 2
-              : true;
+              : real >= 1;
           phase = ready ? "running" : "expired";
         }
         return {

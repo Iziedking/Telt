@@ -2559,10 +2559,29 @@ a.home-card:hover {
 /* --- Open contests (join + run) --- */
 .ct-open-bar {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.ct-bar-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ct-bar-kinds {
+  display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+}
+.ct-stake-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(244, 241, 234, 0.5);
 }
 .ct-msg {
   font-size: 13px;
@@ -3649,6 +3668,21 @@ input:focus:not(:focus-visible) {
   [data-tip]::after {
     display: none;
   }
+}
+/* Right-edge triggers (the Arena's Run a match button lives in the hero aside) would push a
+   centered tooltip off-screen, so anchor it to the trigger's right edge instead. */
+.hero-aside [data-tip]::before {
+  left: auto;
+  right: 0;
+  transform: translateY(4px);
+}
+.hero-aside [data-tip]:hover::before {
+  transform: translateY(0);
+}
+.hero-aside [data-tip]::after {
+  left: auto;
+  right: 22px;
+  transform: none;
 }
 .solver-link {
   color: var(--signal);

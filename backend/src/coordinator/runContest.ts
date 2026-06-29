@@ -33,21 +33,14 @@ export async function runContest(contestId: string, opts: { puzzles?: number } =
       }
     }
   } else if (!customContests.has(contestId)) {
-    // General: if a real agent is in, fill the empty seats with platform agents as house
-    // (they cannot win, so the real agent takes the pool). If no one joined by the time the
-    // window closes, seat platform agents as real entrants so it still plays out as a
-    // platform-vs-platform demo and the funded pool returns to the platform.
-    const hasReal = entrants.some((e) => !e.isHouse);
+    // General: fill the empty seats with platform agents as house. They play but cannot win,
+    // so the pool falls to the real entrant. A general with no real entrant is not run (the
+    // sweeper expires it), so there is always at least one real agent here.
     for (const r of roster) {
       if (entrants.length >= 2) break;
       if (entrants.some((e) => e.agentId === r.agentId)) continue;
-      if (hasReal) {
-        await joinContestAsHouse(contestId, r.agentId);
-        entrants.push({ agentId: r.agentId, owner: "", isHouse: true });
-      } else {
-        await joinContest(contestId, r.agentId, c.entryFee);
-        entrants.push({ agentId: r.agentId, owner: "", isHouse: false });
-      }
+      await joinContestAsHouse(contestId, r.agentId);
+      entrants.push({ agentId: r.agentId, owner: "", isHouse: true });
     }
   }
 
