@@ -93,13 +93,17 @@ export async function callModel(params: CallParams): Promise<CallResult> {
 async function callAnthropic(params: CallParams): Promise<CallResult> {
   const model = params.model ?? config.reason.model;
   const t0 = Date.now();
-  const message = await getClient().messages.create({
+  // Stream and accumulate the final message. The Conduit gateway only returns an SSE stream
+  // (not a single JSON body), and streaming also works against the real Anthropic API, so use
+  // it for both rather than messages.create.
+  const stream = getClient().messages.stream({
     model,
     max_tokens: params.maxTokens,
     temperature: params.temperature,
     system: params.systemPrompt,
     messages: [{ role: "user", content: params.userPrompt }],
   });
+  const message = await stream.finalMessage();
   const text = message.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
     .map((b) => b.text)
