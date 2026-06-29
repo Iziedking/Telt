@@ -11,6 +11,7 @@ export default function FaucetCard() {
   const [pkg, setPkg] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [claimed, setClaimed] = useState(false);
 
   useEffect(() => {
     fetch(`${API_BASE}/status`)
@@ -32,22 +33,29 @@ export default function FaucetCard() {
     if (!account) return;
     setBusy(true);
     setMsg("");
+    // Never hang on "Claiming…": abort the request if the mint takes too long, so the button
+    // always returns to a usable state.
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 95_000);
     try {
       const r = await fetch(`${API_BASE}/faucet`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ address: account.address }),
+        signal: ac.signal,
       });
       const d = await r.json();
       if (d.ok) {
+        setClaimed(true);
         setMsg(`Claimed ${d.amount} tUSDC. ${d.remaining} claim${d.remaining === 1 ? "" : "s"} left this week.`);
         setTimeout(() => balQ.refetch(), 2500);
       } else {
         setMsg(d.error || "faucet failed");
       }
-    } catch {
-      setMsg("faucet unreachable");
+    } catch (e) {
+      setMsg((e as Error).name === "AbortError" ? "The mint is taking a while. Check your balance, or try again." : "faucet unreachable");
     } finally {
+      clearTimeout(timer);
       setBusy(false);
     }
   }, [account, balQ]);
@@ -75,12 +83,12 @@ export default function FaucetCard() {
         grows your balance.
       </p>
       <button
-        className="hero-cta ws-faucet-btn"
+        className={`hero-cta ws-faucet-btn${claimed ? " done" : ""}`}
         onClick={claim}
-        disabled={busy}
+        disabled={busy || claimed}
         title="The platform mints 25 tUSDC straight to your wallet. No signature or gas. Twice a week."
       >
-        {busy ? "Claiming…" : "Claim 25 tUSDC"}
+        {claimed ? "Claimed ✓" : busy ? "Claiming…" : "Claim 25 tUSDC"}
       </button>
       {msg && <div className="ws-faucet-msg">{msg}</div>}
     </div>

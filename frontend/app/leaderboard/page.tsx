@@ -18,9 +18,12 @@ interface Row {
   platform?: boolean;
 }
 
+const PAGE = 12;
+
 export default function LeaderboardPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [shown, setShown] = useState(PAGE);
 
   useEffect(() => {
     const load = () =>
@@ -72,21 +75,28 @@ export default function LeaderboardPage() {
               row backed by its on-chain record.
             </div>
           ) : (
-            rows.map((r, i) => (
-              <div key={r.agentId} className={`lb-row${r.platform ? " platform" : ""}`}>
-                <span>{i + 1}</span>
-                <span className="lb-name">
-                  {r.name}
-                  {r.platform && <PlatformBadge small />}
-                </span>
-                <span>
-                  {tierName(r.level)} <span className="lb-lvl">L{r.level}</span>
-                </span>
-                <span className="num">{r.wins}</span>
-                <span className="num">{r.losses}</span>
-                <span className="num">{r.games ? `${r.winRate}%` : "·"}</span>
-              </div>
-            ))
+            <>
+              {rows.slice(0, shown).map((r, i) => (
+                <div key={r.agentId} className={`lb-row${r.platform ? " platform" : ""}`}>
+                  <span>{i + 1}</span>
+                  <span className="lb-name">
+                    {r.name}
+                    {r.platform && <PlatformBadge small />}
+                  </span>
+                  <span>
+                    {tierName(r.level)} <span className="lb-lvl">L{r.level}</span>
+                  </span>
+                  <span className="num">{r.wins}</span>
+                  <span className="num">{r.losses}</span>
+                  <span className="num">{r.games ? `${r.winRate}%` : "·"}</span>
+                </div>
+              ))}
+              {rows.length > shown && (
+                <button className="show-more" onClick={() => setShown((n) => n + PAGE)}>
+                  Show more ({rows.length - shown})
+                </button>
+              )}
+            </>
           )}
         </div>
       </main>

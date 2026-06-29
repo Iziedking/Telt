@@ -346,6 +346,15 @@ body {
   align-items: center;
   flex-wrap: wrap;
 }
+/* On phones keep the matchup on one line: shrink it and stop "L4" from orphaning. */
+@media (max-width: 640px) {
+  .hero .versus {
+    flex-wrap: nowrap;
+    white-space: nowrap;
+    gap: 5px;
+    font-size: 13px;
+  }
+}
 .chip-dot {
   width: 12px;
   height: 12px;
@@ -1039,6 +1048,19 @@ a.home-card:hover {
 }
 .ws-faucet-btn {
   margin-top: 10px;
+}
+/* Once claimed, the button settles into a spent, muted state so it is clearly done until the
+   next weekly drip, rather than inviting another click. */
+.ws-faucet-btn.done {
+  background: rgba(20, 24, 31, 0.1);
+  color: var(--ink);
+  opacity: 0.65;
+  filter: saturate(0.5);
+  box-shadow: none;
+  cursor: default;
+}
+.ws-faucet-btn.done:hover {
+  transform: none;
 }
 .ws-faucet-msg {
   margin-top: 10px;
@@ -2490,10 +2512,20 @@ a.home-card:hover {
 .game-tabs {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 18px;
+  flex-wrap: nowrap;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* overflow-x also clips the cross axis, so pad a little or the active pill looks cut. */
+  padding: 3px;
+  margin: 0 -3px 16px;
+}
+.game-tabs::-webkit-scrollbar {
+  display: none;
 }
 .game-tab {
+  flex: 0 0 auto;
+  white-space: nowrap;
   font-family: var(--font-display), sans-serif;
   font-weight: 700;
   font-size: 13px;
@@ -3657,4 +3689,28 @@ input:focus:not(:focus-visible) {
 }
 .ct-watch:hover {
   text-decoration: none;
+}
+/* Incremental "show more" used by growing lists (feed, leaderboard, event history) so they
+   never become an endless scroll. */
+.show-more {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dim);
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.show-more:hover {
+  color: var(--ink);
+  border-color: var(--ink);
 }

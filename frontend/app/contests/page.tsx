@@ -90,6 +90,7 @@ export default function ContestsPage() {
   const [game, setGame] = useState<"solver" | "poker">("solver");
   const [stake, setStake] = useState(5);
   const [watch, setWatch] = useState<{ href: string; label: string } | null>(null);
+  const [histShown, setHistShown] = useState(8);
 
   const load = useCallback(() => {
     fetch(`${API_BASE}/contests`)
@@ -413,18 +414,26 @@ export default function ContestsPage() {
               No finished contests yet. Open one and run it, or let a join window close and the platform settles it.
             </div>
           ) : (
-            history.map((h, i) => (
-              <div key={`${h.contestId}-${i}`} className="ct-row">
-                <span className="ct-row-event">
-                  <span className="ct-hash">{shortId(h.contestId)}</span> <span className="ct-time">{timeAgo(h.at, now)}</span>
-                </span>
-                <span className="ct-row-winner">
-                  {h.winner} won
-                  {h.platform && <PlatformBadge small />}
-                </span>
-                <span className="ct-row-prize">{h.prize} tUSDC</span>
-              </div>
-            ))
+            <>
+              {history.slice(0, histShown).map((h, i) => (
+                <div key={`${h.contestId}-${i}`} className="ct-row">
+                  <span className="ct-row-event">
+                    <span className="ct-hash">{shortId(h.contestId)}</span>{" "}
+                    <span className="ct-time">{timeAgo(h.at, now)}</span>
+                  </span>
+                  <span className="ct-row-winner">
+                    {h.winner} won
+                    {h.platform && <PlatformBadge small />}
+                  </span>
+                  <span className="ct-row-prize">{h.prize} tUSDC</span>
+                </div>
+              ))}
+              {history.length > histShown && (
+                <button className="show-more" onClick={() => setHistShown((n) => n + 8)}>
+                  Show more ({history.length - histShown})
+                </button>
+              )}
+            </>
           )}
         </div>
       </main>

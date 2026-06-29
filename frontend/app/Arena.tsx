@@ -89,6 +89,7 @@ export default function Arena() {
   const [vm, setVm] = useState<ViewModel>(INITIAL);
   const [connected, setConnected] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [feedShown, setFeedShown] = useState(8);
   const [selected, setSelected] = useState<MovePayload | null>(null);
   const [verifyState, setVerifyState] = useState<{ loading: boolean; result: MoveVerification | null; error?: string }>({
     loading: false,
@@ -300,27 +301,35 @@ export default function Arena() {
             <div className="kicker">Feed · newest first</div>
             <div className="feed">
               {vm.moveList.length === 0 && <div className="muted-small">No moves yet. Run a match.</div>}
-              {[...vm.moveList].reverse().map((m, i) => (
-                <div
-                  key={m.anchorDigest ?? m.blobId ?? i}
-                  className={`move ${selected === m ? "selected" : ""}`}
-                  onClick={() => selectMove(m)}
-                >
-                  <div className="head">
-                    <span className="who">{m.agentName}</span>
-                    <span className="act">
-                      {m.action}
-                      {m.size ? ` ${m.size}` : ""}
-                    </span>
-                  </div>
-                  <div className="why">{m.rationale}</div>
-                  {m.anchorDigest && (
-                    <div className="badge" style={{ marginTop: 6 }}>
-                      <span className="b-dot" /> anchored on Walrus
+              {[...vm.moveList]
+                .reverse()
+                .slice(0, feedShown)
+                .map((m, i) => (
+                  <div
+                    key={m.moveKey ?? m.anchorDigest ?? i}
+                    className={`move ${selected === m ? "selected" : ""}`}
+                    onClick={() => selectMove(m)}
+                  >
+                    <div className="head">
+                      <span className="who">{m.agentName}</span>
+                      <span className="act">
+                        {m.action}
+                        {m.size ? ` ${m.size}` : ""}
+                      </span>
                     </div>
-                  )}
-                </div>
-              ))}
+                    <div className="why">{m.rationale}</div>
+                    {m.anchorDigest && (
+                      <div className="badge" style={{ marginTop: 6 }}>
+                        <span className="b-dot" /> anchored on Walrus
+                      </div>
+                    )}
+                  </div>
+                ))}
+              {vm.moveList.length > feedShown && (
+                <button className="show-more" onClick={() => setFeedShown((n) => n + 8)}>
+                  Show more ({vm.moveList.length - feedShown})
+                </button>
+              )}
             </div>
           </div>
         </div>

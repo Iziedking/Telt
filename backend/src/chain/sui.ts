@@ -75,10 +75,23 @@ async function doExecute(tx: Transaction, signer: Ed25519Keypair): Promise<TxRes
 // them through a queue so each one settles before the next starts.
 let txQueue: Promise<unknown> = Promise.resolve();
 
+// A ceiling on any single queued task, so one hung task (a stalled Walrus write, an RPC that
+// never answers) can never deadlock the whole queue and freeze every later coordinator action
+// (a faucet claim, a settle). The task is abandoned and the next one proceeds; a half-done tx
+// just surfaces as a retryable version conflict on the next attempt.
+const QUEUE_TASK_TIMEOUT_MS = 90_000;
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)),
+  ]);
+}
+
 // Run a built transaction with the coordinator (or a given signer) and surface object
 // changes so callers can read created object ids. Serialized to avoid gas contention.
 export async function execute(tx: Transaction, signer: Ed25519Keypair = coordinator()): Promise<TxResult> {
-  const run = txQueue.then(() => doExecute(tx, signer));
+  const run = txQueue.then(() => withTimeout(doExecute(tx, signer), QUEUE_TASK_TIMEOUT_MS, "coordinator tx"));
   txQueue = run.then(
     () => undefined,
     () => undefined,
@@ -90,7 +103,7 @@ export async function execute(tx: Transaction, signer: Ed25519Keypair = coordina
 // own on-chain transactions inside the SDK) on the same serial queue, so it never races the
 // coordinator's gas coin with a settle or a join. Failures do not poison the queue.
 export async function serialize<T>(fn: () => Promise<T>): Promise<T> {
-  const run = txQueue.then(() => fn());
+  const run = txQueue.then(() => withTimeout(fn(), QUEUE_TASK_TIMEOUT_MS, "coordinator task"));
   txQueue = run.then(
     () => undefined,
     () => undefined,
