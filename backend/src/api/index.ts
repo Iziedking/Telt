@@ -23,7 +23,13 @@ import { playMatch } from "../coordinator/table.js";
 import { playSolverMatch } from "../coordinator/solverMatch.js";
 import { provisionAgentEntry, type Participant } from "../coordinator/provision.js";
 import { runContest } from "../coordinator/runContest.js";
-import { customContests, challengeContests } from "../coordinator/contestKinds.js";
+import {
+  customContests,
+  challengeContests,
+  contestOpenedAt,
+  contestEndsAt,
+  contestPhase,
+} from "../coordinator/contestKinds.js";
 import { runAutopilotCycle, recentContests, difficultyTiers, autopilotEnabled } from "../coordinator/autopilot.js";
 import { query } from "../db/pool.js";
 
@@ -323,11 +329,57 @@ app.get("/contests", async (c) => {
         maxEntries: s.maxEntries,
         levelMin: s.levelMin,
         levelMax: s.levelMax,
+        endsAt: contestEndsAt(s.contestId),
+        phase: contestPhase(s.contestId),
       }));
   } catch {
     /* leave open empty on read failure */
   }
-  return c.json({ autopilot: autopilotEnabled(), tiers: difficultyTiers(), recent: recentContests(), open });
+
+  // Event history: recently settled contests, newest first.
+  let history: unknown[] = [];
+  try {
+    const sev = await sui.queryEvents({
+      query: { MoveEventType: `${config.arena.packageId}::contest::ContestSettled` },
+      limit: 15,
+      order: "descending",
+    });
+    const winnerIds = [...new Set(sev.data.map((e) => String((e as any).parsedJson?.winner)).filter(Boolean))];
+    const objs = winnerIds.length ? ((await sui.multiGetObjects({ ids: winnerIds, options: { showContent: true } })) as any[]) : [];
+    const nameById = new Map<string, string>();
+    for (const o of objs) {
+      const id = o.data?.objectId;
+      const nm = o.data?.content?.fields?.name;
+      if (id && nm) nameById.set(id, String(nm));
+    }
+    const platformIds = new Set<string>();
+    try {
+      for (const a of loadRoster().agents) platformIds.add(a.agentId);
+    } catch {
+      /* ignore */
+    }
+    history = sev.data.map((e) => {
+      const p = (e as any).parsedJson ?? {};
+      const winnerId = String(p.winner);
+      return {
+        contestId: String(p.contest),
+        winner: nameById.get(winnerId) ?? "agent",
+        platform: platformIds.has(winnerId),
+        prize: Number(p.prize ?? 0) / 1_000_000,
+        at: Number((e as any).timestampMs ?? 0),
+      };
+    });
+  } catch {
+    /* leave history empty on read failure */
+  }
+
+  return c.json({
+    autopilot: autopilotEnabled(),
+    tiers: difficultyTiers(),
+    recent: recentContests(),
+    open,
+    history,
+  });
 });
 
 // Open a contest, keyed by kind:
@@ -351,6 +403,7 @@ app.post("/contests/create", async (c) => {
     if (rewardUsdc > 0n) await fundContest(contestId, rewardUsdc);
     if (kind === "custom") customContests.add(contestId);
     if (kind === "challenge") challengeContests.add(contestId);
+    contestOpenedAt.set(contestId, Date.now());
     return c.json({ ok: true, contestId, kind });
   } catch (e) {
     return c.json({ error: (e as Error).message }, 500);

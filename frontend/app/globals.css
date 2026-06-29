@@ -3480,6 +3480,35 @@ input:focus:not(:focus-visible) {
   font-family: var(--font-mono), monospace;
   font-size: 13px;
 }
+.ct-countdown {
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--signal);
+  background: rgba(196, 36, 28, 0.1);
+  border-radius: 6px;
+  padding: 1px 7px;
+}
+.ct-running {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #279a63;
+}
+.ct-running.open {
+  color: #4b5560;
+}
+.ct-hash {
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  color: var(--ink);
+}
+.ct-time {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  color: #4b5560;
+}
 
 /* Onboarding: the house (platform agent) visual */
 .art-house {

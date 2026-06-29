@@ -31,6 +31,15 @@ interface OpenContest {
   maxEntries: number;
   levelMin: number;
   levelMax: number;
+  endsAt: number | null;
+  phase: "joining" | "running";
+}
+interface HistoryItem {
+  contestId: string;
+  winner: string;
+  platform?: boolean;
+  prize: number;
+  at: number;
 }
 
 function Sens({ n }: { n: number }) {
@@ -43,6 +52,24 @@ function Sens({ n }: { n: number }) {
   );
 }
 
+// Whole seconds until a deadline, clamped at zero; mm:ss formatted.
+function countdown(endsAt: number | null, now: number): string {
+  if (!endsAt) return "";
+  const s = Math.max(0, Math.floor((endsAt - now) / 1000));
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
+function shortId(id: string): string {
+  return id ? `${id.slice(0, 6)}…${id.slice(-4)}` : "";
+}
+function timeAgo(at: number, now: number): string {
+  if (!at) return "";
+  const s = Math.max(0, Math.floor((now - at) / 1000));
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
 export default function ContestsPage() {
   const account = useCurrentAccount();
   const suiClient = useSuiClient();
@@ -50,6 +77,8 @@ export default function ContestsPage() {
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [recent, setRecent] = useState<RecentMission[]>([]);
   const [open, setOpen] = useState<OpenContest[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [now, setNow] = useState(() => Date.now());
   const [autopilot, setAutopilot] = useState(false);
   const [starting, setStarting] = useState(false);
   const [pkg, setPkg] = useState("");
@@ -66,10 +95,17 @@ export default function ContestsPage() {
         setTiers(d.tiers ?? []);
         setRecent(d.recent ?? []);
         setOpen(d.open ?? []);
+        setHistory(d.history ?? []);
         setAutopilot(!!d.autopilot);
         setLoaded(true);
       })
       .catch(() => setLoaded(true));
+  }, []);
+
+  // A one-second clock so the join countdowns tick.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
@@ -287,25 +323,42 @@ export default function ContestsPage() {
                 <span className="ct-open-meta">
                   <span className="ct-badge s1">{ct.game}</span>
                   <span className="ct-kind">{ct.format}</span>
-                  {ct.format === "general" && <PlatformBadge small />}· {ct.entrants}/{ct.maxEntries} in ·{" "}
-                  {ct.entryFee > 0 ? `stake ${ct.entryFee} tUSDC` : "free entry"} · pool {ct.pool} tUSDC · L{ct.levelMin}-
-                  {ct.levelMax}
+                  {ct.format === "general" && <PlatformBadge small />}
+                  {ct.phase === "joining" ? (
+                    ct.endsAt ? (
+                      <span className="ct-countdown" title="Time left to join before the contest runs">
+                        joining · {countdown(ct.endsAt, now)}
+                      </span>
+                    ) : (
+                      <span className="ct-running open">open</span>
+                    )
+                  ) : (
+                    <span className="ct-running">running</span>
+                  )}
+                  · {ct.entrants}/{ct.maxEntries} in · {ct.entryFee > 0 ? `stake ${ct.entryFee} tUSDC` : "free entry"} ·
+                  pool {ct.pool} tUSDC · L{ct.levelMin}-{ct.levelMax}
                 </span>
                 <span className="ct-open-actions">
                   <button
                     className="ws-mini primary"
                     onClick={() => join(ct)}
-                    disabled={isPending || !myAgent}
-                    title={myAgent ? "Enter this contest with your agent" : "Connect a wallet that owns an agent first"}
+                    disabled={isPending || !myAgent || ct.phase !== "joining"}
+                    title={
+                      ct.phase !== "joining"
+                        ? "The join window has closed"
+                        : myAgent
+                          ? "Enter this contest with your agent"
+                          : "Connect a wallet that owns an agent first"
+                    }
                   >
                     Join with my agent
                   </button>
                   <button
                     className="ws-mini"
                     onClick={() => run(ct.contestId)}
-                    title="Play this contest out and settle the pool to the winner"
+                    title="Skip the wait and run this contest now (it also runs on its own when the window closes)"
                   >
-                    Run
+                    Run now
                   </button>
                 </span>
               </div>
@@ -328,20 +381,23 @@ export default function ContestsPage() {
           )}
         </div>
 
+        <div className="panel-label">Event history · settled contests, newest first</div>
         <div className="tile canvas ct-recent">
-          <div className="kicker">Recent missions · newest first</div>
-          {recent.length === 0 ? (
+          {history.length === 0 ? (
             <div className="ct-empty">
-              No missions yet. Hit <b>Run a mission now</b>, or turn the autopilot on so the platform cycles them for you.
+              No finished contests yet. Open one and run it, or let a join window close and the platform settles it.
             </div>
           ) : (
-            recent.map((r, i) => (
-              <div key={i} className="ct-row">
+            history.map((h, i) => (
+              <div key={`${h.contestId}-${i}`} className="ct-row">
                 <span className="ct-row-event">
-                  {r.event} <span className={`ct-badge s${r.sensitivity}`}>{r.difficulty}</span>
+                  <span className="ct-hash">{shortId(h.contestId)}</span> <span className="ct-time">{timeAgo(h.at, now)}</span>
                 </span>
-                <span className="ct-row-winner">{r.winner} won</span>
-                <span className="ct-row-prize">{r.rewardUsdc} tUSDC</span>
+                <span className="ct-row-winner">
+                  {h.winner} won
+                  {h.platform && <PlatformBadge small />}
+                </span>
+                <span className="ct-row-prize">{h.prize} tUSDC</span>
               </div>
             ))
           )}
