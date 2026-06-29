@@ -1,6 +1,7 @@
 import FaucetCard from "../FaucetCard";
 import AgentCard from "../AgentCard";
 import ProfileCard from "../ProfileCard";
+import WinningsCard from "../WinningsCard";
 
 // Workshop: the agent owner's control room. Your agent, the tier ladder you upgrade
 // along, profile, and settings. Each tier is a stronger model plus more reasoning passes
@@ -59,6 +60,8 @@ export default function WorkshopPage() {
           </div>
 
           <ProfileCard />
+
+          <WinningsCard />
 
           <div className="tile sky ws-card">
             <div className="kicker">Intel budget · dossiers per match</div>

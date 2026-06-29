@@ -295,6 +295,46 @@ app.get("/leaderboard", async (c) => {
   return c.json({ rows });
 });
 
+// A wallet's winnings: contests it won. Pools are paid out on settlement, so this is a paid
+// history with a running total, read live from on-chain ContestSettled events filtered to the
+// owner address.
+app.get("/winnings", async (c) => {
+  const owner = (c.req.query("owner") || "").toLowerCase();
+  if (!owner) return c.json({ rows: [], total: 0 });
+  let rows: unknown[] = [];
+  let total = 0;
+  try {
+    const sev = await sui.queryEvents({
+      query: { MoveEventType: `${config.arena.packageId}::contest::ContestSettled` },
+      limit: 50,
+      order: "descending",
+    });
+    const mine = sev.data.filter((e) => String((e as any).parsedJson?.owner || "").toLowerCase() === owner);
+    const winnerIds = [...new Set(mine.map((e) => String((e as any).parsedJson?.winner)).filter(Boolean))];
+    const objs = winnerIds.length ? ((await sui.multiGetObjects({ ids: winnerIds, options: { showContent: true } })) as any[]) : [];
+    const nameById = new Map<string, string>();
+    for (const o of objs) {
+      const id = o.data?.objectId;
+      const nm = o.data?.content?.fields?.name;
+      if (id && nm) nameById.set(id, String(nm));
+    }
+    rows = mine.map((e) => {
+      const p = (e as any).parsedJson ?? {};
+      const prize = Number(p.prize ?? 0) / 1_000_000;
+      total += prize;
+      return {
+        contestId: String(p.contest),
+        agent: nameById.get(String(p.winner)) ?? "your agent",
+        prize,
+        at: Number((e as any).timestampMs ?? 0),
+      };
+    });
+  } catch {
+    /* leave empty on read failure */
+  }
+  return c.json({ rows, total });
+});
+
 // The Contests view: the difficulty tiers, recent finished missions, and the contests that
 // are open right now for an agent to join. Open contests are read live from chain (any
 // ContestCreated that is still status open).
@@ -313,17 +353,17 @@ app.get("/contests", async (c) => {
       // never settle, since a house agent cannot win).
       .filter((s) => s.status === 0 && !(s.entrants.length >= s.maxEntries && s.entrants.length > 0 && s.entrants.every((e) => e.isHouse)))
       .map((s) => {
-        // Three states: joining (window open), running (window closed and the field can
-        // play), or expired (window closed but it can never run, e.g. a duel that never got
-        // its second real agent). General contests always run, so they never expire.
+        // Three states: joining (window still open), running (window closed and the field can
+        // play it out), or expired (its time has passed without a runnable field). A contest
+        // whose window was lost on a restart counts as expired, so stale events never linger
+        // on Live.
         const endsAt = contestEndsAt(s.contestId);
-        // No recorded window (lost on a restart) counts as closed: the sweeper will run or
-        // expire it rather than leave it stranded as joinable.
-        const windowClosed = endsAt === null || Date.now() >= endsAt;
         const real = s.entrants.filter((e) => !e.isHouse).length;
         const isDuel = s.format === CONTEST_FORMAT.duel;
         let phase: "joining" | "running" | "expired";
-        if (!windowClosed) {
+        if (endsAt === null) {
+          phase = "expired";
+        } else if (Date.now() < endsAt) {
           phase = "joining";
         } else {
           const ready = isDuel

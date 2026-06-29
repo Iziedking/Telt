@@ -25,10 +25,10 @@ async function sweepOnce(): Promise<void> {
   for (const s of states) {
     if (s.status !== 0 || inFlight.has(s.contestId)) continue;
     const endsAt = contestEndsAt(s.contestId);
-    // Skip only while a window is still open. A contest with no recorded window (its in-memory
-    // window was lost on a backend restart) has been open indefinitely, so treat it as closed
-    // and run it, otherwise it strands in the Live list forever.
-    if (endsAt !== null && now < endsAt) continue;
+    // Run only a contest whose own window has just closed. A contest with no recorded window
+    // (lost on a restart) is treated as expired by the API, so leave it be rather than run a
+    // stale event.
+    if (endsAt === null || now < endsAt) continue;
 
     // Decide whether the field is ready to run. General contests always run at the deadline
     // (a platform-vs-platform demo if no one joined). A challenge needs one real agent (a

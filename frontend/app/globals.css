@@ -1046,6 +1046,32 @@ a.home-card:hover {
   line-height: 1.5;
   color: #3f4853;
 }
+.ws-wins {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.ws-win-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ws-win-meta {
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  color: var(--text);
+}
+.ws-win-prize {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: #1f7a4d;
+  white-space: nowrap;
+}
 .ws-faucet-btn {
   margin-top: 10px;
 }
