@@ -235,7 +235,6 @@ export default function Arena() {
             {live ? (
               <>
                 {A.name} vs {B.name}
-                <span className="red">.</span>
               </>
             ) : (
               <>
@@ -292,6 +291,16 @@ export default function Arena() {
           )}
         </div>
       </header>
+
+      {watching && contest && ctCountdown && (
+        <div className="ct-countdown-bar">
+          <span className="ct-cd-label">Join window closes in</span>
+          <span className="ct-cd-time">{ctCountdown}</span>
+          <button className="ct-cd-run" onClick={runThisContest} disabled={starting}>
+            {starting ? "Starting…" : "Run now"}
+          </button>
+        </div>
+      )}
 
       <main className="arena">
         <div className="bento" id="arena">
