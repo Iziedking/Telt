@@ -33,7 +33,7 @@ interface OpenContest {
   levelMin: number;
   levelMax: number;
   endsAt: number | null;
-  phase: "joining" | "running";
+  phase: "joining" | "running" | "expired";
   difficulty: string | null;
 }
 interface HistoryItem {
@@ -90,7 +90,8 @@ export default function ContestsPage() {
   const [game, setGame] = useState<"solver" | "poker">("solver");
   const [stake, setStake] = useState(5);
   const [watch, setWatch] = useState<{ href: string; label: string } | null>(null);
-  const [histShown, setHistShown] = useState(8);
+  const [tab, setTab] = useState<"live" | "settled" | "expired">("live");
+  const [shown, setShown] = useState(10);
 
   const load = useCallback(() => {
     fetch(`${API_BASE}/contests`)
@@ -239,6 +240,17 @@ export default function ContestsPage() {
 
   const tone = (s: number) => (s === 3 ? "signal" : s === 2 ? "peri" : "sand");
 
+  // Split the contests three ways: live (joinable or running), settled (has a winner), and
+  // expired (window closed but it never got a runnable field).
+  const liveList = open.filter((c) => c.phase !== "expired");
+  const expiredList = open.filter((c) => c.phase === "expired");
+  const activeList = tab === "live" ? liveList : tab === "expired" ? expiredList : [];
+  const counts = { live: liveList.length, settled: history.length, expired: expiredList.length };
+  const switchTab = (t: "live" | "settled" | "expired") => {
+    setTab(t);
+    setShown(10);
+  };
+
   return (
     <div className="page">
       <header className="hero-section">
@@ -333,62 +345,117 @@ export default function ContestsPage() {
           )}
         </div>
 
+        <div className="ct-tabs" role="tablist">
+          {(["live", "settled", "expired"] as const).map((t) => (
+            <button
+              key={t}
+              role="tab"
+              aria-selected={tab === t}
+              className={`ct-tab${tab === t ? " on" : ""}`}
+              onClick={() => switchTab(t)}
+            >
+              <span className="ct-tab-name">{t}</span>
+              <span className="ct-tab-count">{counts[t]}</span>
+            </button>
+          ))}
+        </div>
+
         <div className="tile canvas ct-recent">
           {!loaded ? (
             <div className="ct-empty">Loading contests…</div>
-          ) : open.length === 0 ? (
-            <div className="ct-empty">No open contests. Open one above, then join with your agent.</div>
+          ) : tab === "settled" ? (
+            history.length === 0 ? (
+              <div className="ct-empty">No finished contests yet. Open one and run it, or join a live one.</div>
+            ) : (
+              <>
+                {history.slice(0, shown).map((h, i) => (
+                  <div key={`${h.contestId}-${i}`} className="ct-row">
+                    <span className="ct-row-event">
+                      <span className="ct-hash">{shortId(h.contestId)}</span>{" "}
+                      <span className="ct-time">{timeAgo(h.at, now)}</span>
+                    </span>
+                    <span className="ct-row-winner">
+                      {h.winner} won
+                      {h.platform && <PlatformBadge small />}
+                    </span>
+                    <span className="ct-row-prize">{h.prize} tUSDC</span>
+                  </div>
+                ))}
+                {history.length > shown && (
+                  <button className="show-more" onClick={() => setShown((n) => n + 10)}>
+                    Show more ({history.length - shown})
+                  </button>
+                )}
+              </>
+            )
+          ) : activeList.length === 0 ? (
+            <div className="ct-empty">
+              {tab === "live"
+                ? "No live contests. Open one above, then join with your agent."
+                : "No expired contests. A contest expires only if its window closes without a runnable field."}
+            </div>
           ) : (
-            open.map((ct) => (
-              <div key={ct.contestId} className="ct-open-row">
-                <span className="ct-open-meta">
-                  <span className="ct-badge s1">{ct.game}</span>
-                  <span className="ct-kind">{ct.format}</span>
-                  {ct.difficulty && (
-                    <span className={`ct-diff ${ct.difficulty.toLowerCase()}`} title={`${ct.difficulty} difficulty`}>
-                      {ct.difficulty}
+            <>
+              {activeList.slice(0, shown).map((ct) => (
+                <div key={ct.contestId} className="ct-open-row">
+                  <span className="ct-open-meta">
+                    <span className="ct-badge s1">{ct.game}</span>
+                    <span className="ct-kind">{ct.format}</span>
+                    {ct.difficulty && (
+                      <span className={`ct-diff ${ct.difficulty.toLowerCase()}`} title={`${ct.difficulty} difficulty`}>
+                        {ct.difficulty}
+                      </span>
+                    )}
+                    {ct.format === "general" && <PlatformBadge small />}
+                    {ct.phase === "joining" ? (
+                      ct.endsAt ? (
+                        <span className="ct-countdown" title="Time left to join before the contest runs">
+                          joining · {countdown(ct.endsAt, now)}
+                        </span>
+                      ) : (
+                        <span className="ct-running open">open</span>
+                      )
+                    ) : ct.phase === "expired" ? (
+                      <span className="ct-running expired">expired</span>
+                    ) : (
+                      <span className="ct-running">running</span>
+                    )}
+                    · {ct.entrants}/{ct.maxEntries} in · {ct.entryFee > 0 ? `stake ${ct.entryFee} tUSDC` : "free entry"} ·
+                    pool {ct.pool} tUSDC · L{ct.levelMin}-{ct.levelMax}
+                  </span>
+                  {ct.phase !== "expired" && (
+                    <span className="ct-open-actions">
+                      <button
+                        className="ws-mini primary"
+                        onClick={() => join(ct)}
+                        disabled={isPending || !myAgent || ct.phase !== "joining"}
+                        title={
+                          ct.phase !== "joining"
+                            ? "The join window has closed"
+                            : myAgent
+                              ? "Enter this contest with your agent"
+                              : "Connect a wallet that owns an agent first"
+                        }
+                      >
+                        Join with my agent
+                      </button>
+                      <button
+                        className="ws-mini"
+                        onClick={() => run(ct)}
+                        title="Skip the wait and run this contest now (it also runs on its own when the window closes)"
+                      >
+                        Run now
+                      </button>
                     </span>
                   )}
-                  {ct.format === "general" && <PlatformBadge small />}
-                  {ct.phase === "joining" ? (
-                    ct.endsAt ? (
-                      <span className="ct-countdown" title="Time left to join before the contest runs">
-                        joining · {countdown(ct.endsAt, now)}
-                      </span>
-                    ) : (
-                      <span className="ct-running open">open</span>
-                    )
-                  ) : (
-                    <span className="ct-running">running</span>
-                  )}
-                  · {ct.entrants}/{ct.maxEntries} in · {ct.entryFee > 0 ? `stake ${ct.entryFee} tUSDC` : "free entry"} ·
-                  pool {ct.pool} tUSDC · L{ct.levelMin}-{ct.levelMax}
-                </span>
-                <span className="ct-open-actions">
-                  <button
-                    className="ws-mini primary"
-                    onClick={() => join(ct)}
-                    disabled={isPending || !myAgent || ct.phase !== "joining"}
-                    title={
-                      ct.phase !== "joining"
-                        ? "The join window has closed"
-                        : myAgent
-                          ? "Enter this contest with your agent"
-                          : "Connect a wallet that owns an agent first"
-                    }
-                  >
-                    Join with my agent
-                  </button>
-                  <button
-                    className="ws-mini"
-                    onClick={() => run(ct)}
-                    title="Skip the wait and run this contest now (it also runs on its own when the window closes)"
-                  >
-                    Run now
-                  </button>
-                </span>
-              </div>
-            ))
+                </div>
+              ))}
+              {activeList.length > shown && (
+                <button className="show-more" onClick={() => setShown((n) => n + 10)}>
+                  Show more ({activeList.length - shown})
+                </button>
+              )}
+            </>
           )}
         </div>
 
@@ -407,35 +474,6 @@ export default function ContestsPage() {
           )}
         </div>
 
-        <div className="panel-label">Event history · settled contests, newest first</div>
-        <div className="tile canvas ct-recent">
-          {history.length === 0 ? (
-            <div className="ct-empty">
-              No finished contests yet. Open one and run it, or let a join window close and the platform settles it.
-            </div>
-          ) : (
-            <>
-              {history.slice(0, histShown).map((h, i) => (
-                <div key={`${h.contestId}-${i}`} className="ct-row">
-                  <span className="ct-row-event">
-                    <span className="ct-hash">{shortId(h.contestId)}</span>{" "}
-                    <span className="ct-time">{timeAgo(h.at, now)}</span>
-                  </span>
-                  <span className="ct-row-winner">
-                    {h.winner} won
-                    {h.platform && <PlatformBadge small />}
-                  </span>
-                  <span className="ct-row-prize">{h.prize} tUSDC</span>
-                </div>
-              ))}
-              {history.length > histShown && (
-                <button className="show-more" onClick={() => setHistShown((n) => n + 8)}>
-                  Show more ({history.length - histShown})
-                </button>
-              )}
-            </>
-          )}
-        </div>
       </main>
     </div>
   );

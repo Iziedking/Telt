@@ -3714,3 +3714,52 @@ input:focus:not(:focus-visible) {
   color: var(--ink);
   border-color: var(--ink);
 }
+/* Live / Settled / Expired tabs on the contests panel: clickable cards with a count. */
+.ct-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.ct-tab {
+  flex: 1 1 0;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 13px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(244, 241, 234, 0.15);
+  background: rgba(244, 241, 234, 0.04);
+  color: rgba(244, 241, 234, 0.7);
+  cursor: pointer;
+  font-family: var(--font-display), sans-serif;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+.ct-tab:hover {
+  border-color: rgba(244, 241, 234, 0.4);
+  color: var(--cream);
+}
+.ct-tab.on {
+  background: var(--cream);
+  border-color: var(--cream);
+  color: var(--ink);
+}
+.ct-tab-name {
+  font-weight: 700;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ct-tab-count {
+  font-family: var(--font-mono), monospace;
+  font-size: 17px;
+  font-weight: 700;
+}
+.ct-running.expired {
+  color: #8a8f96;
+}

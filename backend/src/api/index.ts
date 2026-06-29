@@ -28,7 +28,6 @@ import {
   challengeContests,
   openContestWindow,
   contestEndsAt,
-  contestPhase,
   contestDifficulty,
 } from "../coordinator/contestKinds.js";
 import { runAutopilotCycle, recentContests, difficultyTiers, autopilotEnabled } from "../coordinator/autopilot.js";
@@ -313,27 +312,48 @@ app.get("/contests", async (c) => {
       // Open, and not a stuck legacy contest already full of house-only seats (those can
       // never settle, since a house agent cannot win).
       .filter((s) => s.status === 0 && !(s.entrants.length >= s.maxEntries && s.entrants.length > 0 && s.entrants.every((e) => e.isHouse)))
-      .map((s) => ({
-        contestId: s.contestId,
-        game: s.game === 1 ? "solver" : "poker",
-        format:
-          s.format === CONTEST_FORMAT.duel
+      .map((s) => {
+        // Three states: joining (window open), running (window closed and the field can
+        // play), or expired (window closed but it can never run, e.g. a duel that never got
+        // its second real agent). General contests always run, so they never expire.
+        const endsAt = contestEndsAt(s.contestId);
+        const windowClosed = endsAt !== null && Date.now() >= endsAt;
+        const real = s.entrants.filter((e) => !e.isHouse).length;
+        const isDuel = s.format === CONTEST_FORMAT.duel;
+        let phase: "joining" | "running" | "expired";
+        if (!windowClosed) {
+          phase = "joining";
+        } else {
+          const ready = isDuel
+            ? challengeContests.has(s.contestId)
+              ? real >= 1
+              : real >= 2
+            : customContests.has(s.contestId)
+              ? real >= 2
+              : true;
+          phase = ready ? "running" : "expired";
+        }
+        return {
+          contestId: s.contestId,
+          game: s.game === 1 ? "solver" : "poker",
+          format: isDuel
             ? challengeContests.has(s.contestId)
               ? "challenge"
               : "duel"
             : customContests.has(s.contestId)
               ? "custom"
               : "general",
-        entryFee: Number(s.entryFee) / 1_000_000,
-        pool: Number(s.pool) / 1_000_000,
-        entrants: s.entrants.length,
-        maxEntries: s.maxEntries,
-        levelMin: s.levelMin,
-        levelMax: s.levelMax,
-        endsAt: contestEndsAt(s.contestId),
-        phase: contestPhase(s.contestId),
-        difficulty: contestDifficulty.get(s.contestId) ?? null,
-      }));
+          entryFee: Number(s.entryFee) / 1_000_000,
+          pool: Number(s.pool) / 1_000_000,
+          entrants: s.entrants.length,
+          maxEntries: s.maxEntries,
+          levelMin: s.levelMin,
+          levelMax: s.levelMax,
+          endsAt,
+          phase,
+          difficulty: contestDifficulty.get(s.contestId) ?? null,
+        };
+      });
   } catch {
     /* leave open empty on read failure */
   }
