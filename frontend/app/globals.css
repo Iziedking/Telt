@@ -900,6 +900,14 @@ a.home-card:hover {
   opacity: 0.85;
   font-weight: 600;
 }
+/* On the red "Coming" tile, keep the call-to-read line in cream so it reads on red. */
+.tile.signal .home-go {
+  color: var(--cream);
+}
+.tile.signal .home-go.dim {
+  opacity: 1;
+  color: rgba(244, 241, 234, 0.82);
+}
 .home-card.static {
   cursor: default;
 }
