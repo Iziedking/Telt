@@ -23,10 +23,16 @@ export function levelBandFor(difficulty: string): [number, number] {
 // Open a join window for a contest: a random length between the configured min and max
 // minutes, so contests do not all close at once. Returns the deadline (epoch ms).
 export function openContestWindow(contestId: string): number {
-  const min = config.contest.joinMinMs;
-  const max = Math.max(min, config.contest.joinMaxMs);
-  const span = max - min;
-  const length = min + Math.floor(Math.random() * (span + 1));
+  // Demo override wins when set: a fixed, short window so a contest fires quickly on stage.
+  let length: number;
+  if (config.contest.joinFixedMs > 0) {
+    length = config.contest.joinFixedMs;
+  } else {
+    const min = config.contest.joinMinMs;
+    const max = Math.max(min, config.contest.joinMaxMs);
+    const span = max - min;
+    length = min + Math.floor(Math.random() * (span + 1));
+  }
   const endsAt = Date.now() + length;
   contestEnds.set(contestId, endsAt);
   return endsAt;

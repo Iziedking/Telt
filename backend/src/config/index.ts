@@ -107,8 +107,11 @@ export const config = {
   contest: {
     // Each contest's join window is a random length between these (minutes), so contests do
     // not all close at once.
-    joinMinMs: Math.max(1, Number(optional("CONTEST_JOIN_MIN_MINUTES", "3"))) * 60_000,
+    joinMinMs: Math.max(1, Number(optional("CONTEST_JOIN_MIN_MINUTES", "2"))) * 60_000,
     joinMaxMs: Math.max(1, Number(optional("CONTEST_JOIN_MAX_MINUTES", "20"))) * 60_000,
+    // Demo override: when > 0, every join window is exactly this many seconds (e.g. 30), so a
+    // contest fires quickly on stage instead of waiting minutes. Leave 0 for the random window.
+    joinFixedMs: Math.max(0, Number(optional("CONTEST_JOIN_FIXED_SECONDS", "0"))) * 1000,
   },
 };
 
