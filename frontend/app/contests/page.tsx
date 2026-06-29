@@ -202,7 +202,7 @@ export default function ContestsPage() {
             onSuccess: () => {
               setMsg(`${myAgent.name} joined. It plays when the join window closes, or hit Run now.`);
               setWatch({
-                href: ct.game === "poker" ? "/arena" : "/solver",
+                href: `${ct.game === "poker" ? "/arena" : "/solver"}?contest=${ct.contestId}`,
                 label: `Watch live in the ${ct.game === "poker" ? "Arena" : "Solver"}`,
               });
               setTimeout(load, 2500);
@@ -219,11 +219,11 @@ export default function ContestsPage() {
 
   const run = useCallback(
     async (ct: OpenContest) => {
-      const dest = ct.game === "poker" ? "/arena" : "/solver";
+      const dest = `${ct.game === "poker" ? "/arena" : "/solver"}?contest=${ct.contestId}`;
       setMsg("Running the contest…");
       try {
         await fetch(`${API_BASE}/contests/${ct.contestId}/run`, { method: "POST" });
-        // Take the user straight to the live view: the match streams there as it plays.
+        // Take the user straight to the live view for this contest: it streams there as it plays.
         router.push(dest);
       } catch {
         setMsg("could not run the contest");
@@ -440,7 +440,7 @@ export default function ContestsPage() {
                   ) : ct.phase === "running" ? (
                     <span className="ct-open-actions">
                       <Link
-                        href={ct.game === "poker" ? "/arena" : "/solver"}
+                        href={`${ct.game === "poker" ? "/arena" : "/solver"}?contest=${ct.contestId}`}
                         className="ws-mini primary"
                         title="Watch this contest play out live, even if your agent is not in it"
                       >

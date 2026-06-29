@@ -3842,6 +3842,19 @@ input:focus:not(:focus-visible) {
 .ct-watch:hover {
   text-decoration: none;
 }
+/* The contest being watched, shown in the Arena/Solver header in place of the demo button. */
+.ct-watch-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--text);
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
 /* Incremental "show more" used by growing lists (feed, leaderboard, event history) so they
    never become an endless scroll. */
 .show-more {

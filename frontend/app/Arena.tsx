@@ -85,6 +85,18 @@ function tierName(level: number): string {
   return TIERS[Math.min(Math.max(level, 0), 4)] ?? "Mark";
 }
 
+interface ArenaContest {
+  contestId: string;
+  game: string;
+  format: string;
+  pool: number;
+  levelMin: number;
+  levelMax: number;
+  endsAt: number | null;
+  phase: "joining" | "running" | "expired";
+  difficulty: string | null;
+}
+
 export default function Arena() {
   const [vm, setVm] = useState<ViewModel>(INITIAL);
   const [connected, setConnected] = useState(false);
@@ -95,7 +107,31 @@ export default function Arena() {
     loading: false,
     result: null,
   });
+  const [contestId, setContestId] = useState<string | null>(null);
+  const [contest, setContest] = useState<ArenaContest | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const wsRef = useRef<WebSocket | null>(null);
+  const watching = !!contestId;
+
+  // Which contest we arrived to watch (from Run now / Watch live), and its live details.
+  useEffect(() => {
+    setContestId(new URLSearchParams(window.location.search).get("contest"));
+  }, []);
+  useEffect(() => {
+    if (!contestId) return;
+    const load = () =>
+      fetch(`${API_BASE}/contests`)
+        .then((r) => r.json())
+        .then((d) => setContest((d.open ?? []).find((c: ArenaContest) => c.contestId === contestId) ?? null))
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 4000);
+    return () => clearInterval(id);
+  }, [contestId]);
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     let closed = false;
@@ -167,6 +203,14 @@ export default function Arena() {
   const B = vm.seats.B;
   const live = vm.status !== "idle" && !vm.settled;
   const leader = (A.chips ?? 0) === (B.chips ?? 0) ? null : (A.chips ?? 0) > (B.chips ?? 0) ? "A" : "B";
+  const ctEndsAt = contest?.endsAt ?? null;
+  const ctCountdown =
+    contest && contest.phase === "joining" && ctEndsAt
+      ? (() => {
+          const s = Math.max(0, Math.floor((ctEndsAt - now) / 1000));
+          return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+        })()
+      : null;
 
   return (
     <div className="page">
@@ -199,14 +243,36 @@ export default function Arena() {
             <span className={`sdot ${connected ? "" : "off"}`} />
             {connected ? "live feed" : "offline"}
           </span>
-          <button
-            className="hero-cta"
-            onClick={() => runMatch()}
-            disabled={starting || live}
-            data-tip="Watch two platform agents demo a live heads-up match. To play, open a contest."
-          >
-            {live ? "Match running" : starting ? "Starting…" : "Run a match"}
-          </button>
+          {watching ? (
+            contest ? (
+              <span className="ct-watch-banner">
+                <span className="ct-badge s1">{contest.game}</span>
+                <span className="ct-kind">{contest.format}</span>
+                {contest.difficulty && (
+                  <span className={`ct-diff ${contest.difficulty.toLowerCase()}`}>{contest.difficulty}</span>
+                )}
+                · pool {contest.pool} tUSDC · L{contest.levelMin}-{contest.levelMax}
+                {ctCountdown ? (
+                  <span className="ct-countdown">starts in {ctCountdown}</span>
+                ) : contest.phase === "expired" ? (
+                  <span className="ct-running expired">expired</span>
+                ) : (
+                  <span className="ct-running">live</span>
+                )}
+              </span>
+            ) : (
+              <span className="chip">loading the contest…</span>
+            )
+          ) : (
+            <button
+              className="hero-cta"
+              onClick={() => runMatch()}
+              disabled={starting || live}
+              data-tip="Watch two platform agents demo a live heads-up match. To play, open a contest."
+            >
+              {live ? "Match running" : starting ? "Starting…" : "Run a match"}
+            </button>
+          )}
         </div>
       </header>
 

@@ -19,6 +19,18 @@ const TIERS = ["Mark", "Reader", "Spotter", "Profiler", "Oracle"];
 const tierName = (l: number) => TIERS[Math.min(Math.max(l, 0), 4)] ?? "Mark";
 const PER_PAGE = 6;
 
+interface ContestInfo {
+  contestId: string;
+  game: string;
+  format: string;
+  pool: number;
+  levelMin: number;
+  levelMax: number;
+  endsAt: number | null;
+  phase: "joining" | "running" | "expired";
+  difficulty: string | null;
+}
+
 interface SolverVM {
   status: string;
   agents: SolverMatchPayload["agents"];
@@ -100,7 +112,28 @@ export default function Solver() {
   const [page, setPage] = useState(0);
   const [qStartedAt, setQStartedAt] = useState(0);
   const [now, setNow] = useState(() => Date.now());
+  const [contestId, setContestId] = useState<string | null>(null);
+  const [contest, setContest] = useState<ContestInfo | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const watching = !!contestId;
+
+  // Which contest we arrived to watch (from Run now / Watch live on the contests page).
+  useEffect(() => {
+    setContestId(new URLSearchParams(window.location.search).get("contest"));
+  }, []);
+
+  // Poll that contest's live details so we can show its window countdown until it runs.
+  useEffect(() => {
+    if (!contestId) return;
+    const load = () =>
+      fetch(`${API_BASE}/contests`)
+        .then((r) => r.json())
+        .then((d) => setContest((d.open ?? []).find((c: ContestInfo) => c.contestId === contestId) ?? null))
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 4000);
+    return () => clearInterval(id);
+  }, [contestId]);
 
   useEffect(() => {
     let closed = false;
@@ -160,6 +193,14 @@ export default function Solver() {
   }, []);
 
   const { agents, scores, questions } = vm;
+  const ctEndsAt = contest?.endsAt ?? null;
+  const ctCountdown =
+    contest && contest.phase === "joining" && ctEndsAt
+      ? (() => {
+          const s = Math.max(0, Math.floor((ctEndsAt - now) / 1000));
+          return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+        })()
+      : null;
   const remaining =
     vm.currentIndex >= 0 && !vm.results[vm.currentIndex]
       ? Math.max(0, vm.secondsPerQuestion - Math.floor((now - qStartedAt) / 1000))
@@ -185,14 +226,36 @@ export default function Solver() {
           and enter your own agent.
         </p>
         <div className="solver-controls">
-          <button
-            className="hero-cta"
-            onClick={() => run()}
-            disabled={starting}
-            data-tip="Watch two platform agents demo a live solver match. To play, open a contest."
-          >
-            {starting ? "Starting…" : "Run a match"}
-          </button>
+          {watching ? (
+            contest ? (
+              <span className="ct-watch-banner">
+                <span className="ct-badge s1">{contest.game}</span>
+                <span className="ct-kind">{contest.format}</span>
+                {contest.difficulty && (
+                  <span className={`ct-diff ${contest.difficulty.toLowerCase()}`}>{contest.difficulty}</span>
+                )}
+                · pool {contest.pool} tUSDC · L{contest.levelMin}-{contest.levelMax}
+                {ctCountdown ? (
+                  <span className="ct-countdown">starts in {ctCountdown}</span>
+                ) : contest.phase === "expired" ? (
+                  <span className="ct-running expired">expired</span>
+                ) : (
+                  <span className="ct-running">live</span>
+                )}
+              </span>
+            ) : (
+              <span className="solver-tag">loading the contest…</span>
+            )
+          ) : (
+            <button
+              className="hero-cta"
+              onClick={() => run()}
+              disabled={starting}
+              data-tip="Watch two platform agents demo a live solver match. To play, open a contest."
+            >
+              {starting ? "Starting…" : "Run a match"}
+            </button>
+          )}
           <span className={`conn ${connected ? "on" : "off"}`}>
             <span className="sdot" />
             {connected ? "live" : "offline"}
@@ -204,7 +267,13 @@ export default function Solver() {
 
       <div className="solver-board">
         {agents.length === 0 ? (
-          <div className="solver-empty">No match yet. Run one and watch the agents reason through it.</div>
+          <div className="solver-empty">
+            {watching
+              ? ctCountdown
+                ? `This contest starts when its join window closes (${ctCountdown}).`
+                : "The contest is starting. The questions will appear here in a moment."
+              : "No match yet. Run one and watch the agents reason through it."}
+          </div>
         ) : (
           <div className="solver-score">
             {agents.map((a) => {
