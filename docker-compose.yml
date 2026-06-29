@@ -10,12 +10,13 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: telt
       POSTGRES_PASSWORD: telt
       POSTGRES_DB: telt
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - telt_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -33,8 +34,11 @@ services:
       # Override the .env DATABASE_URL: inside the network the host is `postgres`.
       DATABASE_URL: postgres://telt:telt@postgres:5432/telt
       PORT: "8787"
+    restart: unless-stopped
     ports:
-      - "8787:8787"
+      # Bind to localhost so the API is only reachable through nginx (which adds TLS). Still
+      # http://localhost:8787 for local dev.
+      - "127.0.0.1:8787:8787"
     depends_on:
       postgres:
         condition: service_healthy

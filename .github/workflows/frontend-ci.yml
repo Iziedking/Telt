@@ -1,0 +1,31 @@
+name: Frontend CI
+
+# Lint and build the Next.js frontend on every push and PR that touches it. This is the "CI
+# check" gate; Vercel does the actual deploy (via its Git integration or your `vercel` CLI).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+  pull_request:
+    paths:
+      - "frontend/**"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      # A full production build runs the TypeScript typecheck and catches rendering errors before
+      # Vercel deploys. (ESLint is not configured yet; add `next lint` setup + a lint step later.)
+      - run: npm run build
