@@ -45,6 +45,11 @@ export const app = new Hono();
 // The frontend dev server runs on another port, so allow cross-origin reads.
 app.use("*", cors());
 
+// Liveness probe for uptime monitors and the load balancer. Deliberately cheap: no chain or DB
+// round-trips, just confirms the process is serving. The DB is optional, so it is reported but
+// never fails the check. Deep checks live behind /admin/diagnostics.
+app.get("/health", (c) => c.json({ status: "ok", uptime: Math.floor(process.uptime()), db: dbAvailable() }));
+
 // The intel marketplace 402 quote endpoint.
 intelRoutes(app);
 
