@@ -2441,29 +2441,46 @@ a.ct-hash:hover {
 .sp-opt {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  transition: all 0.2s ease;
+  gap: 14px;
+  padding: 11px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
 }
 .sp-opt.picked {
   border-color: var(--ink);
 }
+/* Correct: a flat brand-mint fill with a green letter badge. Wrong: a red border and red badge,
+   no soft pastel wash. The letter sits in a solid ink square, which reads as the brand, not a
+   generic quiz pill. */
 .sp-opt.correct {
-  border-color: #2ec27e;
-  background: rgba(46, 194, 126, 0.08);
+  border-color: var(--ink);
+  background: var(--felt);
+}
+.sp-opt.correct .sp-letter {
+  background: #1f7a4d;
+}
+.sp-opt.correct .sp-text {
+  font-weight: 600;
 }
 .sp-opt.wrong {
   border-color: var(--signal);
-  background: rgba(196, 36, 28, 0.06);
+}
+.sp-opt.wrong .sp-letter {
+  background: var(--signal);
 }
 .sp-letter {
   font-family: var(--font-display), sans-serif;
   font-weight: 700;
-  font-size: 14px;
-  color: var(--dim);
-  width: 20px;
+  font-size: 13px;
+  color: var(--cream);
+  background: var(--ink);
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: none;
 }
 .sp-text {
@@ -2485,17 +2502,19 @@ a.ct-hash:hover {
   padding: 2px 8px;
 }
 .sp-check {
-  color: #2ec27e;
+  color: #1f7a4d;
   font-weight: 700;
+  font-size: 16px;
 }
 .sp-explain {
   margin-top: 16px;
-  padding: 12px 14px;
-  background: rgba(20, 24, 31, 0.04);
-  border-radius: 10px;
+  padding: 12px 16px;
+  background: var(--sand);
+  border-left: 3px solid var(--signal);
+  border-radius: 0 10px 10px 0;
   font-size: 14px;
   line-height: 1.5;
-  color: var(--text);
+  color: var(--ink);
 }
 /* Per-agent picks at the bottom of each question: name, the letter they chose, correct/wrong. */
 .sq-picks {
@@ -2596,27 +2615,30 @@ a.ct-hash:hover {
 }
 .sq-card {
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 16px 18px;
+  border: 1.5px solid rgba(20, 24, 31, 0.16);
+  border-radius: 12px;
+  padding: 18px 20px;
 }
 .sq-card.active {
   border-color: var(--signal);
-  box-shadow: 0 0 0 2px rgba(196, 36, 28, 0.15);
 }
 .sq-card.done {
-  opacity: 0.94;
+  opacity: 1;
 }
 .sq-top {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 .sq-num {
   font-family: var(--font-display), sans-serif;
-  font-weight: 700;
+  font-weight: 800;
   font-size: 13px;
+  color: var(--cream);
+  background: var(--ink);
+  border-radius: 6px;
+  padding: 2px 8px;
 }
 .sq-timer {
   margin-left: auto;

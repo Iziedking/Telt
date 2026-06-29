@@ -75,9 +75,11 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
 
   const scores: Record<string, number> = {};
   const agreementTotals: Record<string, number> = {};
+  const timeTotals: Record<string, number> = {}; // cumulative answer time (ms), the tie-breaker
   for (const p of players) {
     scores[p.key] = 0;
     agreementTotals[p.key] = 0;
+    timeTotals[p.key] = 0;
   }
   const puzzles = await generatePuzzles(count);
 
@@ -105,6 +107,7 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
 
     for (const p of players) {
       const opponent = players.find((q) => q.agentId !== p.agentId) ?? p;
+      const t0 = Date.now();
       const d = await withTimeout(solve(pz, planForLevel(p.level)), SECONDS_PER_QUESTION * 1000).catch(() => ({
         answer: -1,
         rationale: "ran out of time",
@@ -112,6 +115,7 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
         samples: 0,
         agreement: 0,
       }));
+      timeTotals[p.key] = (timeTotals[p.key] ?? 0) + (Date.now() - t0);
       const correct = d.answer === pz.answer;
       if (correct) scores[p.key] = (scores[p.key] ?? 0) + 1;
       agreementTotals[p.key] = (agreementTotals[p.key] ?? 0) + d.agreement;
@@ -164,19 +168,32 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
     });
   }
 
-  // Winner: most correct among non-house agents. Ties go to the more decisive agent (higher
-  // summed agreement), then to the underdog so a weaker model that keeps pace is rewarded.
+  // Winner: most correct among non-house agents. A tie is broken on speed (lowest total answer
+  // time), then on conviction (higher summed agreement), then in favour of the underdog (lower
+  // level) so a weaker model that keeps pace is rewarded. Every step is deterministic.
   const eligible = players.filter((p) => !p.isHouse);
   const pool = eligible.length ? eligible : players;
-  const winner = pool.reduce((best, p) => {
-    const sp = scores[p.key] ?? 0;
-    const sb = scores[best.key] ?? 0;
-    if (sp !== sb) return sp > sb ? p : best;
-    const gp = agreementTotals[p.key] ?? 0;
-    const gb = agreementTotals[best.key] ?? 0;
-    if (gp !== gb) return gp > gb ? p : best;
-    return p.level <= best.level ? p : best;
-  }, pool[0]!);
+  const ranked = [...pool].sort((a, b) => {
+    const ds = (scores[b.key] ?? 0) - (scores[a.key] ?? 0);
+    if (ds !== 0) return ds;
+    const dt = (timeTotals[a.key] ?? 0) - (timeTotals[b.key] ?? 0); // faster first
+    if (dt !== 0) return dt;
+    const dg = (agreementTotals[b.key] ?? 0) - (agreementTotals[a.key] ?? 0);
+    if (dg !== 0) return dg;
+    return a.level - b.level; // underdog
+  });
+  const winner = ranked[0]!;
+  const runnerUp = ranked[1];
+  // Name how the win was decided so a tie is never just "2 to 2" with no reason.
+  let tiebreak: string | null = null;
+  if (runnerUp && (scores[winner.key] ?? 0) === (scores[runnerUp.key] ?? 0)) {
+    tiebreak =
+      (timeTotals[winner.key] ?? 0) !== (timeTotals[runnerUp.key] ?? 0)
+        ? "speed"
+        : (agreementTotals[winner.key] ?? 0) !== (agreementTotals[runnerUp.key] ?? 0)
+          ? "conviction"
+          : "tier";
+  }
 
   // Record win/loss for real players only; platform agents are never graded. Pay out the
   // contest pool if this was one.
@@ -186,6 +203,9 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
   }
   if (opts.contestId) await bestEffort(() => settleContest(opts.contestId!, winner.agentId));
 
-  broadcast({ type: "solverSettled", payload: { matchId, winnerSeat: winner.key, winnerName: winner.name, scores: { ...scores } } });
+  broadcast({
+    type: "solverSettled",
+    payload: { matchId, winnerSeat: winner.key, winnerName: winner.name, scores: { ...scores }, tiebreak },
+  });
   return { matchId, winner: winner.name, winnerAgentId: winner.agentId, scores };
 }

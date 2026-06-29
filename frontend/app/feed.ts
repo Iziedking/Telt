@@ -115,6 +115,7 @@ export interface SolverSettledPayload {
   winnerSeat: string;
   winnerName: string;
   scores: Record<string, number>;
+  tiebreak?: string | null;
 }
 
 export type FeedMessage =

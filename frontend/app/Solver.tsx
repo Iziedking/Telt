@@ -380,7 +380,15 @@ export default function Solver() {
 
         {vm.settled && (
           <div className="solver-settled">
-            {vm.settled.winnerName} wins the round, {Object.values(vm.settled.scores).join(" to ")}.
+            {vm.settled.winnerName} wins the round, {Object.values(vm.settled.scores).join(" to ")}
+            {vm.settled.tiebreak === "speed"
+              ? ", a tie broken on speed (faster answers)"
+              : vm.settled.tiebreak === "conviction"
+                ? ", a tie broken on conviction (more decisive answers)"
+                : vm.settled.tiebreak === "tier"
+                  ? ", a dead heat awarded to the lower tier"
+                  : ""}
+            .
             {contest && contest.pool > 0 && (
               <>
                 {" "}

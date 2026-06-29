@@ -122,6 +122,8 @@ export interface SolverSettledPayload {
   winnerSeat: string;
   winnerName: string;
   scores: Record<string, number>;
+  /** How a tie was broken ("speed" | "conviction" | "tier"), or null when the score decided it. */
+  tiebreak?: string | null;
 }
 
 export type FeedMessage =
