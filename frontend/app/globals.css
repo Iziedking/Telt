@@ -2475,6 +2475,51 @@ a.home-card:hover {
   line-height: 1.5;
   color: var(--text);
 }
+/* Per-agent picks at the bottom of each question: name, the letter they chose, correct/wrong. */
+.sq-picks {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.sq-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-family: var(--font-mono), monospace;
+}
+.sq-pick-name {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+}
+.sq-pick-letter {
+  width: 22px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--muted);
+}
+.sq-pick-mark {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 700;
+  min-width: 56px;
+  text-align: right;
+}
+.sq-pick.ok .sq-pick-letter,
+.sq-pick.ok .sq-pick-mark {
+  color: #1f7a4d;
+}
+.sq-pick.bad .sq-pick-letter,
+.sq-pick.bad .sq-pick-mark {
+  color: var(--signal);
+}
 /* --- All-questions grid: every question laid out, paginated, with a per-question timer --- */
 .sq-bar {
   display: flex;
@@ -3841,6 +3886,10 @@ input:focus:not(:focus-visible) {
 }
 .ct-watch:hover {
   text-decoration: none;
+}
+/* Run-now on the watch page, for a contest that is still joining or a stale orphan. */
+.ct-run-now {
+  margin-left: 10px;
 }
 /* The contest being watched, shown in the Arena/Solver header in place of the demo button. */
 .ct-watch-banner {

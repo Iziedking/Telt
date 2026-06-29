@@ -192,6 +192,16 @@ export default function Solver() {
     setTimeout(() => setStarting(false), 1800);
   }, []);
 
+  // Run the contest being watched now (closes its window and plays it). Used when a contest is
+  // still joining, or is a stale orphan whose window was lost on a restart.
+  const runThisContest = useCallback(() => {
+    if (!contest) return;
+    setStarting(true);
+    fetch(`${API_BASE}/contests/${contest.contestId}/run`, { method: "POST" })
+      .catch(() => {})
+      .finally(() => setTimeout(() => setStarting(false), 2500));
+  }, [contest]);
+
   const { agents, scores, questions } = vm;
   const ctEndsAt = contest?.endsAt ?? null;
   const ctCountdown =
@@ -228,21 +238,28 @@ export default function Solver() {
         <div className="solver-controls">
           {watching ? (
             contest ? (
-              <span className="ct-watch-banner">
-                <span className="ct-badge s1">{contest.game}</span>
-                <span className="ct-kind">{contest.format}</span>
-                {contest.difficulty && (
-                  <span className={`ct-diff ${contest.difficulty.toLowerCase()}`}>{contest.difficulty}</span>
+              <>
+                <span className="ct-watch-banner">
+                  <span className="ct-badge s1">{contest.game}</span>
+                  <span className="ct-kind">{contest.format}</span>
+                  {contest.difficulty && (
+                    <span className={`ct-diff ${contest.difficulty.toLowerCase()}`}>{contest.difficulty}</span>
+                  )}
+                  · pool {contest.pool} tUSDC · L{contest.levelMin}-{contest.levelMax}
+                  {ctCountdown ? (
+                    <span className="ct-countdown">starts in {ctCountdown}</span>
+                  ) : contest.phase === "expired" ? (
+                    <span className="ct-running expired">expired</span>
+                  ) : (
+                    <span className="ct-running">live</span>
+                  )}
+                </span>
+                {vm.agents.length === 0 && contest.phase !== "running" && (
+                  <button className="hero-cta ct-run-now" onClick={runThisContest} disabled={starting}>
+                    {starting ? "Starting…" : "Run now"}
+                  </button>
                 )}
-                · pool {contest.pool} tUSDC · L{contest.levelMin}-{contest.levelMax}
-                {ctCountdown ? (
-                  <span className="ct-countdown">starts in {ctCountdown}</span>
-                ) : contest.phase === "expired" ? (
-                  <span className="ct-running expired">expired</span>
-                ) : (
-                  <span className="ct-running">live</span>
-                )}
-              </span>
+              </>
             ) : (
               <span className="solver-tag">loading the contest…</span>
             )
@@ -301,6 +318,16 @@ export default function Solver() {
         {vm.settled && (
           <div className="solver-settled">
             {vm.settled.winnerName} wins the round, {Object.values(vm.settled.scores).join(" to ")}.
+            {contest && contest.pool > 0 && (
+              <>
+                {" "}
+                The {contest.pool} tUSDC pool is paid straight to the winner's wallet —{" "}
+                <Link href="/workshop" className="solver-link">
+                  see your winnings
+                </Link>
+                .
+              </>
+            )}
           </div>
         )}
 
@@ -344,32 +371,37 @@ export default function Solver() {
                     <div className="sp-options">
                       {q.options.map((opt, j) => {
                         const isAnswer = result?.answer === j;
-                        const pickers = agents.filter((a) => rowAns[a.seat]?.choice === j);
-                        const cls = result
-                          ? isAnswer
-                            ? "correct"
-                            : pickers.length
-                              ? "wrong"
-                              : ""
-                          : pickers.length
-                            ? "picked"
-                            : "";
+                        const someonePicked = agents.some((a) => rowAns[a.seat]?.choice === j);
+                        const cls = result ? (isAnswer ? "correct" : someonePicked ? "wrong" : "") : someonePicked ? "picked" : "";
                         return (
                           <div key={j} className={`sp-opt ${cls}`}>
                             <span className="sp-letter">{String.fromCharCode(65 + j)}</span>
                             <span className="sp-text">{opt}</span>
-                            <span className="sp-pickers">
-                              {pickers.map((a) => (
-                                <span key={a.seat} className="sp-pill">
-                                  {a.name}
-                                </span>
-                              ))}
-                              {result && isAnswer && <span className="sp-check">✓</span>}
-                            </span>
+                            {result && isAnswer && <span className="sp-check">✓</span>}
                           </div>
                         );
                       })}
                     </div>
+                    {/* Each agent's pick for this question, marked correct or wrong once judged. */}
+                    {agents.length > 0 && (
+                      <div className="sq-picks">
+                        {agents.map((a) => {
+                          const ans = rowAns[a.seat];
+                          const judged = !!result;
+                          const correct = judged && !!ans && ans.choice === result.answer;
+                          return (
+                            <div key={a.seat} className={`sq-pick${judged && ans ? (correct ? " ok" : " bad") : ""}`}>
+                              <span className="sq-pick-name">
+                                {a.name}
+                                {a.platform && <PlatformBadge small />}
+                              </span>
+                              <span className="sq-pick-letter">{ans ? String.fromCharCode(65 + ans.choice) : "…"}</span>
+                              {judged && ans && <span className="sq-pick-mark">{correct ? "correct" : "wrong"}</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                     {result && <div className="sp-explain">{result.explanation}</div>}
                   </div>
                 );

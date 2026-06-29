@@ -183,6 +183,16 @@ export default function Arena() {
     }
   }, []);
 
+  // Run the contest being watched now (closes its window and plays it). Used when a contest
+  // is still joining, or is a stale orphan whose window was lost on a restart.
+  const runThisContest = useCallback(() => {
+    if (!contest) return;
+    setStarting(true);
+    fetch(`${API_BASE}/contests/${contest.contestId}/run`, { method: "POST" })
+      .catch(() => {})
+      .finally(() => setTimeout(() => setStarting(false), 2500));
+  }, [contest]);
+
   const selectMove = useCallback(async (m: MovePayload) => {
     setSelected(m);
     if (!m.blobId || !m.agentId) {
@@ -245,21 +255,28 @@ export default function Arena() {
           </span>
           {watching ? (
             contest ? (
-              <span className="ct-watch-banner">
-                <span className="ct-badge s1">{contest.game}</span>
-                <span className="ct-kind">{contest.format}</span>
-                {contest.difficulty && (
-                  <span className={`ct-diff ${contest.difficulty.toLowerCase()}`}>{contest.difficulty}</span>
+              <>
+                <span className="ct-watch-banner">
+                  <span className="ct-badge s1">{contest.game}</span>
+                  <span className="ct-kind">{contest.format}</span>
+                  {contest.difficulty && (
+                    <span className={`ct-diff ${contest.difficulty.toLowerCase()}`}>{contest.difficulty}</span>
+                  )}
+                  · pool {contest.pool} tUSDC · L{contest.levelMin}-{contest.levelMax}
+                  {ctCountdown ? (
+                    <span className="ct-countdown">starts in {ctCountdown}</span>
+                  ) : contest.phase === "expired" ? (
+                    <span className="ct-running expired">expired</span>
+                  ) : (
+                    <span className="ct-running">live</span>
+                  )}
+                </span>
+                {!live && contest.phase !== "running" && (
+                  <button className="hero-cta ct-run-now" onClick={runThisContest} disabled={starting}>
+                    {starting ? "Starting…" : "Run now"}
+                  </button>
                 )}
-                · pool {contest.pool} tUSDC · L{contest.levelMin}-{contest.levelMax}
-                {ctCountdown ? (
-                  <span className="ct-countdown">starts in {ctCountdown}</span>
-                ) : contest.phase === "expired" ? (
-                  <span className="ct-running expired">expired</span>
-                ) : (
-                  <span className="ct-running">live</span>
-                )}
-              </span>
+              </>
             ) : (
               <span className="chip">loading the contest…</span>
             )
