@@ -42,6 +42,28 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    labels:
+      # Picked up by the autoheal sidecar below: restart this container if it goes unhealthy.
+      - autoheal=true
+    healthcheck:
+      # Hit /health with node's built-in fetch (no curl/wget needed in the slim image).
+      test:
+        ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s # give the schema migrate + boot time before the first check
+
+  # Watches for containers labelled autoheal=true that report unhealthy and restarts them. Plain
+  # compose only marks health, it does not act on it, so this is what makes Docker "self-heal".
+  autoheal:
+    image: willfarrell/autoheal:latest
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: "15"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   telt_pgdata:
