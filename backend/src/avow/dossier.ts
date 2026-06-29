@@ -8,7 +8,7 @@ import {
   EVIDENCE_VERSION,
   type AnchorResult,
 } from "avow-sdk";
-import { sui, coordinator } from "../chain/sui.js";
+import { sui, coordinator, serialize } from "../chain/sui.js";
 import { seal, walrus } from "./anchorMove.js";
 import type { AgentAvow } from "./anchorMove.js";
 import { callModel } from "../reason/client.js";
@@ -96,30 +96,34 @@ export async function compileDossier(targetAgentId: string, buyer: AgentAvow): P
     const r = new Reasoning("Compile an intel dossier on an opponent");
     r.observe("Read the opponent's anchored history", `${moves.length} verified moves on chain.`, { count: moves.length });
     r.decide("Summarize the read", summary, { verifiedCount });
-    anchored = await anchor({
-      suiClient: sui,
-      sealClient: seal,
-      walrusClient: walrus,
-      signer: buyer.signer,
-      mandateId: buyer.mandateId,
-      accessId: buyer.accessId,
-      bundle: {
-        version: EVIDENCE_VERSION,
+    // Serialize on the coordinator queue so the dossier's Walrus write does not race the gas
+    // coin (see anchorMove for the same reason).
+    anchored = await serialize(() =>
+      anchor({
+        suiClient: sui,
+        sealClient: seal,
+        walrusClient: walrus,
+        signer: buyer.signer,
         mandateId: buyer.mandateId,
-        agent: buyer.agentAddress,
-        user: buyer.user,
-        reasoning: r.build(summary),
-        actionType: "intel_dossier",
-        target: targetAgentId,
-        amount: "0",
-        rationale: summary,
-        observed: { moves, verifiedCount, sourceCount: poker.length },
-        before: {},
-        after: {},
-        txDigests: [],
-        timestampMs: Date.now(),
-      },
-    });
+        accessId: buyer.accessId,
+        bundle: {
+          version: EVIDENCE_VERSION,
+          mandateId: buyer.mandateId,
+          agent: buyer.agentAddress,
+          user: buyer.user,
+          reasoning: r.build(summary),
+          actionType: "intel_dossier",
+          target: targetAgentId,
+          amount: "0",
+          rationale: summary,
+          observed: { moves, verifiedCount, sourceCount: poker.length },
+          before: {},
+          after: {},
+          txDigests: [],
+          timestampMs: Date.now(),
+        },
+      }),
+    );
   }
 
   return { targetAgentId, moves, sourceCount: poker.length, verifiedCount, summary, anchor: anchored };

@@ -14,6 +14,7 @@
     "match": "tsx src/scripts/runMatch.ts",
     "intel": "tsx src/scripts/runIntel.ts",
     "db:migrate": "tsx src/scripts/migrate.ts",
+    "wal:refill": "tsx src/scripts/refillWal.ts",
     "typecheck": "tsc --noEmit",
     "records": "tsx src/scripts/records.ts",
     "tiertest": "tsx src/scripts/tierTest.ts",

@@ -82,7 +82,6 @@ export default function ContestsPage() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [now, setNow] = useState(() => Date.now());
   const [autopilot, setAutopilot] = useState(false);
-  const [starting, setStarting] = useState(false);
   const [pkg, setPkg] = useState("");
   const [myAgent, setMyAgent] = useState<{ agentId: string; name: string } | null>(null);
   const [msg, setMsg] = useState("");
@@ -140,20 +139,6 @@ export default function ContestsPage() {
       })
       .catch(() => {});
   }, [account]);
-
-  const runEvent = useCallback(async () => {
-    setStarting(true);
-    try {
-      await fetch(`${API_BASE}/autopilot/run`, { method: "POST" });
-    } catch {
-      /* surfaced via the empty state */
-    } finally {
-      setTimeout(() => {
-        setStarting(false);
-        load();
-      }, 1500);
-    }
-  }, [load]);
 
   const create = useCallback(
     async (kind: string) => {
@@ -267,16 +252,6 @@ export default function ContestsPage() {
             the <b>Live</b> tab. The winner takes the pool in <b>tUSDC</b>. Challenge and general are platform-funded and
             free to enter; duels and custom carry a stake you set.
           </p>
-        </div>
-        <div className="hero-aside">
-          <button
-            className="hero-cta"
-            onClick={runEvent}
-            disabled={starting}
-            data-tip="Instantly play a platform-funded demo event (two platform agents) so you can watch a full match end to end in the Arena or Solver."
-          >
-            {starting ? "Starting…" : "Run a demo event"}
-          </button>
         </div>
       </header>
 

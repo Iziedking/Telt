@@ -117,6 +117,17 @@ export async function playMatch(
   // How many dossiers each seat has bought this match, against its per-tier cap.
   const intelBought: Record<Seat, number> = { A: 0, B: 0 };
 
+  // The intel beat, on by default for every match so the dossier money shot is always shown:
+  // the underdog (the lower-level seat, which carries the dossier budget) scouts its opponent
+  // before the second hand. Callers can override the buyer/timing, or pass intel: null off.
+  // Skipped on a dry run (no anchoring) since the dossier itself is an anchored action.
+  const intel =
+    "intel" in opts
+      ? opts.intel
+      : o.anchor
+        ? { buyerSeat: (A.level <= B.level ? "A" : "B") as Seat, beforeHand: 1 }
+        : undefined;
+
   // A freezeout: play until one agent can no longer post the big blind (busted), or the
   // safety cap. Either way the match yields exactly one winner.
   const cap = o.untilBust ? o.maxHands : o.hands;
@@ -127,8 +138,8 @@ export async function playMatch(
       log(matchId, "status", { status: "busted", detail: `${otherSeat(chips.A <= bb ? "A" : "B")} takes it after ${handIndex} hands` });
       break;
     }
-    if (opts.intel && handIndex === opts.intel.beforeHand) {
-      await runIntelBeat(matchId, tableId, opts.intel.buyerSeat, bySeat, injected, intelBought);
+    if (intel && handIndex === intel.beforeHand) {
+      await runIntelBeat(matchId, tableId, intel.buyerSeat, bySeat, injected, intelBought);
     }
     const button: Seat = handIndex % 2 === 0 ? "A" : "B";
     await playHand(matchId, tableId, handIndex, button, bySeat, chips, injected, o, sb, bb);
