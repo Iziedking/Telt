@@ -181,10 +181,20 @@ export default function ContestsPage() {
           setMsg("Claim tUSDC from the Workshop faucet first.");
           return;
         }
+        // Pay exactly the entry fee (0 for free contests), so the wallet shows the real cost
+        // instead of the whole coin as a worst-case outflow. The contract splits the fee and
+        // returns the rest anyway, but this keeps the prompt honest.
+        const feeMist = BigInt(Math.round((ct.entryFee || 0) * 1_000_000));
+        const fundCoin = coins.data.find((c) => BigInt(c.balance) >= feeMist) ?? coins.data[0]!;
+        if (BigInt(fundCoin.balance) < feeMist) {
+          setMsg(`Not enough tUSDC for the ${ct.entryFee} stake. Claim more from the Workshop faucet.`);
+          return;
+        }
         const tx = new Transaction();
+        const [pay] = tx.splitCoins(tx.object(fundCoin.coinObjectId), [tx.pure.u64(feeMist)]);
         tx.moveCall({
           target: `${pkg}::contest::join`,
-          arguments: [tx.object(ct.contestId), tx.object(myAgent.agentId), tx.object(coins.data[0]!.coinObjectId)],
+          arguments: [tx.object(ct.contestId), tx.object(myAgent.agentId), pay!],
         });
         signAndExecute(
           { transaction: tx },
