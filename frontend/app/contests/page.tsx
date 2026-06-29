@@ -7,6 +7,7 @@ import { useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from "@
 import { Transaction } from "@mysten/sui/transactions";
 import { API_BASE, prettyError } from "../feed";
 import PlatformBadge from "../PlatformBadge";
+import { SuiscanLink } from "../suiscan";
 
 interface Tier {
   label: string;
@@ -362,7 +363,7 @@ export default function ContestsPage() {
                 {history.slice(0, shown).map((h, i) => (
                   <div key={`${h.contestId}-${i}`} className="ct-row">
                     <span className="ct-row-event">
-                      <span className="ct-hash">{shortId(h.contestId)}</span>{" "}
+                      <SuiscanLink kind="object" id={h.contestId} label={shortId(h.contestId)} className="ct-hash" />{" "}
                       <span className="ct-time">{timeAgo(h.at, now)}</span>
                     </span>
                     <span className="ct-row-winner">

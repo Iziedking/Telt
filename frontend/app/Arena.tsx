@@ -392,7 +392,12 @@ export default function Arena() {
                   {seatName(vm, vm.intel.buyerSeat as Seat)} bought a dossier · {fmtSui(vm.intel.amount)}
                 </strong>
                 <div className="intel-summary">{stripMd(vm.intel.summary)}</div>
-                <div className="intel-meta mono">pay {short(vm.intel.payDigest)}</div>
+                <div className="intel-meta mono">
+                  pay{" "}
+                  <a href={suiscan(vm.intel.payDigest)} target="_blank" rel="noreferrer" className="suiscan-link">
+                    {short(vm.intel.payDigest)}
+                  </a>
+                </div>
               </>
             ) : (
               <>
@@ -444,9 +449,17 @@ export default function Arena() {
                     </div>
                     <div className="why">{m.rationale}</div>
                     {m.anchorDigest && (
-                      <div className="badge" style={{ marginTop: 6 }}>
+                      <a
+                        className="badge"
+                        style={{ marginTop: 6 }}
+                        href={suiscan(m.anchorDigest)}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="View the anchor transaction on Suiscan"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <span className="b-dot" /> anchored on Walrus
-                      </div>
+                      </a>
                     )}
                   </div>
                 ))}
@@ -593,8 +606,12 @@ function VerifyPanel({
             <a href={suiscan(r.txDigest)} target="_blank" rel="noreferrer">
               {r.txDigest}
             </a>
+          ) : move.anchorDigest ? (
+            <a href={suiscan(move.anchorDigest)} target="_blank" rel="noreferrer">
+              {move.anchorDigest}
+            </a>
           ) : (
-            move.anchorDigest ?? "·"
+            "·"
           )}
         </span>
       </div>

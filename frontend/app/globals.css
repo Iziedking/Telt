@@ -1072,6 +1072,21 @@ a.home-card:hover {
 .ws-win-link:hover {
   text-decoration: underline;
 }
+/* Generic Suiscan link: inherits the surrounding colour with a dotted underline to read as a link. */
+.suiscan-link {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+}
+.suiscan-link:hover {
+  border-bottom-style: solid;
+}
+a.ct-hash {
+  text-decoration: none;
+}
+a.ct-hash:hover {
+  text-decoration: underline;
+}
 .ws-win-prize {
   font-family: var(--font-display), sans-serif;
   font-weight: 700;
