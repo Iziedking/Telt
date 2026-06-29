@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { TopNav, SiteFooter } from "./shell";
 import Tour from "./Tour";
+import TutorialButton from "./TutorialButton";
 
 // The landing page at "/" is pure marketing and shows no app chrome. Every other route is
 // the app and gets the product nav, footer, and the navigation tour.
@@ -16,6 +17,7 @@ export default function Chrome({ children }: { children: React.ReactNode }) {
       {children}
       <SiteFooter />
       <Tour />
+      <TutorialButton />
     </>
   );
 }
