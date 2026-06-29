@@ -193,7 +193,7 @@ export default function Arena() {
             className="hero-cta"
             onClick={() => runMatch()}
             disabled={starting || live}
-            title="Watch two platform agents demo a live heads-up match"
+            data-tip="Watch two platform agents demo a live heads-up match. To play, open a contest."
           >
             {live ? "Match running" : starting ? "Starting…" : "Run a match"}
           </button>
@@ -557,6 +557,19 @@ function reduce(prev: ViewModel, msg: FeedMessage): ViewModel {
         handIndex: p.handIndex,
         seats,
         moveList: [...prev.moveList, p].slice(-80),
+      };
+    }
+    case "moveProven": {
+      // A move's proof landed after it was shown live: fill in its anchor so the verify
+      // badge lights up.
+      const p = msg.payload;
+      return {
+        ...prev,
+        moveList: prev.moveList.map((m) =>
+          m.moveKey === p.moveKey
+            ? { ...m, blobId: p.blobId, evidenceHash: p.evidenceHash, anchorDigest: p.anchorDigest, withinMandate: true }
+            : m,
+        ),
       };
     }
     case "hand": {

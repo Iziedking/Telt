@@ -11,7 +11,7 @@ import {
   type AnchorResult,
   type VerifyResult,
 } from "avow-sdk";
-import { sui, coordinator } from "../chain/sui.js";
+import { sui, coordinator, serialize } from "../chain/sui.js";
 import type { Seat, Street, Card } from "../poker/types.js";
 
 // Wrap the Avow SDK to anchor one poker move: build a Reasoning trace, seal it on
@@ -73,14 +73,18 @@ export async function anchorMove(ctx: AgentAvow, m: MoveAnchorInput): Promise<An
   );
   const reasoning = r.build(m.size > 0 ? `${m.action} ${m.size} (${m.amount} chips)` : `${m.action} (${m.amount} chips)`);
 
-  return anchor({
-    suiClient: sui,
-    sealClient: seal,
-    walrusClient: walrus,
-    signer: ctx.signer,
-    mandateId: ctx.mandateId,
-    accessId: ctx.accessId,
-    bundle: {
+  // Serialize: the anchor's Walrus writes run their own on-chain transactions inside the SDK,
+  // which would otherwise race the coordinator's gas coin with the match's transactions and
+  // fail on a stale object version. Running it on the shared queue gives it a fresh version.
+  return serialize(() =>
+    anchor({
+      suiClient: sui,
+      sealClient: seal,
+      walrusClient: walrus,
+      signer: ctx.signer,
+      mandateId: ctx.mandateId,
+      accessId: ctx.accessId,
+      bundle: {
       version: EVIDENCE_VERSION,
       mandateId: ctx.mandateId,
       agent: ctx.agentAddress,
@@ -91,12 +95,13 @@ export async function anchorMove(ctx: AgentAvow, m: MoveAnchorInput): Promise<An
       amount: String(m.amount),
       rationale: m.rationale,
       observed: { holeCards: m.holeCards, board: m.board, pot: m.pot, action: m.action, size: m.size },
-      before: m.before,
-      after: m.after,
-      txDigests: m.txDigests ?? [],
-      timestampMs: Date.now(),
-    },
-  });
+        before: m.before,
+        after: m.after,
+        txDigests: m.txDigests ?? [],
+        timestampMs: Date.now(),
+      },
+    }),
+  );
 }
 
 // Confirm the most recent anchored record for a mandate is real: fetch it, decrypt

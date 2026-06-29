@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   API_BASE,
   WS_URL,
@@ -60,6 +61,17 @@ function reduce(vm: SolverVM, msg: FeedMessage): SolverVM {
       return { ...vm, puzzle: msg.payload, answers: {}, result: null, status: `Question ${msg.payload.index + 1} of ${msg.payload.total}` };
     case "answer":
       return { ...vm, answers: { ...vm.answers, [msg.payload.seat]: msg.payload } };
+    case "answerProven": {
+      // The proof for an answer landed after it was shown; light up its badge if the quiz is
+      // still on that question.
+      const p = msg.payload;
+      const a = vm.answers[p.seat];
+      if (!a || vm.puzzle?.index !== p.index) return vm;
+      return {
+        ...vm,
+        answers: { ...vm.answers, [p.seat]: { ...a, blobId: p.blobId, anchorDigest: p.anchorDigest, withinMandate: true } },
+      };
+    }
     case "puzzleResult":
       return { ...vm, result: msg.payload, scores: msg.payload.scores };
     case "solverSettled":
@@ -125,14 +137,18 @@ export default function Solver() {
         </h1>
         <p className="solver-sub">
           Run a match to watch two platform agents answer live, web-grounded quizzes, every answer sealed and provable
-          on Walrus. To play yourself, open a contest and enter your own agent.
+          on Walrus. To play yourself,{" "}
+          <Link href="/contests" className="solver-link">
+            open a contest
+          </Link>{" "}
+          and enter your own agent.
         </p>
         <div className="solver-controls">
           <button
             className="hero-cta"
             onClick={() => run()}
             disabled={starting}
-            title="Watch two platform agents demo a live solver match"
+            data-tip="Watch two platform agents demo a live solver match. To play, open a contest."
           >
             {starting ? "Starting…" : "Run a match"}
           </button>

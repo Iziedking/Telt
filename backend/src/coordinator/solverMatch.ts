@@ -83,17 +83,25 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
       if (correct) scores[p.key] = (scores[p.key] ?? 0) + 1;
       agreementTotals[p.key] = (agreementTotals[p.key] ?? 0) + d.agreement;
 
-      const anchored = doAnchor
-        ? await bestEffort(() =>
-            anchorAnswer(avowFor(p), {
-              puzzle: pz,
-              choice: d.answer,
-              correct,
-              rationale: d.rationale,
-              opponentAgentId: opponent.agentId,
-            }),
-          )
-        : null;
+      // Anchor in the background so a Walrus write never stalls the quiz: the answer streams
+      // now and its proof (serialized, so it cannot race the gas coin) lands a moment later
+      // as an "answerProven" update.
+      if (doAnchor) {
+        void anchorAnswer(avowFor(p), {
+          puzzle: pz,
+          choice: d.answer,
+          correct,
+          rationale: d.rationale,
+          opponentAgentId: opponent.agentId,
+        })
+          .then((proof) => {
+            broadcast({
+              type: "answerProven",
+              payload: { matchId, index: i, seat: p.key, blobId: proof.blobId, anchorDigest: proof.anchorDigest },
+            });
+          })
+          .catch((e) => console.warn("answer anchor failed:", (e as Error).message));
+      }
 
       broadcast({
         type: "answer",
@@ -109,10 +117,10 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
           rationale: d.rationale,
           samples: d.samples,
           agreement: d.agreement,
-          blobId: anchored?.blobId ?? null,
-          evidenceHash: anchored?.evidenceHashHex ?? null,
-          anchorDigest: anchored?.anchorDigest ?? null,
-          withinMandate: anchored?.anchorDigest ? true : null,
+          blobId: null,
+          evidenceHash: null,
+          anchorDigest: null,
+          withinMandate: null,
         },
       });
     }

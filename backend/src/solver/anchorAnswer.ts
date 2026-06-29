@@ -1,5 +1,5 @@
 import { anchor, Reasoning, EVIDENCE_VERSION, type AnchorResult } from "avow-sdk";
-import { sui } from "../chain/sui.js";
+import { sui, serialize } from "../chain/sui.js";
 import { seal, walrus, type AgentAvow } from "../avow/anchorMove.js";
 import type { Puzzle } from "./types.js";
 
@@ -25,28 +25,32 @@ export async function anchorAnswer(ctx: AgentAvow, a: AnswerAnchorInput): Promis
   r.decide(`Answer ${a.choice}) ${p.options[a.choice]}`, a.rationale, { choice: a.choice });
   const reasoning = r.build(`chose option ${a.choice}`);
 
-  return anchor({
-    suiClient: sui,
-    sealClient: seal,
-    walrusClient: walrus,
-    signer: ctx.signer,
-    mandateId: ctx.mandateId,
-    accessId: ctx.accessId,
-    bundle: {
-      version: EVIDENCE_VERSION,
+  // Serialize on the coordinator queue so the anchor's on-chain writes do not race the gas
+  // coin with the match's transactions (see anchorMove for the same reason).
+  return serialize(() =>
+    anchor({
+      suiClient: sui,
+      sealClient: seal,
+      walrusClient: walrus,
+      signer: ctx.signer,
       mandateId: ctx.mandateId,
-      agent: ctx.agentAddress,
-      user: ctx.user,
-      reasoning,
-      actionType: "solver_answer",
-      target: a.opponentAgentId,
-      amount: "0",
-      rationale: a.rationale,
-      observed: { puzzleId: p.id, topic: p.topic, question: p.question, options: p.options, choice: a.choice },
-      before: null,
-      after: { choice: a.choice, correct: a.correct },
-      txDigests: [],
-      timestampMs: Date.now(),
-    },
-  });
+      accessId: ctx.accessId,
+      bundle: {
+        version: EVIDENCE_VERSION,
+        mandateId: ctx.mandateId,
+        agent: ctx.agentAddress,
+        user: ctx.user,
+        reasoning,
+        actionType: "solver_answer",
+        target: a.opponentAgentId,
+        amount: "0",
+        rationale: a.rationale,
+        observed: { puzzleId: p.id, topic: p.topic, question: p.question, options: p.options, choice: a.choice },
+        before: null,
+        after: { choice: a.choice, correct: a.correct },
+        txDigests: [],
+        timestampMs: Date.now(),
+      },
+    }),
+  );
 }

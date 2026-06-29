@@ -12,6 +12,7 @@ export interface MovePayload {
   matchId: string;
   tableId: string;
   handIndex: number;
+  moveKey: string;
   street: string;
   board: string[];
   pot: number;
@@ -112,6 +113,10 @@ export type FeedMessage =
   | { type: "status"; payload: { matchId?: string; status: string; detail?: string } }
   | { type: "match"; payload: MatchPayload }
   | { type: "move"; payload: MovePayload }
+  | {
+      type: "moveProven";
+      payload: { matchId: string; moveKey: string; blobId: string; evidenceHash: string; anchorDigest: string };
+    }
   | { type: "verify"; payload: { matchId: string; hashMatches: boolean; amountMatches: boolean; withinMandate: boolean } }
   | { type: "hand"; payload: HandPayload }
   | { type: "intel"; payload: IntelPayload }
@@ -119,6 +124,10 @@ export type FeedMessage =
   | { type: "solverMatch"; payload: SolverMatchPayload }
   | { type: "puzzle"; payload: PuzzlePayload }
   | { type: "answer"; payload: AnswerPayload }
+  | {
+      type: "answerProven";
+      payload: { matchId: string; index: number; seat: string; blobId: string; anchorDigest: string };
+    }
   | { type: "puzzleResult"; payload: PuzzleResultPayload }
   | { type: "solverSettled"; payload: SolverSettledPayload };
 

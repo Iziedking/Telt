@@ -54,8 +54,13 @@ async function doExecute(tx: Transaction, signer: Ed25519Keypair): Promise<TxRes
     } catch (e) {
       lastErr = e;
       const m = String((e as Error).message || "");
-      // Transient network blips on the load-balanced RPC: wait and retry the same tx.
-      if (/fetch failed|ECONN|ETIMEDOUT|timeout|502|503|429/i.test(m) && attempt < 2) {
+      // Transient network blips on the load-balanced RPC, and gas-coin version lag right
+      // after another coordinator tx (the node still serving the old version): wait for the
+      // node to catch up and retry. signAndExecuteTransaction re-resolves gas each attempt.
+      const retryable =
+        /fetch failed|ECONN|ETIMEDOUT|timeout|502|503|429/i.test(m) ||
+        /unavailable for consumption|needs to be rebuilt|not available for consumption|-32002/i.test(m);
+      if (retryable && attempt < 2) {
         await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
         continue;
       }
@@ -74,6 +79,18 @@ let txQueue: Promise<unknown> = Promise.resolve();
 // changes so callers can read created object ids. Serialized to avoid gas contention.
 export async function execute(tx: Transaction, signer: Ed25519Keypair = coordinator()): Promise<TxResult> {
   const run = txQueue.then(() => doExecute(tx, signer));
+  txQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+// Run arbitrary coordinator work (for example an Avow anchor, whose Walrus writes do their
+// own on-chain transactions inside the SDK) on the same serial queue, so it never races the
+// coordinator's gas coin with a settle or a join. Failures do not poison the queue.
+export async function serialize<T>(fn: () => Promise<T>): Promise<T> {
+  const run = txQueue.then(() => fn());
   txQueue = run.then(
     () => undefined,
     () => undefined,

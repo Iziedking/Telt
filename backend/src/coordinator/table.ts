@@ -10,7 +10,7 @@ import { buyAndDeliver } from "../intel/market.js";
 import { loadRoster, avowFor, isPlatformAgent, type RosterEntry } from "./roster.js";
 import { type Participant } from "./provision.js";
 import { broadcast, type MovePayload } from "./ws.js";
-import { query } from "../db/pool.js";
+import { query, persist } from "../db/pool.js";
 
 // Run one heads-up match end to end: open a table and escrow both buy-ins on Sui, play
 // N hands through the engine and the Haiku runner, anchor every move through Avow,
@@ -29,6 +29,9 @@ interface MatchAgent {
   mandateId: string;
   avow: AgentAvow;
 }
+
+// Monotonic id for each move broadcast, so a late-arriving proof can be matched to its move.
+let moveSeq = 0;
 
 export interface MatchOptions {
   hands?: number;
@@ -246,38 +249,45 @@ async function playHand(
     const applied = hand.apply({ type: decision.action, size: decision.size });
     const after = hand.publicView();
 
-    // Anchor the move through Avow. Best effort: a Walrus hiccup must not stall play.
-    let blobId: string | null = null;
-    let evidenceHash: string | null = null;
-    let anchorDigest: string | null = null;
+    // Anchor the move through Avow, but never block live play on it: the move streams now,
+    // and the proof (Walrus blob, serialized so it cannot race the gas coin) lands a moment
+    // later as a "moveProven" update. A Walrus hiccup just means a move stays unproven.
+    const moveKey = `${matchId}:${++moveSeq}`;
     if (o.anchor) {
-      try {
-        const proof = await anchorMove(me.avow, {
-          seat,
-          street: streetAtDecision,
-          board: boardAtDecision,
-          holeCards: pl.hole,
-          pot: view.pot,
-          action: applied.action,
-          size: decision.size,
-          amount: applied.amount,
-          rationale: decision.rationale,
-          opponentAgentId: them.agentId,
-          before: view,
-          after,
-        });
-        blobId = proof.blobId;
-        evidenceHash = proof.evidenceHashHex;
-        anchorDigest = proof.anchorDigest;
-      } catch (e) {
-        console.warn(`anchor failed (${me.name} ${applied.action}):`, (e as Error).message);
-      }
+      void anchorMove(me.avow, {
+        seat,
+        street: streetAtDecision,
+        board: boardAtDecision,
+        holeCards: pl.hole,
+        pot: view.pot,
+        action: applied.action,
+        size: decision.size,
+        amount: applied.amount,
+        rationale: decision.rationale,
+        opponentAgentId: them.agentId,
+        before: view,
+        after,
+      })
+        .then((proof) => {
+          broadcast({
+            type: "moveProven",
+            payload: {
+              matchId,
+              moveKey,
+              blobId: proof.blobId,
+              evidenceHash: proof.evidenceHashHex,
+              anchorDigest: proof.anchorDigest,
+            },
+          });
+        })
+        .catch((e) => console.warn(`anchor failed (${me.name} ${applied.action}):`, (e as Error).message));
     }
 
     const payload: MovePayload = {
       matchId,
       tableId,
       handIndex,
+      moveKey,
       street: streetAtDecision,
       board: boardAtDecision,
       pot: after.pot,
@@ -291,10 +301,10 @@ async function playHand(
       rationale: decision.rationale,
       samples: decision.samples,
       agreement: decision.agreement,
-      blobId,
-      evidenceHash,
-      anchorDigest,
-      withinMandate: anchorDigest ? true : null,
+      blobId: null,
+      evidenceHash: null,
+      anchorDigest: null,
+      withinMandate: null,
     };
     broadcast({ type: "move", payload });
 
@@ -308,10 +318,12 @@ async function playHand(
       applied.amount,
       decision.rationale,
       decision.samples,
-      blobId,
-      evidenceHash,
-      anchorDigest,
-      anchorDigest ? true : null,
+      // The anchor lands asynchronously after the row is written, so the proof columns are
+      // filled by the moveProven broadcast on the client rather than recorded here.
+      null,
+      null,
+      null,
+      null,
     ]);
   }
 
@@ -427,7 +439,7 @@ async function persistHand(
   chips: Record<Seat, number>,
   moveRows: unknown[][],
 ): Promise<void> {
-  await bestEffort(async () => {
+  await persist(async () => {
     const winnerOwner = result.winner === "split" ? null : coordinatorAddress();
     const { rows } = await query<{ id: string }>(
       `insert into hands (table_id, hand_index, button, board, pot, winner_seat, winner_owner, reason)
@@ -451,11 +463,17 @@ async function persistHand(
   });
 }
 
-async function bestEffort(fn: () => Promise<unknown>): Promise<void> {
+// Best-effort side work (anchoring a move, recording a result). It must never stall the
+// match: if the coordinator transaction errors or hangs, we log it and move on, so a slow or
+// contended tx cannot freeze the game mid-hand.
+async function bestEffort(fn: () => Promise<unknown>, timeoutMs = 25_000): Promise<void> {
   try {
-    await fn();
+    await Promise.race([
+      fn(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timed out")), timeoutMs)),
+    ]);
   } catch (e) {
-    console.warn("non-fatal:", (e as Error).message);
+    console.warn("non-fatal:", (e as Error).message || "(no message)");
   }
 }
 

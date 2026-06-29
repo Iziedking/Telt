@@ -10,6 +10,8 @@ export interface MovePayload {
   matchId: string;
   tableId: string;
   handIndex: number;
+  // Unique per move, so a late "moveProven" can update the right move.
+  moveKey: string;
   street: string;
   board: string[];
   pot: number;
@@ -28,6 +30,15 @@ export interface MovePayload {
   evidenceHash: string | null;
   anchorDigest: string | null;
   withinMandate: boolean | null;
+}
+
+// A move's proof landing after the move was already shown live.
+export interface MoveProvenPayload {
+  matchId: string;
+  moveKey: string;
+  blobId: string;
+  evidenceHash: string;
+  anchorDigest: string;
 }
 
 export interface HandPayload {
@@ -112,6 +123,7 @@ export type FeedMessage =
   | { type: "status"; payload: { matchId?: string; status: string; detail?: string } }
   | { type: "match"; payload: MatchPayload }
   | { type: "move"; payload: MovePayload }
+  | { type: "moveProven"; payload: MoveProvenPayload }
   | { type: "verify"; payload: { matchId: string; anchorDigest: string; hashMatches: boolean; amountMatches: boolean; withinMandate: boolean; blobId: string } }
   | { type: "hand"; payload: HandPayload }
   | { type: "intel"; payload: IntelPayload }
@@ -119,6 +131,10 @@ export type FeedMessage =
   | { type: "solverMatch"; payload: SolverMatchPayload }
   | { type: "puzzle"; payload: PuzzlePayload }
   | { type: "answer"; payload: AnswerPayload }
+  | {
+      type: "answerProven";
+      payload: { matchId: string; index: number; seat: string; blobId: string; anchorDigest: string };
+    }
   | { type: "puzzleResult"; payload: PuzzleResultPayload }
   | { type: "solverSettled"; payload: SolverSettledPayload };
 
