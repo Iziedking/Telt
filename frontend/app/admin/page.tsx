@@ -5,7 +5,8 @@ import { API_BASE } from "../feed";
 
 // Backend health check, gated by the in-memory admin token. One screen to see whether the
 // model gateway (Conduit), RPC, DB, and coordinator funds are healthy, and to spot stuck
-// contests. Read-only; the token is kept in localStorage for convenience.
+// contests. Read-only. The token is never persisted: it must be entered each session, and
+// clearing the field clears the report, so the page is never readable without the key.
 
 interface Probe {
   ok: boolean;
@@ -40,17 +41,10 @@ function Row({ ok, label }: { ok?: boolean; label: string }) {
 
 export default function AdminPage() {
   const [token, setToken] = useState("");
+  const [active, setActive] = useState("");
   const [data, setData] = useState<Diag | null>(null);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    try {
-      setToken(localStorage.getItem("telt-admin-token") || "");
-    } catch {
-      /* ignore */
-    }
-  }, []);
 
   const load = useCallback(async (t: string) => {
     if (!t) return;
@@ -71,21 +65,19 @@ export default function AdminPage() {
     }
   }, []);
 
+  // Load and poll only the submitted token, never on every keystroke. Submitting an empty
+  // field clears the report, so the page is never readable without re-entering the key.
   useEffect(() => {
-    if (!token) return;
-    load(token);
-    const id = setInterval(() => load(token), 10000);
-    return () => clearInterval(id);
-  }, [token, load]);
-
-  const submit = () => {
-    try {
-      localStorage.setItem("telt-admin-token", token);
-    } catch {
-      /* ignore */
+    if (!active) {
+      setData(null);
+      return;
     }
-    load(token);
-  };
+    load(active);
+    const id = setInterval(() => load(active), 10000);
+    return () => clearInterval(id);
+  }, [active, load]);
+
+  const submit = () => setActive(token);
 
   return (
     <div className="adm">
