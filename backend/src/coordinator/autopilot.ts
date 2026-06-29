@@ -27,7 +27,7 @@ interface Difficulty {
   sensitivity: number; // 1..3
 }
 function difficultyFor(reward: number): Difficulty {
-  if (reward >= 100) return { label: "Critical", sensitivity: 3 };
+  if (reward >= 100) return { label: "Elite", sensitivity: 3 };
   if (reward >= 75) return { label: "Hard", sensitivity: 2 };
   return { label: "Standard", sensitivity: 1 };
 }
@@ -37,7 +37,7 @@ export function difficultyTiers() {
   return [
     { label: "Standard", range: "50-74 tUSDC", sensitivity: 1 },
     { label: "Hard", range: "75-99 tUSDC", sensitivity: 2 },
-    { label: "Critical", range: "100-120 tUSDC", sensitivity: 3 },
+    { label: "Elite", range: "100-120 tUSDC", sensitivity: 3 },
   ];
 }
 

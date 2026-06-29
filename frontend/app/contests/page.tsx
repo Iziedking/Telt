@@ -257,26 +257,31 @@ export default function ContestsPage() {
         <div className="hero-text">
           <div className="kicker-row">
             <span className="kicker-sq" />
-            <span className="kicker-label">Missions · {autopilot ? "autopilot on" : "autopilot off"}</span>
+            <span className="kicker-label">Contests</span>
           </div>
           <h1 className="display-heading">
             The wheel turns<span className="red">.</span>
           </h1>
           <p className="hero-sub">
-            Open a contest and the winner takes the pool in <b>tUSDC</b>. <b>Challenge</b> and <b>general</b> contests are
-            platform-seeded, so they are free to enter; you only pay gas. <b>Duels</b> and <b>custom</b> events carry a
-            stake you set, and platform agents never take part.
+            Two steps: <b>open a contest</b> with the bar below, then <b>join it</b> (or any live one) with your agent in
+            the <b>Live</b> tab. The winner takes the pool in <b>tUSDC</b>. Challenge and general are platform-funded and
+            free to enter; duels and custom carry a stake you set.
           </p>
         </div>
         <div className="hero-aside">
-          <button className="hero-cta" onClick={runEvent} disabled={starting}>
-            {starting ? "Starting…" : "Run a mission now"}
+          <button
+            className="hero-cta"
+            onClick={runEvent}
+            disabled={starting}
+            data-tip="Instantly play a platform-funded demo event (two platform agents) so you can watch a full match end to end in the Arena or Solver."
+          >
+            {starting ? "Starting…" : "Run a demo event"}
           </button>
         </div>
       </header>
 
       <main className="arena">
-        <div className="panel-label">Open a contest · then join with your agent</div>
+        <div className="panel-label">Step 1 · open a contest (pick a game and a kind, it appears in Live below)</div>
         <div className="ct-open-bar">
           <div className="ct-game-toggle" role="group" aria-label="Game">
             <button className={game === "solver" ? "on" : ""} onClick={() => setGame("solver")}>
@@ -345,6 +350,7 @@ export default function ContestsPage() {
           )}
         </div>
 
+        <div className="panel-label">Step 2 · join a live contest with your agent, or open one to watch it</div>
         <div className="ct-tabs" role="tablist">
           {(["live", "settled", "expired"] as const).map((t) => (
             <button
@@ -423,19 +429,13 @@ export default function ContestsPage() {
                     · {ct.entrants}/{ct.maxEntries} in · {ct.entryFee > 0 ? `stake ${ct.entryFee} tUSDC` : "free entry"} ·
                     pool {ct.pool} tUSDC · L{ct.levelMin}-{ct.levelMax}
                   </span>
-                  {ct.phase !== "expired" && (
+                  {ct.phase === "joining" ? (
                     <span className="ct-open-actions">
                       <button
                         className="ws-mini primary"
                         onClick={() => join(ct)}
-                        disabled={isPending || !myAgent || ct.phase !== "joining"}
-                        title={
-                          ct.phase !== "joining"
-                            ? "The join window has closed"
-                            : myAgent
-                              ? "Enter this contest with your agent"
-                              : "Connect a wallet that owns an agent first"
-                        }
+                        disabled={isPending || !myAgent}
+                        title={myAgent ? "Enter this contest with your agent" : "Connect a wallet that owns an agent first"}
                       >
                         Join with my agent
                       </button>
@@ -447,7 +447,17 @@ export default function ContestsPage() {
                         Run now
                       </button>
                     </span>
-                  )}
+                  ) : ct.phase === "running" ? (
+                    <span className="ct-open-actions">
+                      <Link
+                        href={ct.game === "poker" ? "/arena" : "/solver"}
+                        className="ws-mini primary"
+                        title="Watch this contest play out live, even if your agent is not in it"
+                      >
+                        Watch live →
+                      </Link>
+                    </span>
+                  ) : null}
                 </div>
               ))}
               {activeList.length > shown && (

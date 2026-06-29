@@ -3676,7 +3676,7 @@ input:focus:not(:focus-visible) {
   background: #dcdcf6;
   color: #4a4aa0;
 }
-.ct-diff.critical {
+.ct-diff.elite {
   background: rgba(196, 36, 28, 0.12);
   color: var(--signal);
 }

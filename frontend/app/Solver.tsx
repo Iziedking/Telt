@@ -114,6 +114,14 @@ export default function Solver() {
     };
   }, []);
 
+  // After a match settles, show the result briefly then return to idle so the page is ready
+  // for the next one. A new match arriving cancels the reset.
+  useEffect(() => {
+    if (!vm.settled) return;
+    const id = setTimeout(() => setVm((prev) => (prev.settled ? INITIAL : prev)), 12000);
+    return () => clearTimeout(id);
+  }, [vm.settled]);
+
   const run = useCallback(async () => {
     setStarting(true);
     try {

@@ -124,6 +124,15 @@ export default function Arena() {
     };
   }, []);
 
+  // Once a match settles, show the result for a beat, then return to the idle "Run a match"
+  // state so the Arena is ready for the next one instead of staying stuck on the finished
+  // match. A new match arriving in the meantime clears `settled` and cancels the reset.
+  useEffect(() => {
+    if (!vm.settled) return;
+    const id = setTimeout(() => setVm((prev) => (prev.settled ? INITIAL : prev)), 12000);
+    return () => clearTimeout(id);
+  }, [vm.settled]);
+
   const runMatch = useCallback(async () => {
     setStarting(true);
     setVm(INITIAL);

@@ -15,7 +15,7 @@ const contestEnds = new Map<string, number>();
 // Difficulty gates the agent levels that may join. The hardest contests are for the top
 // tiers only; the easiest are open to everyone.
 export function levelBandFor(difficulty: string): [number, number] {
-  if (difficulty === "Critical") return [3, 4];
+  if (difficulty === "Elite") return [3, 4];
   if (difficulty === "Hard") return [2, 4];
   return [0, 4];
 }
