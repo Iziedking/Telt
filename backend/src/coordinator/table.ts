@@ -51,6 +51,12 @@ export interface MatchOptions {
   escalateEvery?: number;
   /** Who plays seats A and B. Defaults to the two platform agents from the roster. */
   participants?: Participant[];
+  /**
+   * Open and settle an on-chain SUI table to escrow the buy-in. Default true for the standalone
+   * demo (the coordinator owns both agents). Set false for a contest, where the coordinator does
+   * not own the players' agents (join_table would abort) and the tUSDC pool is the real escrow.
+   */
+  sponsorTable?: boolean;
 }
 
 const DEFAULTS = {
@@ -62,6 +68,7 @@ const DEFAULTS = {
   bigBlind: 20,
   anchor: true,
   untilBust: true,
+  sponsorTable: true,
   maxHands: 24,
   // Blinds double every few hands so the freezeout reaches a bust quickly.
   escalateEvery: 3,
@@ -91,12 +98,16 @@ export async function playMatch(
   const B = bySeat.B;
   if (!A || !B) throw new Error("a poker match needs two agents seated at A and B");
 
-  // Escrow on chain: open a table and seat both agents.
-  const { tableId } = await openTable(o.buyinMist);
+  // Escrow on chain: open a SUI table and seat both agents. For a contest we skip this, since
+  // the coordinator does not own the players' agents (join_table would abort) and the tUSDC pool
+  // is the real escrow; the hands still play and anchor exactly the same off a synthetic id.
+  const tableId = o.sponsorTable ? (await openTable(o.buyinMist)).tableId : `off-${Date.now().toString(36)}`;
   const matchId = tableId;
-  log(matchId, "status", { status: "opening", detail: `table ${short(tableId)} buyin ${fmtSui(o.buyinMist)}` });
-  await joinTable(tableId, A.agentId, o.buyinMist);
-  await joinTable(tableId, B.agentId, o.buyinMist);
+  log(matchId, "status", { status: "opening", detail: o.sponsorTable ? `table ${short(tableId)} buyin ${fmtSui(o.buyinMist)}` : "contest table (off-chain escrow)" });
+  if (o.sponsorTable) {
+    await joinTable(tableId, A.agentId, o.buyinMist);
+    await joinTable(tableId, B.agentId, o.buyinMist);
+  }
   broadcast({
     type: "match",
     payload: {
@@ -120,11 +131,12 @@ export async function playMatch(
   // The intel beat, on by default for every match so the dossier money shot is always shown:
   // the underdog (the lower-level seat, which carries the dossier budget) scouts its opponent
   // before the second hand. Callers can override the buyer/timing, or pass intel: null off.
-  // Skipped on a dry run (no anchoring) since the dossier itself is an anchored action.
+  // Skipped on a dry run (no anchoring), and for contests, where there is no on-chain table
+  // object for the dossier to reference.
   const intel =
     "intel" in opts
       ? opts.intel
-      : o.anchor
+      : o.anchor && o.sponsorTable
         ? { buyerSeat: (A.level <= B.level ? "A" : "B") as Seat, beforeHand: 1 }
         : undefined;
 
@@ -150,42 +162,49 @@ export async function playMatch(
   // dead-even tie, which is vanishingly rare).
   const winner: Seat = chips.A >= chips.B ? "A" : "B";
   const loser = otherSeat(winner);
-  const settleDigest = await settleTable(tableId, coordinatorAddress(), handsPlayed);
+  const settleDigest = o.sponsorTable ? await settleTable(tableId, coordinatorAddress(), handsPlayed) : "";
   broadcast({
     type: "settled",
     payload: {
       matchId,
       tableId,
       winnerOwner: coordinatorAddress(),
-      amount: Number(o.buyinMist) * 2,
+      amount: o.sponsorTable ? Number(o.buyinMist) * 2 : 0,
       digest: settleDigest,
     },
   });
   // Real agents are graded; platform (house) agents never are.
   if (!isPlatformAgent(bySeat[winner].agentId)) await bestEffort(() => recordResult(bySeat[winner].agentId, true));
   if (!isPlatformAgent(bySeat[loser].agentId)) await bestEffort(() => recordResult(bySeat[loser].agentId, false));
-  log(matchId, "status", { status: "settled", detail: `${bySeat[winner].name} wins, payout ${fmtSui(o.buyinMist * 2n)}` });
+  log(matchId, "status", {
+    status: "settled",
+    // Contests pay the tUSDC pool (settled by the caller); only the standalone SUI table has a SUI payout.
+    detail: o.sponsorTable ? `${bySeat[winner].name} wins, payout ${fmtSui(o.buyinMist * 2n)}` : `${bySeat[winner].name} wins`,
+  });
 
-  // Day 2 acceptance: confirm one anchored move actually verifies.
+  // Day 2 acceptance: confirm one anchored move actually verifies. Fire-and-forget, so a slow
+  // or stuck verify never blocks the match from returning and the contest pool from settling.
   if (o.anchor) {
-    const vr = await verifyLatestForMandate(bySeat[winner].mandateId).catch(() => null);
-    if (vr) {
-      broadcast({
-        type: "verify",
-        payload: {
-          matchId,
-          anchorDigest: "(latest)",
-          hashMatches: vr.hashMatches,
-          amountMatches: vr.amountMatches,
-          withinMandate: vr.withinMandate,
-          blobId: "(sealed)",
-        },
-      });
-      log(matchId, "status", {
-        status: "verified",
-        detail: `hashMatches=${vr.hashMatches} amountMatches=${vr.amountMatches} withinMandate=${vr.withinMandate}`,
-      });
-    }
+    void verifyLatestForMandate(bySeat[winner].mandateId)
+      .then((vr) => {
+        if (!vr) return;
+        broadcast({
+          type: "verify",
+          payload: {
+            matchId,
+            anchorDigest: "(latest)",
+            hashMatches: vr.hashMatches,
+            amountMatches: vr.amountMatches,
+            withinMandate: vr.withinMandate,
+            blobId: "(sealed)",
+          },
+        });
+        log(matchId, "status", {
+          status: "verified",
+          detail: `hashMatches=${vr.hashMatches} amountMatches=${vr.amountMatches} withinMandate=${vr.withinMandate}`,
+        });
+      })
+      .catch(() => {});
   }
 
   return { matchId, tableId, winner, winnerAgentId: bySeat[winner].agentId };

@@ -12,6 +12,7 @@ import {
   type VerifyResult,
 } from "avow-sdk";
 import { sui, coordinator, serialize } from "../chain/sui.js";
+import { anchorAllowed, recordAnchor } from "./anchorGuard.js";
 import type { Seat, Street, Card } from "../poker/types.js";
 
 // Wrap the Avow SDK to anchor one poker move: build a Reasoning trace, seal it on
@@ -59,6 +60,9 @@ export interface MoveAnchorInput {
 }
 
 export async function anchorMove(ctx: AgentAvow, m: MoveAnchorInput): Promise<AnchorResult> {
+  // Skip while the breaker is open, so a Walrus outage cannot clog the tx queue. The caller
+  // treats a throw here as "move stays unproven", which is exactly the degraded behaviour.
+  if (!anchorAllowed()) throw new Error("anchoring paused (Walrus degraded)");
   const boardStr = m.board.length ? m.board.join(" ") : "preflop";
   const r = new Reasoning(`Heads-up poker decision on the ${m.street}`);
   r.observe("Read the table", `Hole ${m.holeCards.join(" ")}, board ${boardStr}, pot ${m.pot}.`, {
@@ -76,32 +80,39 @@ export async function anchorMove(ctx: AgentAvow, m: MoveAnchorInput): Promise<An
   // Serialize: the anchor's Walrus writes run their own on-chain transactions inside the SDK,
   // which would otherwise race the coordinator's gas coin with the match's transactions and
   // fail on a stale object version. Running it on the shared queue gives it a fresh version.
-  return serialize(() =>
-    anchor({
-      suiClient: sui,
-      sealClient: seal,
-      walrusClient: walrus,
-      signer: ctx.signer,
-      mandateId: ctx.mandateId,
-      accessId: ctx.accessId,
-      bundle: {
-      version: EVIDENCE_VERSION,
-      mandateId: ctx.mandateId,
-      agent: ctx.agentAddress,
-      user: ctx.user,
-      reasoning,
-      actionType: "poker_move",
-      target: m.opponentAgentId,
-      amount: String(m.amount),
-      rationale: m.rationale,
-      observed: { holeCards: m.holeCards, board: m.board, pot: m.pot, action: m.action, size: m.size },
-        before: m.before,
-        after: m.after,
-        txDigests: m.txDigests ?? [],
-        timestampMs: Date.now(),
-      },
-    }),
-  );
+  try {
+    const result = await serialize(() =>
+      anchor({
+        suiClient: sui,
+        sealClient: seal,
+        walrusClient: walrus,
+        signer: ctx.signer,
+        mandateId: ctx.mandateId,
+        accessId: ctx.accessId,
+        bundle: {
+          version: EVIDENCE_VERSION,
+          mandateId: ctx.mandateId,
+          agent: ctx.agentAddress,
+          user: ctx.user,
+          reasoning,
+          actionType: "poker_move",
+          target: m.opponentAgentId,
+          amount: String(m.amount),
+          rationale: m.rationale,
+          observed: { holeCards: m.holeCards, board: m.board, pot: m.pot, action: m.action, size: m.size },
+          before: m.before,
+          after: m.after,
+          txDigests: m.txDigests ?? [],
+          timestampMs: Date.now(),
+        },
+      }),
+    );
+    recordAnchor(true);
+    return result;
+  } catch (e) {
+    recordAnchor(false);
+    throw e;
+  }
 }
 
 // Confirm the most recent anchored record for a mandate is real: fetch it, decrypt

@@ -15,7 +15,21 @@ import type { Seat } from "../poker/types.js";
 const GAME_SOLVER = 1;
 const FORMAT_DUEL = 0;
 
+// A contest can be triggered from two places at once (the sweeper at the deadline and a manual
+// Run now), so guard against running the same one twice in parallel.
+const inFlight = new Set<string>();
+
 export async function runContest(contestId: string, opts: { puzzles?: number } = {}): Promise<void> {
+  if (inFlight.has(contestId)) return;
+  inFlight.add(contestId);
+  try {
+    await runContestInner(contestId, opts);
+  } finally {
+    inFlight.delete(contestId);
+  }
+}
+
+async function runContestInner(contestId: string, opts: { puzzles?: number }): Promise<void> {
   const c = await readContest(contestId);
   if (!c) throw new Error("contest not found");
   if (c.status !== 0) throw new Error("contest is not open");
@@ -64,12 +78,15 @@ export async function runContest(contestId: string, opts: { puzzles?: number } =
     return;
   }
 
-  // Poker: the table needs a positive SUI buy-in (the contract rejects a zero buy-in), which
-  // the coordinator sponsors for the contest. Play, then settle the tUSDC pool to the winner.
-  // House agents cannot win, so the pool falls to the best real entrant.
-  const { winnerAgentId } = await playMatch({ participants });
+  // Poker: play the hands and settle the tUSDC pool to the winner. The on-chain SUI table is
+  // skipped (sponsorTable: false) because the coordinator does not own the players' agents, so
+  // join_table would abort; the contest pool is the escrow. House agents cannot win, so the
+  // pool falls to the best real entrant.
+  const { winnerAgentId } = await playMatch({ participants, sponsorTable: false });
   const champ = participants.find((p) => p.agentId === winnerAgentId && !p.isHouse);
   const winner = champ ?? participants.find((p) => !p.isHouse);
   if (!winner) throw new Error("no eligible winner");
+  console.log(`[runContest ${contestId.slice(0, 10)}] match done, settling pool to ${winner.agentId.slice(0, 10)}`);
   await settleContest(contestId, winner.agentId);
+  console.log(`[runContest ${contestId.slice(0, 10)}] pool settled`);
 }
