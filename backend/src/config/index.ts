@@ -86,6 +86,9 @@ export const config = {
   solver: {
     exaKey: process.env.EXA_API_KEY ?? "",
     firecrawlKey: process.env.FIRECRAWL_API_KEY ?? "",
+    // Exa is the primary (free) source; Firecrawl is a metered fallback. Cap how many Firecrawl
+    // calls this process may make, so the paid API cannot run away. 0 disables Firecrawl.
+    firecrawlMaxCalls: Math.max(0, Number(optional("FIRECRAWL_MAX_CALLS", "25"))),
   },
   db: {
     url: optional("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/telt"),

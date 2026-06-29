@@ -10,8 +10,17 @@ export interface Research {
   sources: string[];
 }
 
+// How many Firecrawl calls this process has made, against the configured cap.
+let firecrawlCalls = 0;
+export function firecrawlUsage(): { used: number; cap: number } {
+  return { used: firecrawlCalls, cap: config.solver.firecrawlMaxCalls };
+}
+
 async function firecrawlSearch(query: string): Promise<Research | null> {
   if (!config.solver.firecrawlKey) return null;
+  // Stop calling the metered API once the per-process cap is reached (0 disables it entirely).
+  if (firecrawlCalls >= config.solver.firecrawlMaxCalls) return null;
+  firecrawlCalls += 1;
   try {
     const r = await fetch("https://api.firecrawl.dev/v1/search", {
       method: "POST",
@@ -57,9 +66,12 @@ async function exaAnswer(query: string): Promise<Research | null> {
   }
 }
 
-// Research a topic: Firecrawl first (freshest), then Exa. Null when neither is configured.
+// Research a topic: Exa first, since it answers with citations and its key is free, and only
+// fall back to Firecrawl when Exa returns nothing, because Firecrawl is metered. This keeps
+// Firecrawl usage to a minimum; remove FIRECRAWL_API_KEY to switch it off entirely. Null when
+// neither is configured.
 export async function research(topic: string): Promise<Research | null> {
-  return (await firecrawlSearch(topic)) ?? (await exaAnswer(topic));
+  return (await exaAnswer(topic)) ?? (await firecrawlSearch(topic));
 }
 
 export function solverSourcesConfigured(): boolean {

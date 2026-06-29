@@ -24,6 +24,7 @@ interface Diag {
   db: { available?: boolean; ok?: boolean; error?: string };
   contests: { open?: number; byPhase?: Record<string, number>; list?: { id: string; game: string; entrants: number; real: number; pool: number; windowMs: number | null; phase: string }[]; error?: string };
   autopilot: { enabled: boolean; windows: number[][] };
+  firecrawl?: { configured: boolean; used: number; cap: number };
   features: Record<string, boolean>;
 }
 
@@ -165,6 +166,12 @@ export default function AdminPage() {
             {Object.entries(data.features).map(([k, v]) => (
               <Row key={k} ok={v} label={k} />
             ))}
+            {data.firecrawl && (
+              <Row
+                ok={data.firecrawl.cap > 0 && data.firecrawl.used < data.firecrawl.cap}
+                label={`firecrawl ${data.firecrawl.used}/${data.firecrawl.cap} calls used`}
+              />
+            )}
           </div>
 
           <div className="adm-card adm-wide">

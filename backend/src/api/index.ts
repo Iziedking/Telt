@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { config, memoryConfigured, reasonConfigured, suiConfigured } from "../config/index.js";
 import { reasonMode, probeProvider } from "../reason/client.js";
+import { firecrawlUsage } from "../solver/sources.js";
 import { attachWebSocket } from "../coordinator/ws.js";
 import { intelRoutes } from "../intel/market.js";
 import {
@@ -455,11 +456,12 @@ app.get("/admin/diagnostics", async (c) => {
     db,
     contests,
     autopilot: { enabled: autopilotEnabled(), windows: config.autopilot.windows },
+    firecrawl: { configured: Boolean(config.solver.firecrawlKey), ...firecrawlUsage() },
     features: {
       avow: Boolean(config.avow.packageId),
       memory: memoryConfigured(),
       solverExa: Boolean(config.solver.exaKey),
-      solverFirecrawl: Boolean((config.solver as { firecrawlKey?: string }).firecrawlKey),
+      solverFirecrawl: Boolean(config.solver.firecrawlKey),
       arenaConfigured: Boolean(config.arena.packageId),
     },
   });
