@@ -83,7 +83,17 @@ export default function WinningsCard() {
           {rows.map((w, i) => (
             <div key={`${w.contestId}-${i}`} className="ws-win-row">
               <span className="ws-win-meta">
-                <b>{w.agent}</b> · {shortId(w.contestId)} · {timeAgo(w.at, now)}
+                <b>{w.agent}</b> ·{" "}
+                <a
+                  href={`https://suiscan.xyz/testnet/object/${w.contestId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="ws-win-link"
+                  title="View this contest and its payout on Suiscan"
+                >
+                  {shortId(w.contestId)}
+                </a>{" "}
+                · {timeAgo(w.at, now)}
               </span>
               <span className="ws-win-prize">+{w.prize} tUSDC</span>
             </div>

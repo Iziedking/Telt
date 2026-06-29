@@ -53,7 +53,7 @@ export default function AdminPage() {
     try {
       const r = await fetch(`${API_BASE}/admin/diagnostics?token=${encodeURIComponent(t)}`);
       if (r.status === 401) {
-        setErr("Unauthorized — check the admin token (ADMIN_TOKEN in the backend .env).");
+        setErr("Unauthorized. Check the admin token (ADMIN_TOKEN in the backend .env).");
         setData(null);
         return;
       }

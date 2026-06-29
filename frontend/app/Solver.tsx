@@ -19,13 +19,7 @@ const TIERS = ["Mark", "Reader", "Spotter", "Profiler", "Oracle"];
 const tierName = (l: number) => TIERS[Math.min(Math.max(l, 0), 4)] ?? "Mark";
 const PER_PAGE = 5;
 
-// Per-agent row helpers for the quiz cards.
 const letterFor = (n: number) => String.fromCharCode(65 + n);
-const handleFor = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, "");
-const initialFor = (name: string) => (name.trim()[0] ?? "?").toUpperCase();
-const AVATAR_COLORS = ["#c4241c", "#1f7a4d", "#5b54d6", "#c77d1a", "#2a7ab0", "#a23a8e"];
-const avatarColor = (name: string) =>
-  AVATAR_COLORS[[...name].reduce((s, c) => s + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
 
 interface ContestInfo {
   contestId: string;
@@ -212,12 +206,28 @@ export default function Solver() {
     return () => clearInterval(id);
   }, []);
 
-  // After a match settles, return to idle so the page is ready for the next one.
+  // Keep the finished quiz on screen. A new match resets the board on its own (solverMatch),
+  // so there is no timed wipe that makes the questions vanish a few seconds after they settle.
+
+  // Persist a contest's match so a refresh keeps the quiz: the live WS feed does not replay, so
+  // without this the board would go blank after reloading. Restore on load, then save on change.
   useEffect(() => {
-    if (!vm.settled) return;
-    const id = setTimeout(() => setVm((prev) => (prev.settled ? INITIAL : prev)), 12000);
-    return () => clearTimeout(id);
-  }, [vm.settled]);
+    if (!contestId) return;
+    try {
+      const raw = localStorage.getItem(`solver-vm-${contestId}`);
+      if (raw) setVm((cur) => (cur.questions.length === 0 && cur.agents.length === 0 ? (JSON.parse(raw) as SolverVM) : cur));
+    } catch {
+      /* ignore */
+    }
+  }, [contestId]);
+  useEffect(() => {
+    if (!contestId || (vm.questions.length === 0 && vm.agents.length === 0)) return;
+    try {
+      localStorage.setItem(`solver-vm-${contestId}`, JSON.stringify(vm));
+    } catch {
+      /* ignore */
+    }
+  }, [vm, contestId]);
 
   const run = useCallback(async () => {
     setStarting(true);
@@ -374,9 +384,9 @@ export default function Solver() {
             {contest && contest.pool > 0 && (
               <>
                 {" "}
-                The {contest.pool} tUSDC pool is paid straight to the winner's wallet —{" "}
+                The {contest.pool} tUSDC pool is paid straight to the winner's wallet.{" "}
                 <Link href="/workshop" className="solver-link">
-                  see your winnings
+                  See your winnings
                 </Link>
                 .
               </>
@@ -414,53 +424,48 @@ export default function Solver() {
                 const rowAns = vm.answers[q.index] ?? {};
                 return (
                   <div key={q.index} className={`sq-card${isCurrent ? " active" : ""}${result ? " done" : ""}`}>
-                    <div className="sq-head">
-                      <span className="sq-puzzle">SOLVER {q.index + 1}</span>
-                      <span className="sq-tag">QUIZ</span>
-                      {q.grounded && <span className="sq-tag web">WEB</span>}
-                      <span className="sq-head-right">
-                        {result ? (
-                          <>
-                            ANSWER · <b>{letterFor(result.answer)}</b>
-                          </>
-                        ) : isCurrent && remaining !== null ? (
-                          <span className="sq-timer">{remaining}s</span>
-                        ) : null}
-                      </span>
+                    <div className="sq-top">
+                      <span className="sq-num">Q{q.index + 1}</span>
+                      <span className="sp-topic">{q.topic}</span>
+                      {q.grounded && <span className="solver-tag sm">web</span>}
+                      {isCurrent && remaining !== null && <span className="sq-timer">{remaining}s</span>}
                     </div>
                     <div className="sq-q">{q.question}</div>
-                    <div className="sq-opts">
-                      {q.options.map((opt, j) => (
-                        <div key={j} className={`sq-opt${result && result.answer === j ? " correct" : ""}`}>
-                          <span className="sq-opt-l">{letterFor(j)})</span> {opt}
-                        </div>
-                      ))}
+                    <div className="sp-options">
+                      {q.options.map((opt, j) => {
+                        const isAnswer = result?.answer === j;
+                        const someonePicked = agents.some((a) => rowAns[a.seat]?.choice === j);
+                        const cls = result ? (isAnswer ? "correct" : someonePicked ? "wrong" : "") : someonePicked ? "picked" : "";
+                        return (
+                          <div key={j} className={`sp-opt ${cls}`}>
+                            <span className="sp-letter">{letterFor(j)}</span>
+                            <span className="sp-text">{opt}</span>
+                            {result && isAnswer && <span className="sp-check">✓</span>}
+                          </div>
+                        );
+                      })}
                     </div>
-                    {/* One row per agent: avatar, handle, the option it picked, correct/wrong, and how fast. */}
+                    {/* Proof of what each agent picked: the option letter, and right or wrong once judged. */}
                     {agents.length > 0 && (
-                      <div className="sq-agents">
+                      <div className="sq-picks">
                         {agents.map((a) => {
                           const ans = rowAns[a.seat];
-                          const asked = vm.askedAt[q.index];
-                          const elapsed = ans && asked ? Math.max(0, (ans.answeredAt - asked) / 1000) : null;
-                          const state = ans ? (ans.correct ? "ok" : "bad") : "pending";
+                          const judged = !!result;
+                          const correct = judged && !!ans && ans.choice === result.answer;
                           return (
-                            <div key={a.seat} className={`sq-agent ${state}`}>
-                              <span className="sq-av" style={{ background: avatarColor(a.name) }}>
-                                {initialFor(a.name)}
+                            <div key={a.seat} className={`sq-pick${judged && ans ? (correct ? " ok" : " bad") : ""}`}>
+                              <span className="sq-pick-name">
+                                {a.name}
+                                {a.platform && <PlatformBadge small />}
                               </span>
-                              <span className="sq-handle">@{handleFor(a.name)}</span>
-                              {a.platform && <PlatformBadge small />}
-                              <span className="sq-agent-sp" />
-                              <span className="sq-agent-pick">{ans ? letterFor(ans.choice) : "…"}</span>
-                              {ans && <span className="sq-agent-mark">{ans.correct ? "✓" : "✗"}</span>}
-                              {ans && elapsed !== null && <span className="sq-agent-time">{elapsed.toFixed(1)}s</span>}
+                              <span className="sq-pick-letter">{ans ? letterFor(ans.choice) : "…"}</span>
+                              {judged && ans && <span className="sq-pick-mark">{correct ? "correct" : "wrong"}</span>}
                             </div>
                           );
                         })}
                       </div>
                     )}
-                    {result && <div className="sq-explain">{result.explanation}</div>}
+                    {result && <div className="sp-explain">{result.explanation}</div>}
                   </div>
                 );
               })}

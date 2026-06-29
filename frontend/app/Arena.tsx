@@ -93,8 +93,9 @@ interface ArenaContest {
   levelMin: number;
   levelMax: number;
   endsAt: number | null;
-  phase: "joining" | "running" | "expired";
+  phase: "joining" | "running" | "expired" | "settled";
   difficulty: string | null;
+  winnerName?: string;
 }
 
 export default function Arena() {
@@ -122,7 +123,26 @@ export default function Arena() {
     const load = () =>
       fetch(`${API_BASE}/contests`)
         .then((r) => r.json())
-        .then((d) => setContest((d.open ?? []).find((c: ArenaContest) => c.contestId === contestId) ?? null))
+        .then((d) => {
+          const open = (d.open ?? []).find((c: ArenaContest) => c.contestId === contestId);
+          if (open) return setContest(open);
+          // Once settled, a contest moves to history. Show it as settled with the winner.
+          const h = (d.history ?? []).find((x: { contestId: string }) => x.contestId === contestId);
+          if (h)
+            return setContest({
+              contestId,
+              game: "poker",
+              format: "",
+              pool: h.prize ?? 0,
+              levelMin: 0,
+              levelMax: 4,
+              endsAt: null,
+              phase: "settled",
+              difficulty: null,
+              winnerName: h.winner,
+            });
+          setContest(null);
+        })
         .catch(() => {});
     load();
     const id = setInterval(load, 4000);
@@ -257,20 +277,22 @@ export default function Arena() {
               <>
                 <span className="ct-watch-banner">
                   <span className="ct-badge s1">{contest.game}</span>
-                  <span className="ct-kind">{contest.format}</span>
+                  {contest.format && <span className="ct-kind">{contest.format}</span>}
                   {contest.difficulty && (
                     <span className={`ct-diff ${contest.difficulty.toLowerCase()}`}>{contest.difficulty}</span>
                   )}
                   · pool {contest.pool} tUSDC · L{contest.levelMin}-{contest.levelMax}
                   {ctCountdown ? (
                     <span className="ct-countdown">starts in {ctCountdown}</span>
+                  ) : contest.phase === "settled" ? (
+                    <span className="ct-running settled">settled{contest.winnerName ? ` · ${contest.winnerName} won` : ""}</span>
                   ) : contest.phase === "expired" ? (
                     <span className="ct-running expired">expired</span>
                   ) : (
                     <span className="ct-running">live</span>
                   )}
                 </span>
-                {!live && contest.phase !== "running" && (
+                {!live && contest.phase !== "running" && contest.phase !== "settled" && (
                   <button className="hero-cta ct-run-now" onClick={runThisContest} disabled={starting}>
                     {starting ? "Starting…" : "Run now"}
                   </button>
@@ -309,7 +331,9 @@ export default function Arena() {
             <div>
               <div className="kicker">Arena</div>
               <div className="round">
-                Hand {live ? vm.handIndex + 1 : vm.handsPlayed} · buy-in {fmtSui(vm.buyin)} · {vm.handsPlayed} played
+                Hand {live ? vm.handIndex + 1 : vm.handsPlayed} ·{" "}
+                {watching && contest ? `pool ${contest.pool} tUSDC` : `buy-in ${fmtSui(vm.buyin)}`} · {vm.handsPlayed}{" "}
+                played
               </div>
               <div className="potline">
                 <span className="big">{vm.pot}</span>
