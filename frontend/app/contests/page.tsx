@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from "@mysten/dapp-kit";
 import { Transaction } from "@mysten/sui/transactions";
 import { API_BASE, prettyError } from "../feed";
@@ -33,6 +34,7 @@ interface OpenContest {
   levelMax: number;
   endsAt: number | null;
   phase: "joining" | "running";
+  difficulty: string | null;
 }
 interface HistoryItem {
   contestId: string;
@@ -87,6 +89,7 @@ export default function ContestsPage() {
   const [loaded, setLoaded] = useState(false);
   const [game, setGame] = useState<"solver" | "poker">("solver");
   const [stake, setStake] = useState(5);
+  const [watch, setWatch] = useState<{ href: string; label: string } | null>(null);
 
   const load = useCallback(() => {
     fetch(`${API_BASE}/contests`)
@@ -198,7 +201,11 @@ export default function ContestsPage() {
           { transaction: tx },
           {
             onSuccess: () => {
-              setMsg(`${myAgent.name} joined.`);
+              setMsg(`${myAgent.name} joined. It plays when the join window closes, or hit Run now.`);
+              setWatch({
+                href: ct.game === "poker" ? "/arena" : "/solver",
+                label: `Watch live in the ${ct.game === "poker" ? "Arena" : "Solver"}`,
+              });
               setTimeout(load, 2500);
             },
             onError: (e) => setMsg(prettyError(e)),
@@ -212,11 +219,15 @@ export default function ContestsPage() {
   );
 
   const run = useCallback(
-    async (contestId: string) => {
+    async (ct: OpenContest) => {
       setMsg("Running the contest…");
+      setWatch({
+        href: ct.game === "poker" ? "/arena" : "/solver",
+        label: `Watch live in the ${ct.game === "poker" ? "Arena" : "Solver"}`,
+      });
       try {
-        await fetch(`${API_BASE}/contests/${contestId}/run`, { method: "POST" });
-        setMsg("Running. Watch it live in the Arena.");
+        await fetch(`${API_BASE}/contests/${ct.contestId}/run`, { method: "POST" });
+        setMsg("Running now.");
         setTimeout(load, 3000);
       } catch {
         setMsg("could not run the contest");
@@ -309,7 +320,16 @@ export default function ContestsPage() {
               Custom
             </button>
           </div>
-          {msg && <span className="ct-msg">{msg}</span>}
+          {msg && (
+            <span className="ct-msg">
+              {msg}
+              {watch && (
+                <Link href={watch.href} className="ct-watch">
+                  {watch.label} →
+                </Link>
+              )}
+            </span>
+          )}
         </div>
 
         <div className="tile canvas ct-recent">
@@ -323,6 +343,11 @@ export default function ContestsPage() {
                 <span className="ct-open-meta">
                   <span className="ct-badge s1">{ct.game}</span>
                   <span className="ct-kind">{ct.format}</span>
+                  {ct.difficulty && (
+                    <span className={`ct-diff ${ct.difficulty.toLowerCase()}`} title={`${ct.difficulty} difficulty`}>
+                      {ct.difficulty}
+                    </span>
+                  )}
                   {ct.format === "general" && <PlatformBadge small />}
                   {ct.phase === "joining" ? (
                     ct.endsAt ? (
@@ -355,7 +380,7 @@ export default function ContestsPage() {
                   </button>
                   <button
                     className="ws-mini"
-                    onClick={() => run(ct.contestId)}
+                    onClick={() => run(ct)}
                     title="Skip the wait and run this contest now (it also runs on its own when the window closes)"
                   >
                     Run now

@@ -29,6 +29,7 @@ import {
   openContestWindow,
   contestEndsAt,
   contestPhase,
+  contestDifficulty,
 } from "../coordinator/contestKinds.js";
 import { runAutopilotCycle, recentContests, difficultyTiers, autopilotEnabled } from "../coordinator/autopilot.js";
 import { query } from "../db/pool.js";
@@ -331,6 +332,7 @@ app.get("/contests", async (c) => {
         levelMax: s.levelMax,
         endsAt: contestEndsAt(s.contestId),
         phase: contestPhase(s.contestId),
+        difficulty: contestDifficulty.get(s.contestId) ?? null,
       }));
   } catch {
     /* leave open empty on read failure */

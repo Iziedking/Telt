@@ -9,7 +9,16 @@ import { config } from "../config/index.js";
 // - contestEnds: the join-window deadline (epoch ms) for each contest.
 export const customContests = new Set<string>();
 export const challengeContests = new Set<string>();
+export const contestDifficulty = new Map<string, string>();
 const contestEnds = new Map<string, number>();
+
+// Difficulty gates the agent levels that may join. The hardest contests are for the top
+// tiers only; the easiest are open to everyone.
+export function levelBandFor(difficulty: string): [number, number] {
+  if (difficulty === "Critical") return [3, 4];
+  if (difficulty === "Hard") return [2, 4];
+  return [0, 4];
+}
 
 // Open a join window for a contest: a random length between the configured min and max
 // minutes, so contests do not all close at once. Returns the deadline (epoch ms).

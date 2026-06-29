@@ -33,12 +33,21 @@ export async function runContest(contestId: string, opts: { puzzles?: number } =
       }
     }
   } else if (!customContests.has(contestId)) {
-    // General: fill the empty seats with platform agents as house (never win).
+    // General: if a real agent is in, fill the empty seats with platform agents as house
+    // (they cannot win, so the real agent takes the pool). If no one joined by the time the
+    // window closes, seat platform agents as real entrants so it still plays out as a
+    // platform-vs-platform demo and the funded pool returns to the platform.
+    const hasReal = entrants.some((e) => !e.isHouse);
     for (const r of roster) {
       if (entrants.length >= 2) break;
       if (entrants.some((e) => e.agentId === r.agentId)) continue;
-      await joinContestAsHouse(contestId, r.agentId);
-      entrants.push({ agentId: r.agentId, owner: "", isHouse: true });
+      if (hasReal) {
+        await joinContestAsHouse(contestId, r.agentId);
+        entrants.push({ agentId: r.agentId, owner: "", isHouse: true });
+      } else {
+        await joinContest(contestId, r.agentId, c.entryFee);
+        entrants.push({ agentId: r.agentId, owner: "", isHouse: false });
+      }
     }
   }
 
@@ -62,9 +71,10 @@ export async function runContest(contestId: string, opts: { puzzles?: number } =
     return;
   }
 
-  // Poker: no SUI escrow for a contest (the tUSDC pool is the stake). Play, then settle the
-  // pool to the winner. House agents cannot win, so the pool falls to the best real entrant.
-  const { winnerAgentId } = await playMatch({ participants, buyinMist: 0n });
+  // Poker: the table needs a positive SUI buy-in (the contract rejects a zero buy-in), which
+  // the coordinator sponsors for the contest. Play, then settle the tUSDC pool to the winner.
+  // House agents cannot win, so the pool falls to the best real entrant.
+  const { winnerAgentId } = await playMatch({ participants });
   const champ = participants.find((p) => p.agentId === winnerAgentId && !p.isHouse);
   const winner = champ ?? participants.find((p) => !p.isHouse);
   if (!winner) throw new Error("no eligible winner");

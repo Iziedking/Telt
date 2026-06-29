@@ -3,6 +3,7 @@ import { createContest, fundContest, joinContest, settleContest, CONTEST_FORMAT 
 import { playMatch } from "./table.js";
 import { playSolverMatch } from "./solverMatch.js";
 import { loadRoster, type RosterEntry } from "./roster.js";
+import { contestDifficulty, openContestWindow, levelBandFor } from "./contestKinds.js";
 import type { Seat } from "../poker/types.js";
 
 // Games the autopilot rotates through. 0 = poker, 1 = solver.
@@ -63,14 +64,42 @@ export function recentContests(): CycleResult[] {
   return recent.slice(0, 20);
 }
 
-// One full mission: the platform funds a random reward, both agents enter free, they play,
-// and the winner takes the reward.
+// Open a platform-funded contest and leave it for the join window: a random difficulty sets
+// the pool and the level band (the hardest are restricted to the top tiers). Real players can
+// enter during the window; if nobody does, the due-sweeper runs it as a platform demo.
+export async function openAutopilotContest(): Promise<void> {
+  const reward = randomReward();
+  const diff = difficultyFor(reward);
+  const [levelMin, levelMax] = levelBandFor(diff.label);
+  const game = cycleCount++ % 2 === 0 ? GAME_POKER : GAME_SOLVER;
+  const gameName = game === GAME_SOLVER ? "solver" : "poker";
+  const rewardBase = BigInt(reward) * 1_000_000n;
+
+  const { contestId } = await createContest({
+    game,
+    format: CONTEST_FORMAT.multi,
+    levelMin,
+    levelMax,
+    entryFeeUsdc: 0n, // platform-funded: players enter free
+    maxEntries: 2,
+  });
+  await fundContest(contestId, rewardBase);
+  contestDifficulty.set(contestId, diff.label);
+  openContestWindow(contestId);
+  console.log(
+    `[autopilot] opened a ${diff.label} ${gameName} contest ${contestId.slice(0, 10)}, pool ${reward} tUSDC, L${levelMin}-${levelMax}`,
+  );
+}
+
+// One full mission run immediately, end to end (used by the manual "Run a mission now"): the
+// platform funds a reward, both platform agents enter and play, and the winner takes it.
 export async function runAutopilotCycle(): Promise<CycleResult> {
   if (busy) throw new Error("an autopilot cycle is already running");
   busy = true;
   try {
     const reward = randomReward();
     const diff = difficultyFor(reward);
+    const [levelMin, levelMax] = levelBandFor(diff.label);
     const rewardBase = BigInt(reward) * 1_000_000n;
     const game = cycleCount++ % 2 === 0 ? GAME_POKER : GAME_SOLVER;
     const gameName = game === GAME_SOLVER ? "solver" : "poker";
@@ -89,11 +118,12 @@ export async function runAutopilotCycle(): Promise<CycleResult> {
     const { contestId } = await createContest({
       game,
       format: CONTEST_FORMAT.multi,
-      levelMin: 0,
-      levelMax: 4,
+      levelMin,
+      levelMax,
       entryFeeUsdc: 0n, // missions are platform-funded; agents enter free
       maxEntries: 2,
     });
+    contestDifficulty.set(contestId, diff.label);
     await fundContest(contestId, rewardBase); // the platform puts up the reward
     await joinContest(contestId, A.agentId, 0n);
     await joinContest(contestId, B.agentId, 0n);
@@ -159,7 +189,7 @@ export function startAutopilot(): void {
       const delay = fire.getTime() - now.getTime();
       if (delay > 0) {
         setTimeout(() => {
-          runAutopilotCycle().catch((e) => console.error("[autopilot] cycle failed:", (e as Error).message));
+          openAutopilotContest().catch((e) => console.error("[autopilot] open failed:", (e as Error).message));
         }, delay);
         console.log(`[autopilot] ${startH}-${endH}h contest scheduled for ${fire.toTimeString().slice(0, 5)}`);
       }
