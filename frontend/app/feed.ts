@@ -65,8 +65,16 @@ export interface SettledPayload {
 export interface SolverMatchPayload {
   matchId: string;
   puzzleCount: number;
+  secondsPerQuestion?: number;
   webGrounded: boolean;
   agents: { seat: string; name: string; level: number; agentId: string; platform?: boolean }[];
+}
+export interface SolverQuestion {
+  index: number;
+  topic: string;
+  question: string;
+  options: string[];
+  grounded: boolean;
 }
 export interface PuzzlePayload {
   matchId: string;
@@ -122,6 +130,7 @@ export type FeedMessage =
   | { type: "intel"; payload: IntelPayload }
   | { type: "settled"; payload: SettledPayload }
   | { type: "solverMatch"; payload: SolverMatchPayload }
+  | { type: "solverPuzzles"; payload: { matchId: string; puzzles: SolverQuestion[] } }
   | { type: "puzzle"; payload: PuzzlePayload }
   | { type: "answer"; payload: AnswerPayload }
   | {

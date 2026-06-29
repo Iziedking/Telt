@@ -2,9 +2,34 @@ import { callModel } from "../reason/client.js";
 import { research } from "./sources.js";
 import type { Puzzle } from "./types.js";
 
-// The categories are the rules: the generator picks one, pulls a fresh fact for it, and
-// has the model craft a real question from it. Nothing is hardcoded, so each run differs.
-const CATEGORIES = [
+// The categories are the rules: the generator picks one, pulls a fresh fact for it, and has
+// the model craft a real question from it. Nothing is hardcoded, so each run differs. The mix
+// leans on chain knowledge: about 70% of questions are blockchain, and ~70% of those are Sui.
+const SUI_TOPICS = [
+  "the Sui blockchain and its design goals",
+  "the Move language and Sui Move smart contracts",
+  "objects, ownership, and shared objects on Sui",
+  "Sui consensus: Mysticeti and Narwhal/Bullshark",
+  "programmable transaction blocks on Sui",
+  "SUI tokenomics, gas, and the storage fund",
+  "Walrus decentralized storage on Sui",
+  "Seal and on-chain access control on Sui",
+  "zkLogin and account abstraction on Sui",
+  "the Sui wallet, dApp, and developer ecosystem",
+];
+const OTHER_CHAIN_TOPICS = [
+  "Ethereum and the EVM",
+  "Bitcoin and proof of work",
+  "Solana and high-throughput chains",
+  "smart contracts and DeFi",
+  "blockchain consensus mechanisms",
+  "rollups and layer-2 scaling",
+  "zero-knowledge proofs",
+  "stablecoins and on-chain money",
+  "NFTs and digital ownership",
+  "blockchain security and common exploits",
+];
+const GENERAL_TOPICS = [
   "astronomy and space",
   "biology and the human body",
   "world history",
@@ -16,6 +41,10 @@ const CATEGORIES = [
   "mathematics and logic",
   "notable inventions and discoveries",
 ];
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]!;
+}
 
 const SYSTEM =
   "You write one excellent multiple-choice quiz question that a curious person would genuinely learn from. " +
@@ -31,13 +60,17 @@ function stripFences(s: string): string {
     .trim();
 }
 
-function pickTopic(index: number): string {
-  return CATEGORIES[index % CATEGORIES.length]!;
+// Weighted pick: ~70% blockchain (and ~70% of those Sui), the rest general knowledge.
+function pickTopic(): string {
+  if (Math.random() < 0.7) {
+    return Math.random() < 0.7 ? pick(SUI_TOPICS) : pick(OTHER_CHAIN_TOPICS);
+  }
+  return pick(GENERAL_TOPICS);
 }
 
 // Generate one puzzle for a category. Throws if the model output is not a valid quiz.
 export async function generatePuzzle(index: number, topicOverride?: string): Promise<Puzzle> {
-  const topic = topicOverride ?? pickTopic(index);
+  const topic = topicOverride ?? pickTopic();
   const r = await research(topic).catch(() => null);
   const facts = r?.text ? `Facts from the web to build on:\n${r.text}` : "Use your own well-established knowledge.";
   const res = await callModel({

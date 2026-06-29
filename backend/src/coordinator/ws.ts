@@ -74,8 +74,13 @@ export interface MatchPayload {
 export interface SolverMatchPayload {
   matchId: string;
   puzzleCount: number;
+  secondsPerQuestion?: number;
   webGrounded: boolean;
   agents: { seat: string; name: string; level: number; agentId: string; platform?: boolean }[];
+}
+export interface SolverPuzzlesPayload {
+  matchId: string;
+  puzzles: { index: number; topic: string; question: string; options: string[]; grounded: boolean }[];
 }
 export interface PuzzlePayload {
   matchId: string;
@@ -129,6 +134,7 @@ export type FeedMessage =
   | { type: "intel"; payload: IntelPayload }
   | { type: "settled"; payload: { matchId: string; tableId: string; winnerOwner: string; amount: number; digest: string } }
   | { type: "solverMatch"; payload: SolverMatchPayload }
+  | { type: "solverPuzzles"; payload: SolverPuzzlesPayload }
   | { type: "puzzle"; payload: PuzzlePayload }
   | { type: "answer"; payload: AnswerPayload }
   | {

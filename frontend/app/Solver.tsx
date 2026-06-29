@@ -7,7 +7,7 @@ import {
   WS_URL,
   type FeedMessage,
   type SolverMatchPayload,
-  type PuzzlePayload,
+  type SolverQuestion,
   type AnswerPayload,
   type PuzzleResultPayload,
   type SolverSettledPayload,
@@ -17,16 +17,19 @@ import PlatformBadge from "./PlatformBadge";
 
 const TIERS = ["Mark", "Reader", "Spotter", "Profiler", "Oracle"];
 const tierName = (l: number) => TIERS[Math.min(Math.max(l, 0), 4)] ?? "Mark";
+const PER_PAGE = 6;
 
 interface SolverVM {
   status: string;
   agents: SolverMatchPayload["agents"];
   scores: Record<string, number>;
   total: number;
+  secondsPerQuestion: number;
   webGrounded: boolean;
-  puzzle: PuzzlePayload | null;
-  answers: Record<string, AnswerPayload>; // by seat, for the current puzzle
-  result: PuzzleResultPayload | null; // the reveal for the current puzzle
+  questions: SolverQuestion[];
+  currentIndex: number;
+  answers: Record<number, Record<string, AnswerPayload>>; // [index][seat]
+  results: Record<number, PuzzleResultPayload>; // [index]
   settled: SolverSettledPayload | null;
 }
 
@@ -35,10 +38,12 @@ const INITIAL: SolverVM = {
   agents: [],
   scores: {},
   total: 0,
+  secondsPerQuestion: 20,
   webGrounded: false,
-  puzzle: null,
+  questions: [],
+  currentIndex: -1,
   answers: {},
-  result: null,
+  results: {},
   settled: null,
 };
 
@@ -50,30 +55,37 @@ function reduce(vm: SolverVM, msg: FeedMessage): SolverVM {
       p.agents.forEach((a) => (scores[a.seat] = 0));
       return {
         ...INITIAL,
-        status: `${p.agents.map((a) => a.name).join("  vs  ")}`,
+        status: p.agents.map((a) => a.name).join("  vs  "),
         agents: p.agents,
         scores,
         total: p.puzzleCount,
+        secondsPerQuestion: p.secondsPerQuestion ?? 20,
         webGrounded: p.webGrounded,
       };
     }
+    case "solverPuzzles":
+      return { ...vm, questions: msg.payload.puzzles };
     case "puzzle":
-      return { ...vm, puzzle: msg.payload, answers: {}, result: null, status: `Question ${msg.payload.index + 1} of ${msg.payload.total}` };
-    case "answer":
-      return { ...vm, answers: { ...vm.answers, [msg.payload.seat]: msg.payload } };
+      return { ...vm, currentIndex: msg.payload.index, status: `Question ${msg.payload.index + 1} of ${msg.payload.total}` };
+    case "answer": {
+      const a = msg.payload;
+      return { ...vm, answers: { ...vm.answers, [a.index]: { ...(vm.answers[a.index] ?? {}), [a.seat]: a } } };
+    }
     case "answerProven": {
-      // The proof for an answer landed after it was shown; light up its badge if the quiz is
-      // still on that question.
       const p = msg.payload;
-      const a = vm.answers[p.seat];
-      if (!a || vm.puzzle?.index !== p.index) return vm;
+      const row = vm.answers[p.index];
+      const prev = row?.[p.seat];
+      if (!prev) return vm;
       return {
         ...vm,
-        answers: { ...vm.answers, [p.seat]: { ...a, blobId: p.blobId, anchorDigest: p.anchorDigest, withinMandate: true } },
+        answers: {
+          ...vm.answers,
+          [p.index]: { ...row, [p.seat]: { ...prev, blobId: p.blobId, anchorDigest: p.anchorDigest, withinMandate: true } },
+        },
       };
     }
     case "puzzleResult":
-      return { ...vm, result: msg.payload, scores: msg.payload.scores };
+      return { ...vm, results: { ...vm.results, [msg.payload.index]: msg.payload }, scores: msg.payload.scores };
     case "solverSettled":
       return { ...vm, settled: msg.payload, status: `${msg.payload.winnerName} wins` };
     default:
@@ -85,6 +97,9 @@ export default function Solver() {
   const [vm, setVm] = useState<SolverVM>(INITIAL);
   const [connected, setConnected] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [page, setPage] = useState(0);
+  const [qStartedAt, setQStartedAt] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -114,8 +129,20 @@ export default function Solver() {
     };
   }, []);
 
-  // After a match settles, show the result briefly then return to idle so the page is ready
-  // for the next one. A new match arriving cancels the reset.
+  // Follow the active question: jump the page to it and reset its countdown.
+  useEffect(() => {
+    if (vm.currentIndex < 0) return;
+    setPage(Math.floor(vm.currentIndex / PER_PAGE));
+    setQStartedAt(Date.now());
+  }, [vm.currentIndex]);
+
+  // One-second clock for the per-question countdown.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // After a match settles, return to idle so the page is ready for the next one.
   useEffect(() => {
     if (!vm.settled) return;
     const id = setTimeout(() => setVm((prev) => (prev.settled ? INITIAL : prev)), 12000);
@@ -125,15 +152,21 @@ export default function Solver() {
   const run = useCallback(async () => {
     setStarting(true);
     try {
-      await fetch(`${API_BASE}/solver?puzzles=10`, { method: "POST" });
+      await fetch(`${API_BASE}/solver`, { method: "POST" });
     } catch {
       /* ignore */
     }
     setTimeout(() => setStarting(false), 1800);
   }, []);
 
-  const { puzzle, result, answers, agents, scores } = vm;
-  const answeredBy = (j: number) => agents.filter((a) => answers[a.seat]?.choice === j);
+  const { agents, scores, questions } = vm;
+  const remaining =
+    vm.currentIndex >= 0 && !vm.results[vm.currentIndex]
+      ? Math.max(0, vm.secondsPerQuestion - Math.floor((now - qStartedAt) / 1000))
+      : null;
+  const pageCount = Math.max(1, Math.ceil(questions.length / PER_PAGE));
+  const pageQs = questions.slice(page * PER_PAGE, page * PER_PAGE + PER_PAGE);
+  const answered = vm.currentIndex >= 0 ? vm.currentIndex + (vm.results[vm.currentIndex] ? 1 : 0) : 0;
 
   return (
     <section className="solver">
@@ -144,8 +177,8 @@ export default function Solver() {
           SOLVER<span className="dot">.</span>
         </h1>
         <p className="solver-sub">
-          Run a match to watch two platform agents answer live, web-grounded quizzes, every answer sealed and provable
-          on Walrus. To play yourself,{" "}
+          Two platform agents race a live, web-grounded quiz, heavy on blockchain and Sui. Every answer is sealed and
+          provable on Walrus, the most right wins. To play yourself,{" "}
           <Link href="/contests" className="solver-link">
             open a contest
           </Link>{" "}
@@ -165,6 +198,7 @@ export default function Solver() {
             {connected ? "live" : "offline"}
           </span>
           {vm.webGrounded && <span className="solver-tag">web-grounded</span>}
+          {vm.total > 0 && <span className="solver-tag sm">{vm.secondsPerQuestion}s / question</span>}
         </div>
       </header>
 
@@ -195,63 +229,84 @@ export default function Solver() {
           </div>
         )}
 
-        {puzzle && (
-          <div className="solver-puzzle">
-            <div className="sp-top">
-              <span className="sp-topic">{puzzle.topic}</span>
-              {puzzle.grounded && <span className="solver-tag sm">web</span>}
-              <span className="sp-count">
-                {puzzle.index + 1} / {puzzle.total}
-              </span>
-            </div>
-            <div className="sp-q">{puzzle.question}</div>
-            <div className="sp-options">
-              {puzzle.options.map((opt, j) => {
-                const isAnswer = result?.answer === j;
-                const pickers = answeredBy(j);
-                const cls = result ? (isAnswer ? "correct" : pickers.length ? "wrong" : "") : pickers.length ? "picked" : "";
-                return (
-                  <div key={j} className={`sp-opt ${cls}`}>
-                    <span className="sp-letter">{String.fromCharCode(65 + j)}</span>
-                    <span className="sp-text">{opt}</span>
-                    <span className="sp-pickers">
-                      {pickers.map((a) => (
-                        <span key={a.seat} className="sp-pill">
-                          {a.name}
-                        </span>
-                      ))}
-                      {result && isAnswer && <span className="sp-check">✓</span>}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-
-            {result && <div className="sp-explain">{result.explanation}</div>}
-
-            <div className="sp-rationales">
-              {agents.map((a) => {
-                const ans = answers[a.seat];
-                if (!ans) return null;
-                return (
-                  <div key={a.seat} className="sp-rat">
-                    <span className="sp-rat-name">{a.name}</span>
-                    {result && (
-                      <span className={`sp-verdict ${ans.correct ? "ok" : "no"}`}>{ans.correct ? "correct" : "wrong"}</span>
-                    )}
-                    {ans.blobId && <span className="sp-anchor" title={`anchored on Walrus${ans.anchorDigest ? `\n${ans.anchorDigest}` : ""}`}>proven</span>}
-                    <span className="sp-rat-why">{ans.rationale}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
         {vm.settled && (
           <div className="solver-settled">
             {vm.settled.winnerName} wins the round, {Object.values(vm.settled.scores).join(" to ")}.
           </div>
+        )}
+
+        {questions.length > 0 && (
+          <>
+            <div className="sq-bar">
+              <span className="sq-progress">
+                {answered} of {questions.length} answered
+              </span>
+              <span className="sq-pager">
+                <button className="sq-page-btn" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>
+                  ‹
+                </button>
+                <span className="sq-page-n">
+                  {page + 1} / {pageCount}
+                </span>
+                <button
+                  className="sq-page-btn"
+                  onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                  disabled={page >= pageCount - 1}
+                >
+                  ›
+                </button>
+              </span>
+            </div>
+
+            <div className="sq-grid">
+              {pageQs.map((q) => {
+                const result = vm.results[q.index];
+                const isCurrent = q.index === vm.currentIndex && !result;
+                const rowAns = vm.answers[q.index] ?? {};
+                return (
+                  <div key={q.index} className={`sq-card${isCurrent ? " active" : ""}${result ? " done" : ""}`}>
+                    <div className="sq-top">
+                      <span className="sq-num">Q{q.index + 1}</span>
+                      <span className="sp-topic">{q.topic}</span>
+                      {q.grounded && <span className="solver-tag sm">web</span>}
+                      {isCurrent && remaining !== null && <span className="sq-timer">{remaining}s</span>}
+                    </div>
+                    <div className="sq-q">{q.question}</div>
+                    <div className="sp-options">
+                      {q.options.map((opt, j) => {
+                        const isAnswer = result?.answer === j;
+                        const pickers = agents.filter((a) => rowAns[a.seat]?.choice === j);
+                        const cls = result
+                          ? isAnswer
+                            ? "correct"
+                            : pickers.length
+                              ? "wrong"
+                              : ""
+                          : pickers.length
+                            ? "picked"
+                            : "";
+                        return (
+                          <div key={j} className={`sp-opt ${cls}`}>
+                            <span className="sp-letter">{String.fromCharCode(65 + j)}</span>
+                            <span className="sp-text">{opt}</span>
+                            <span className="sp-pickers">
+                              {pickers.map((a) => (
+                                <span key={a.seat} className="sp-pill">
+                                  {a.name}
+                                </span>
+                              ))}
+                              {result && isAnswer && <span className="sp-check">✓</span>}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {result && <div className="sp-explain">{result.explanation}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
     </section>

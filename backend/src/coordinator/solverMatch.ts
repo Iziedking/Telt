@@ -39,8 +39,18 @@ export interface SolverMatchResult {
   scores: Record<string, number>;
 }
 
+// A round is a random 10, 15, 20, 25, or 30 questions. Each agent gets a fixed, fair window
+// to answer a question (enough for the top tier's reasoning passes, tight enough to matter);
+// exceed it and the answer does not count.
+const QUESTION_COUNTS = [10, 15, 20, 25, 30];
+const SECONDS_PER_QUESTION = 20;
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error("time")), ms))]);
+}
+
 export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<SolverMatchResult> {
-  const count = opts.puzzles ?? 10;
+  const count = opts.puzzles ?? QUESTION_COUNTS[Math.floor(Math.random() * QUESTION_COUNTS.length)]!;
   const doAnchor = opts.anchor ?? true;
   const players: Participant[] = opts.participants ?? loadRoster().agents.slice(0, 2).map((e) => ({ ...e }));
   if (players.length < 2) throw new Error("need at least two agents to play");
@@ -51,6 +61,7 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
     payload: {
       matchId,
       puzzleCount: count,
+      secondsPerQuestion: SECONDS_PER_QUESTION,
       webGrounded: solverSourcesConfigured(),
       agents: players.map((p) => ({
         seat: p.key,
@@ -70,6 +81,22 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
   }
   const puzzles = await generatePuzzles(count);
 
+  // Send the whole question set up front (without answers) so the UI can lay them all out and
+  // fill in agents' choices as they come.
+  broadcast({
+    type: "solverPuzzles",
+    payload: {
+      matchId,
+      puzzles: puzzles.map((p, i) => ({
+        index: i,
+        topic: p.topic,
+        question: p.question,
+        options: p.options,
+        grounded: p.grounded,
+      })),
+    },
+  });
+
   for (const [i, pz] of puzzles.entries()) {
     broadcast({
       type: "puzzle",
@@ -78,7 +105,13 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
 
     for (const p of players) {
       const opponent = players.find((q) => q.agentId !== p.agentId) ?? p;
-      const d = await solve(pz, planForLevel(p.level));
+      const d = await withTimeout(solve(pz, planForLevel(p.level)), SECONDS_PER_QUESTION * 1000).catch(() => ({
+        answer: -1,
+        rationale: "ran out of time",
+        confidence: 0,
+        samples: 0,
+        agreement: 0,
+      }));
       const correct = d.answer === pz.answer;
       if (correct) scores[p.key] = (scores[p.key] ?? 0) + 1;
       agreementTotals[p.key] = (agreementTotals[p.key] ?? 0) + d.agreement;
