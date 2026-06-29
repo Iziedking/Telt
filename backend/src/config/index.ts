@@ -93,6 +93,10 @@ export const config = {
   server: {
     port: Number(optional("PORT", "8787")),
   },
+  // In-memory token that gates the admin diagnostics. Empty disables the endpoint entirely.
+  admin: {
+    token: process.env.ADMIN_TOKEN ?? "",
+  },
   autopilot: {
     // When on, the platform opens a demo contest at a random minute within each daily
     // window (24h local). Default: morning, noon, evening — three a day. Change the windows

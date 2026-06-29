@@ -9,8 +9,8 @@ import TutorialButton from "./TutorialButton";
 // the app and gets the product nav, footer, and the navigation tour.
 export default function Chrome({ children }: { children: React.ReactNode }) {
   const path = usePathname() || "/";
-  // The landing, brand-export, and the launch experience show no app chrome.
-  if (path === "/" || path === "/brand" || path === "/launch") return <>{children}</>;
+  // The landing, brand-export, launch, and the admin health check show no app chrome.
+  if (path === "/" || path === "/brand" || path === "/launch" || path === "/admin") return <>{children}</>;
   return (
     <>
       <TopNav />

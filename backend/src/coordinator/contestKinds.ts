@@ -38,6 +38,12 @@ export function contestEndsAt(contestId: string): number | null {
   return contestEnds.get(contestId) ?? null;
 }
 
+// Close a contest's join window now (used by "Run now"), so the match only ever runs after the
+// window is shut and no agent answers while the countdown is still ticking.
+export function closeContestWindow(contestId: string): void {
+  contestEnds.set(contestId, Date.now());
+}
+
 // "joining" while the window is open, "running" once it has closed. (Settled contests are
 // filtered out before this is asked.)
 export function contestPhase(contestId: string, now: number = Date.now()): "joining" | "running" {

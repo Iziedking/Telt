@@ -3,7 +3,7 @@ import type { Server } from "node:http";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { config, memoryConfigured, reasonConfigured, suiConfigured } from "../config/index.js";
-import { reasonMode } from "../reason/client.js";
+import { reasonMode, probeProvider } from "../reason/client.js";
 import { attachWebSocket } from "../coordinator/ws.js";
 import { intelRoutes } from "../intel/market.js";
 import {
@@ -27,11 +27,12 @@ import {
   customContests,
   challengeContests,
   openContestWindow,
+  closeContestWindow,
   contestEndsAt,
   contestDifficulty,
 } from "../coordinator/contestKinds.js";
 import { runAutopilotCycle, recentContests, difficultyTiers, autopilotEnabled } from "../coordinator/autopilot.js";
-import { query } from "../db/pool.js";
+import { query, dbAvailable } from "../db/pool.js";
 
 // The read API and the WS live feed. Routes are intentionally thin: health, a status
 // probe that never leaks secrets, and read-back of matches and moves for the frontend.
@@ -121,6 +122,9 @@ app.post("/solver", (c) => {
 app.post("/contests/:id/run", (c) => {
   const id = c.req.param("id");
   if (!/^0x[0-9a-f]{1,64}$/.test(id)) return c.json({ error: "invalid contest id" }, 400);
+  // Run now closes the join window first, so the match starts from a closed window (no agent
+  // answers while a countdown is still showing).
+  closeContestWindow(id);
   void runContest(id).catch((e) => console.error("contest run failed:", (e as Error).message));
   return c.json({ started: true, contestId: id });
 });
@@ -333,6 +337,132 @@ app.get("/winnings", async (c) => {
     /* leave empty on read failure */
   }
   return c.json({ rows, total });
+});
+
+// Admin health check, gated by the in-memory ADMIN_TOKEN. One call surfaces whether each
+// backend dependency is alive (the model gateway / Conduit, RPC, DB, coordinator funds) and
+// flags contests that are stuck, so problems are easy to spot.
+const WAL_TYPE = "0x8270feb7375eee355e64fdb69c50abb6b5f9393a722883c1cf45f8e26048810a::wal::WAL";
+const ANCHOR_WAL_COST = 1_418_067;
+app.get("/admin/diagnostics", async (c) => {
+  const token = c.req.header("x-admin-token") || c.req.query("token") || "";
+  if (!config.admin.token || token !== config.admin.token) return c.json({ error: "unauthorized" }, 401);
+
+  const pkg = config.arena.packageId;
+  const conduitOn = Boolean(config.reason.conduitKey);
+
+  // Model gateways: probe the primary (Conduit when configured) and OpenRouter directly.
+  const [primaryProbe, openrouterProbe] = await Promise.all([probeProvider("anthropic"), probeProvider("openrouter")]);
+  const providers = {
+    primary: conduitOn ? "conduit" : config.reason.anthropicKey ? "anthropic" : "openrouter",
+    conduit: { ...primaryProbe, label: conduitOn ? "conduit" : "anthropic", baseUrl: conduitOn ? config.reason.conduitBaseUrl : null },
+    openrouter: openrouterProbe,
+    mode: reasonMode(),
+  };
+
+  // Coordinator funds: SUI for gas, WAL for anchoring, tUSDC for pools.
+  let coordinator: Record<string, unknown> = { address: "", error: "not read" };
+  try {
+    const addr = coordinatorAddress();
+    const all = await sui.getAllBalances({ owner: addr });
+    const bal = (suffix: string) => Number(all.find((b) => b.coinType.endsWith(suffix))?.totalBalance ?? 0);
+    const wal = bal("::wal::WAL");
+    coordinator = {
+      address: addr,
+      sui: bal("::sui::SUI") / 1e9,
+      wal,
+      walEnoughForAnchor: wal >= ANCHOR_WAL_COST,
+      anchorsLeft: Math.floor(wal / ANCHOR_WAL_COST),
+      tusdc: bal("::test_usdc::TEST_USDC") / 1e6,
+    };
+  } catch (e) {
+    coordinator = { address: "", error: (e as Error).message.slice(0, 200) };
+  }
+
+  // Sui RPC reachability + latency.
+  let rpc: Record<string, unknown> = { ok: false };
+  try {
+    const t0 = Date.now();
+    const ck = await sui.getChainIdentifier();
+    rpc = { ok: true, latencyMs: Date.now() - t0, chain: ck, url: config.sui.rpcOverride || `default ${config.sui.network}` };
+  } catch (e) {
+    rpc = { ok: false, error: (e as Error).message.slice(0, 200) };
+  }
+
+  // DB (optional).
+  let db: Record<string, unknown> = { available: dbAvailable() };
+  try {
+    await query("select 1");
+    db = { available: true, ok: true };
+  } catch (e) {
+    db = { available: false, ok: false, error: (e as Error).message.slice(0, 120) || "unreachable" };
+  }
+
+  // Contests: how many are open, by phase, plus a list to spot stuck ones.
+  let contests: Record<string, unknown> = { error: "not read" };
+  try {
+    const ev = await sui.queryEvents({
+      query: { MoveEventType: `${pkg}::contest::ContestCreated` },
+      limit: 40,
+      order: "descending",
+    });
+    const ids = [...new Set(ev.data.map((e) => String((e as any).parsedJson?.contest)).filter(Boolean))];
+    const states = (await readContests(ids)).filter((s) => s.status === 0);
+    const now = Date.now();
+    const list = states.map((s) => {
+      const endsAt = contestEndsAt(s.contestId);
+      const real = s.entrants.filter((e) => !e.isHouse).length;
+      const isDuel = s.format === CONTEST_FORMAT.duel;
+      let phase: string;
+      if (endsAt === null) phase = "expired";
+      else if (now < endsAt) phase = "joining";
+      else {
+        const ready = isDuel
+          ? challengeContests.has(s.contestId)
+            ? real >= 1
+            : real >= 2
+          : customContests.has(s.contestId)
+            ? real >= 2
+            : real >= 1;
+        phase = ready ? "running" : "expired";
+      }
+      return {
+        id: `${s.contestId.slice(0, 8)}…${s.contestId.slice(-4)}`,
+        game: s.game === 1 ? "solver" : "poker",
+        entrants: s.entrants.length,
+        real,
+        pool: Number(s.pool) / 1_000_000,
+        windowMs: endsAt ? endsAt - now : null,
+        phase,
+      };
+    });
+    const byPhase = { joining: 0, running: 0, expired: 0 } as Record<string, number>;
+    list.forEach((x) => (byPhase[x.phase] = (byPhase[x.phase] ?? 0) + 1));
+    contests = { open: list.length, byPhase, list };
+  } catch (e) {
+    contests = { error: (e as Error).message.slice(0, 200) };
+  }
+
+  const overallOk =
+    (providers.conduit.ok || providers.openrouter.ok) && (rpc as { ok: boolean }).ok && !(coordinator as { error?: string }).error;
+
+  return c.json({
+    ok: overallOk,
+    at: Date.now(),
+    providers,
+    coordinator,
+    rpc,
+    db,
+    contests,
+    autopilot: { enabled: autopilotEnabled(), windows: config.autopilot.windows },
+    features: {
+      avow: Boolean(config.avow.packageId),
+      memory: memoryConfigured(),
+      solverExa: Boolean(config.solver.exaKey),
+      solverFirecrawl: Boolean((config.solver as { firecrawlKey?: string }).firecrawlKey),
+      arenaConfigured: Boolean(config.arena.packageId),
+    },
+  });
 });
 
 // The Contests view: the difficulty tiers, recent finished missions, and the contests that

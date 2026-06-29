@@ -3855,6 +3855,150 @@ input:focus:not(:focus-visible) {
   border-radius: 12px;
   background: var(--surface);
 }
+
+/* --- Admin health check (standalone dark dashboard) --- */
+.adm {
+  min-height: 100vh;
+  background: #0f1318;
+  color: #e8edf2;
+  padding: 28px 32px 60px;
+}
+.adm-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.adm-kicker {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 22px;
+}
+.adm-overall {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.adm-overall.ok {
+  color: #4ade80;
+}
+.adm-overall.bad {
+  color: #f87171;
+}
+.adm-time {
+  color: #8b94a0;
+  font-weight: 400;
+  font-size: 12px;
+  margin-left: 8px;
+}
+.adm-auth {
+  display: flex;
+  gap: 8px;
+}
+.adm-auth input {
+  background: #1b212c;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #e8edf2;
+  font-family: var(--font-mono), monospace;
+  font-size: 13px;
+}
+.adm-auth button {
+  background: var(--signal);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  cursor: pointer;
+}
+.adm-err {
+  color: #f87171;
+  padding: 12px 0;
+}
+.adm-empty {
+  color: #8b94a0;
+  padding: 12px 0;
+}
+.adm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.adm-card {
+  background: #1b212c;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+.adm-card.adm-wide {
+  grid-column: 1 / -1;
+}
+.adm-card h2 {
+  font-family: var(--font-display), sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #b8c0c9;
+}
+.adm-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 4px 0;
+  font-family: var(--font-mono), monospace;
+  word-break: break-word;
+}
+.adm-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+.adm-dot.ok {
+  background: #4ade80;
+}
+.adm-dot.bad {
+  background: #f87171;
+}
+.adm-sub {
+  color: #8b94a0;
+  font-size: 11px;
+  font-family: var(--font-mono), monospace;
+  margin-top: 4px;
+  word-break: break-all;
+}
+.adm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+}
+.adm-table th {
+  text-align: left;
+  color: #8b94a0;
+  font-weight: 600;
+  padding: 6px 10px;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+.adm-table td {
+  padding: 6px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.adm-table tr.adm-stuck td {
+  color: #f0a868;
+}
 /* Incremental "show more" used by growing lists (feed, leaderboard, event history) so they
    never become an endless scroll. */
 .show-more {

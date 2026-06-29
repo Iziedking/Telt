@@ -160,6 +160,32 @@ async function callOpenrouter(params: CallParams): Promise<CallResult> {
   };
 }
 
+// Health-check a single provider with a tiny call, no fallback, so the admin page can see
+// exactly which one is responding (the "anthropic" provider is Conduit when configured).
+export interface ProviderProbe {
+  provider: Provider;
+  configured: boolean;
+  ok: boolean;
+  model?: string;
+  latencyMs?: number;
+  error?: string;
+}
+export async function probeProvider(provider: Provider): Promise<ProviderProbe> {
+  const configured =
+    provider === "openrouter"
+      ? Boolean(config.reason.openrouterKey)
+      : Boolean(config.reason.conduitKey || config.reason.anthropicKey);
+  if (!configured) return { provider, configured: false, ok: false, error: "no key set" };
+  const t0 = Date.now();
+  const params = { systemPrompt: "Reply with the single word OK.", userPrompt: "ping", maxTokens: 5, temperature: 0 };
+  try {
+    const r = provider === "openrouter" ? await callOpenrouter(params) : await callAnthropic(params);
+    return { provider, configured: true, ok: true, model: r.model, latencyMs: Date.now() - t0 };
+  } catch (e) {
+    return { provider, configured: true, ok: false, latencyMs: Date.now() - t0, error: (e as Error).message.slice(0, 240) };
+  }
+}
+
 // offline-dev: deterministic, no network. Clearly labeled so it never reads as a real
 // model answer. Used only to exercise the pipeline before any key is set.
 function offlineResult(): CallResult {
