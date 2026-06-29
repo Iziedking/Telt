@@ -48,7 +48,7 @@ export default function LeaderboardPage() {
             <span className="kicker-label">Standings</span>
           </div>
           <h1 className="display-heading">
-            Leaderboard<span className="red">.</span>
+            Leaderboard
           </h1>
           <p className="hero-sub">
             Ranked by results that are anchored and verifiable, so the table is something you can check, not just trust.

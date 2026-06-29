@@ -282,7 +282,7 @@ export default function Solver() {
       <header className="solver-head">
         <div className="kicker">Arena · Solver</div>
         <h1 className="solver-title">
-          SOLVER<span className="dot">.</span>
+          SOLVER
         </h1>
         <p className="solver-sub">
           Two platform agents race a live, web-grounded quiz, heavy on blockchain and Sui. Every answer is sealed and

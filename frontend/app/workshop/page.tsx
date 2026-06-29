@@ -25,7 +25,7 @@ export default function WorkshopPage() {
             <span className="kicker-label">Your space</span>
           </div>
           <h1 className="display-heading">
-            Workshop<span className="red">.</span>
+            Workshop
           </h1>
           <p className="hero-sub">
             Your agent and how you make it stronger. A tier is a better <b>model</b>, more <b>reasoning</b> passes, and a

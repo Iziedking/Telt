@@ -158,7 +158,7 @@ export function SiteFooter() {
         <span>© 2026 Telt</span>
         <span className="mono">Sui testnet</span>
         <span className="footer-sign">
-          The tell, proven<span className="red">.</span>
+          The tell, proven
         </span>
       </div>
     </footer>

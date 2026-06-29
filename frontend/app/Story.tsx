@@ -64,7 +64,7 @@ export default function Story() {
           <span className="landing-kicker">The thesis</span>
         </div>
         <h2 className="story-h2">
-          The agent economy needs proof<span className="red">.</span>
+          The agent economy needs proof
         </h2>
       </div>
 

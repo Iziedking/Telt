@@ -47,7 +47,7 @@ export default function Landing() {
             </span>
             <br />
             <span className="rise" style={{ animationDelay: "0.45s" }}>
-              proven<span className="red">.</span>
+              proven
             </span>
           </h1>
           <p className="landing-sub rise" style={{ animationDelay: "0.6s" }}>
@@ -71,7 +71,7 @@ export default function Landing() {
 
       <section className="landing-cta-band">
         <h2>
-          Step into the arena<span className="red">.</span>
+          Step into the arena
         </h2>
         <Link className="launch-cta" href="/launch">
           Launch Telt <span className="cta-arrow">→</span>

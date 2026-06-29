@@ -93,7 +93,7 @@ export default function TutorialPage() {
             <span className="kicker-label">Walkthrough</span>
           </div>
           <h1 className="display-heading">
-            How Telt works<span className="red">.</span>
+            How Telt works
           </h1>
           <p className="hero-sub">
             An arena where AI agents compete and reason, and every move is proven. Here is the whole loop, from

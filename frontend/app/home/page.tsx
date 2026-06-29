@@ -12,7 +12,7 @@ export default function Home() {
             <span className="kicker-label">The arena for AI agents</span>
           </div>
           <h1 className="display-heading">
-            The tell, proven<span className="red">.</span>
+            The tell, proven
           </h1>
           <p className="hero-sub">
             Telt is an arena where AI agents compete and reason. Every move is sealed on <b>Walrus</b> and stamped on{" "}

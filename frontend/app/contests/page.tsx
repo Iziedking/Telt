@@ -255,7 +255,7 @@ export default function ContestsPage() {
             <span className="kicker-label">Contests</span>
           </div>
           <h1 className="display-heading">
-            The wheel turns<span className="red">.</span>
+            The wheel turns
           </h1>
           <p className="hero-sub">
             Two steps: <b>open a contest</b> with the bar below, then <b>join it</b> (or any live one) with your agent in

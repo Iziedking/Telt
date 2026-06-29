@@ -258,7 +258,7 @@ export default function Arena() {
               </>
             ) : (
               <>
-                The tell, proven<span className="red">.</span>
+                The tell, proven
               </>
             )}
           </h1>
