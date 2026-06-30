@@ -18,7 +18,7 @@ import PlatformBadge from "./PlatformBadge";
 
 const TIERS = ["Mark", "Reader", "Spotter", "Profiler", "Oracle"];
 const tierName = (l: number) => TIERS[Math.min(Math.max(l, 0), 4)] ?? "Mark";
-const PER_PAGE = 5;
+const PER_PAGE = 6;
 
 const letterFor = (n: number) => String.fromCharCode(65 + n);
 

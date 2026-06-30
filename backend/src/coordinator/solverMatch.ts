@@ -43,7 +43,6 @@ export interface SolverMatchResult {
 // A round is a random 10, 15, 20, 25, or 30 questions. Each agent gets a fixed, fair window
 // to answer a question (enough for the top tier's reasoning passes, tight enough to matter);
 // exceed it and the answer does not count.
-const QUESTION_COUNTS = [10, 15, 20, 25, 30];
 const SECONDS_PER_QUESTION = 20;
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
@@ -51,7 +50,9 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 }
 
 export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<SolverMatchResult> {
-  const count = opts.puzzles ?? QUESTION_COUNTS[Math.floor(Math.random() * QUESTION_COUNTS.length)]!;
+  // Fixed at 10: a large enough sample that the stronger tier wins reliably instead of a small
+  // quiz being decided by variance, and a clean two-page grid in the UI.
+  const count = opts.puzzles ?? 10;
   const doAnchor = opts.anchor ?? true;
   const players: Participant[] = opts.participants ?? loadRoster().agents.slice(0, 2).map((e) => ({ ...e }));
   if (players.length < 2) throw new Error("need at least two agents to play");
