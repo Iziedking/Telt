@@ -6,6 +6,7 @@ import { TopNav, SiteFooter } from "./shell";
 import Tour from "./Tour";
 import TutorialButton from "./TutorialButton";
 import SoundToggle from "./SoundToggle";
+import ThemeToggle from "./ThemeToggle";
 import { startMusic, primeMusicOnGesture } from "./sound";
 
 // The landing page at "/" is pure marketing and shows no app chrome. Every other route is
@@ -30,6 +31,7 @@ export default function Chrome({ children }: { children: React.ReactNode }) {
       {children}
       <SiteFooter />
       <Tour />
+      <ThemeToggle />
       <SoundToggle />
       <TutorialButton />
     </>

@@ -4323,6 +4323,119 @@ input:focus:not(:focus-visible) {
 .snd-btn:hover .snd-btn-label {
   opacity: 1;
 }
+
+/* Theme toggle: a round icon button sitting above the sound toggle. */
+.thm-btn {
+  position: fixed;
+  right: 22px;
+  bottom: 126px;
+  z-index: 90;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: none;
+  cursor: pointer;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--cream);
+  box-shadow: 0 8px 22px rgba(20, 24, 31, 0.28);
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+.thm-btn:hover {
+  opacity: 1;
+}
+.thm-btn-mark {
+  display: grid;
+  place-items: center;
+}
+/* In dark mode the ink buttons would blend into the dark background and their dark shadow
+   vanishes, so give them a visible surface and border. */
+[data-theme="dark"] .tut-btn,
+[data-theme="dark"] .snd-btn,
+[data-theme="dark"] .thm-btn {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--line);
+}
+
+/* Wallet popover: balance + Suiscan link + disconnect, anchored under the wallet chip. */
+.wallet-wrap {
+  position: relative;
+}
+.wallet-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 100;
+  min-width: 210px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(20, 24, 31, 0.18);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.wp-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.wp-label {
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--dim);
+}
+.wp-addr {
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+  color: var(--text);
+  text-decoration: none;
+}
+.wp-addr:hover {
+  text-decoration: underline;
+}
+.wp-bal {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.wp-bal-n {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 800;
+  font-size: 26px;
+  color: var(--text);
+}
+.wp-bal-u {
+  font-family: var(--font-mono), monospace;
+  font-size: 13px;
+  color: var(--dim);
+}
+.wp-disconnect {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--signal);
+  background: transparent;
+  color: var(--signal);
+  border-radius: 10px;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+.wp-disconnect:hover {
+  background: var(--signal);
+  color: #fff;
+}
 @media (max-width: 640px) {
   .tut-btn {
     right: 14px;

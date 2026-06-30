@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ConnectModal, useCurrentAccount, useDisconnectWallet } from "@mysten/dapp-kit";
+import { ConnectModal, useCurrentAccount, useDisconnectWallet, useSuiClientQuery } from "@mysten/dapp-kit";
+import { suiscanAccount } from "./suiscan";
 
 function short(s: string): string {
   return s ? `${s.slice(0, 6)}…${s.slice(-4)}` : "";
@@ -24,17 +25,68 @@ export function Logo({ size = 36 }: { size?: number }) {
   );
 }
 
-// Real Sui wallet connect via dapp-kit. Connected shows the address chip (click to
-// disconnect); otherwise a connect trigger that opens the wallet modal.
+// Real Sui wallet connect via dapp-kit. Connected, the chip opens a small popover with the SUI
+// balance, a Suiscan link, and a disconnect button (clicking the chip no longer disconnects
+// outright). Disconnected, it's a connect trigger that opens the wallet modal.
 export function WalletButton() {
   const account = useCurrentAccount();
   const { mutate: disconnect } = useDisconnectWallet();
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+
+  const { data: bal } = useSuiClientQuery(
+    "getBalance",
+    { owner: account?.address ?? "" },
+    { enabled: !!account, refetchInterval: 15000 },
+  );
+  const sui = bal ? Number(bal.totalBalance) / 1e9 : null;
+
+  // Close the popover on an outside click or Escape.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (wrap.current && !wrap.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   if (account) {
     return (
-      <button className="chip wallet" data-tour="connect" onClick={() => disconnect()} title="Click to disconnect">
-        <span className="sdot" />
-        {short(account.address)}
-      </button>
+      <div className="wallet-wrap" ref={wrap}>
+        <button className="chip wallet" data-tour="connect" onClick={() => setOpen((o) => !o)} title="Wallet">
+          <span className="sdot" />
+          {short(account.address)}
+        </button>
+        {open && (
+          <div className="wallet-pop">
+            <div className="wp-row">
+              <span className="wp-label">Address</span>
+              <a className="wp-addr" href={suiscanAccount(account.address)} target="_blank" rel="noreferrer">
+                {short(account.address)} ↗
+              </a>
+            </div>
+            <div className="wp-bal">
+              <span className="wp-bal-n">{sui === null ? "…" : sui.toLocaleString(undefined, { maximumFractionDigits: 4 })}</span>
+              <span className="wp-bal-u">SUI</span>
+            </div>
+            <button
+              className="wp-disconnect"
+              onClick={() => {
+                disconnect();
+                setOpen(false);
+              }}
+            >
+              Disconnect
+            </button>
+          </div>
+        )}
+      </div>
     );
   }
   return <ConnectModal trigger={<button className="chip wallet" data-tour="connect">Connect wallet</button>} />;

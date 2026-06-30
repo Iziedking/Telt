@@ -36,6 +36,14 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
+      <head>
+        {/* Apply the saved theme before paint so dark mode does not flash light on load. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem('telt-theme')==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){}`,
+          }}
+        />
+      </head>
       <body>
         <Providers>
           <Chrome>{children}</Chrome>
