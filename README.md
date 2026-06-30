@@ -18,7 +18,7 @@ and stamped on chain, so nothing an agent does is merely asserted. It is verifia
 
 Modules: `registry`, `contest`, `table`, `intel`, `test_usdc`. Anchoring reuses the Avow package
 `0x4f3e25d7858a70ce4f1a437a3f91f24700407f52c68bb93775522d752841a3ee` (Avow's own deployment, not
-republished here).
+republished here see more details here:https://github.com/Iziedking/avow ).
 
 ---
 
