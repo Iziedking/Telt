@@ -4671,7 +4671,7 @@ input:focus:not(:focus-visible) {
   filter: brightness(1.05);
 }
 
-/* Branded Sui wallet connect modal. */
+/* Branded Sui wallet connect modal: two panels — wallets on the left, status/retry on the right. */
 .wc-overlay {
   position: fixed;
   inset: 0;
@@ -4685,58 +4685,56 @@ input:focus:not(:focus-visible) {
 }
 .wc-modal {
   position: relative;
-  width: min(400px, 92vw);
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  width: min(680px, 94vw);
+  min-height: 360px;
   background: var(--surface);
   border: 1.5px solid var(--line);
   border-radius: 20px;
-  padding: 28px 24px 22px;
-  text-align: center;
+  overflow: hidden;
   box-shadow: 0 30px 80px rgba(20, 24, 31, 0.4);
   animation: winPop 0.26s cubic-bezier(0.2, 0.9, 0.3, 1.3);
 }
 .wc-close {
   position: absolute;
   top: 12px;
-  right: 14px;
+  right: 16px;
+  z-index: 2;
   border: none;
   background: transparent;
   color: var(--dim);
-  font-size: 22px;
+  font-size: 24px;
   line-height: 1;
   cursor: pointer;
 }
 .wc-close:hover {
   color: var(--text);
 }
-.wc-mark {
-  display: grid;
-  place-items: center;
-  margin-bottom: 10px;
+.wc-left {
+  background: var(--bg);
+  border-right: 1.5px solid var(--line);
+  padding: 22px 16px;
 }
-.wc-title {
+.wc-left-title {
   font-family: var(--font-display), sans-serif;
   font-weight: 800;
-  font-size: 22px;
+  font-size: 18px;
   color: var(--text);
-}
-.wc-sub {
-  font-size: 13px;
-  color: var(--dim);
-  margin: 4px 0 18px;
-  line-height: 1.4;
+  margin-bottom: 16px;
 }
 .wc-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 .wc-wallet {
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 12px 14px;
-  border: 1.5px solid var(--line);
+  padding: 11px 12px;
+  border: 1.5px solid transparent;
   border-radius: 12px;
   background: var(--surface);
   color: var(--text);
@@ -4744,17 +4742,12 @@ input:focus:not(:focus-visible) {
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  text-decoration: none;
-  transition: border-color 0.15s ease, transform 0.1s ease;
+  text-align: left;
+  transition: border-color 0.15s ease;
 }
-.wc-wallet:hover {
+.wc-wallet:hover,
+.wc-wallet.active {
   border-color: var(--signal);
-  transform: translateY(-1px);
-}
-.wc-wallet:disabled {
-  opacity: 0.6;
-  cursor: default;
-  transform: none;
 }
 .wc-wallet-icon {
   width: 28px;
@@ -4765,43 +4758,84 @@ input:focus:not(:focus-visible) {
 }
 .wc-wallet-fallback {
   background: var(--peri);
+  display: inline-block;
 }
 .wc-wallet-name {
   flex: 1;
-  text-align: left;
-  display: flex;
-  flex-direction: column;
 }
-.wc-wallet-note {
-  font-size: 11px;
-  font-weight: 400;
+.wc-none {
+  font-size: 13px;
   color: var(--dim);
+  line-height: 1.5;
 }
-.wc-wallet-go {
-  font-family: var(--font-mono), monospace;
-  font-size: 12px;
+.wc-right {
+  display: grid;
+  place-items: center;
+  padding: 28px 26px;
+}
+.wc-panel {
+  text-align: center;
+  max-width: 320px;
+}
+.wc-mark,
+.wc-panel-icon {
+  display: grid;
+  place-items: center;
+  margin-bottom: 14px;
+}
+.wc-panel-icon img,
+.wc-panel-icon .wc-wallet-fallback {
+  border-radius: 14px;
+}
+.wc-panel-title {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 800;
+  font-size: 22px;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.wc-panel-sub {
+  font-size: 13px;
   color: var(--dim);
+  line-height: 1.5;
 }
-.wc-empty-head {
+.wc-panel-status {
+  font-size: 14px;
+  color: var(--dim);
+  line-height: 1.5;
+}
+.wc-panel-status.failed {
+  color: var(--signal);
+}
+.wc-cta {
+  display: inline-block;
+  margin-top: 18px;
+  padding: 11px 22px;
+  border: none;
+  border-radius: 12px;
+  background: var(--signal);
+  color: #fff;
   font-family: var(--font-display), sans-serif;
   font-weight: 700;
-  font-size: 15px;
-  color: var(--text);
-  margin-bottom: 2px;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
 }
-.wc-empty-sub {
-  font-size: 12px;
-  color: var(--dim);
-  margin-bottom: 12px;
+.wc-cta:hover {
+  filter: brightness(1.05);
 }
-.wc-error {
-  margin-top: 14px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(196, 36, 28, 0.1);
-  color: var(--signal);
-  font-size: 13px;
-  line-height: 1.4;
+@media (max-width: 560px) {
+  .wc-modal {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+  .wc-left {
+    border-right: none;
+    border-bottom: 1.5px solid var(--line);
+  }
+  .wc-right {
+    padding: 22px;
+  }
 }
 @media (max-width: 640px) {
   .tut-btn {
