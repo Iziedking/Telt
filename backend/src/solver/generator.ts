@@ -80,14 +80,38 @@ function pickTopic(): string {
   return pick(GENERAL_TOPICS);
 }
 
+// Recently-asked questions, so the same one does not keep coming up across matches. The model is
+// told to avoid them, and any that slip through are regenerated. (This is the practical side of
+// agent memory: the answers are anchored, so a question that does recur can be recalled.)
+const RECENT_MAX = 250;
+const recent: string[] = [];
+const recentSet = new Set<string>();
+function questionKey(q: string): string {
+  return q.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+function rememberQuestion(q: string): void {
+  const k = questionKey(q);
+  if (!k || recentSet.has(k)) return;
+  recentSet.add(k);
+  recent.push(q);
+  if (recent.length > RECENT_MAX) recentSet.delete(questionKey(recent.shift()!));
+}
+function avoidHint(): string {
+  if (!recent.length) return "";
+  return `\nDo not repeat or closely paraphrase any of these recently used questions:\n${recent
+    .slice(-10)
+    .map((q) => `- ${q}`)
+    .join("\n")}`;
+}
+
 // Generate one puzzle for a category. Throws if the model output is not a valid quiz.
-export async function generatePuzzle(index: number, topicOverride?: string): Promise<Puzzle> {
+async function generateOne(index: number, topicOverride?: string): Promise<Puzzle> {
   const topic = topicOverride ?? pickTopic();
   const r = await research(topic).catch(() => null);
   const facts = r?.text ? `Facts from the web to build on:\n${r.text}` : "Use your own well-established knowledge.";
   const res = await callModel({
     systemPrompt: SYSTEM,
-    userPrompt: `Category: ${topic}.\n${facts}\nWrite one fresh, non-obvious question.`,
+    userPrompt: `Category: ${topic}.\n${facts}\nWrite one fresh, non-obvious question.${avoidHint()}`,
     maxTokens: 520,
     temperature: 0.85,
     // Uses the primary (Conduit when configured) and falls back to OpenRouter automatically.
@@ -108,6 +132,21 @@ export async function generatePuzzle(index: number, topicOverride?: string): Pro
     sources: r?.sources ?? [],
     grounded: Boolean(r?.text),
   };
+}
+
+// Generate one puzzle, regenerating if it repeats a recently-asked question, then remember it.
+export async function generatePuzzle(index: number, topicOverride?: string): Promise<Puzzle> {
+  let last: Puzzle | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const pz = await generateOne(index, topicOverride);
+    last = pz;
+    if (!recentSet.has(questionKey(pz.question))) {
+      rememberQuestion(pz.question);
+      return pz;
+    }
+  }
+  if (last) rememberQuestion(last.question);
+  return last!;
 }
 
 // Generate `count` puzzles. A malformed or model-less attempt falls back to a canned one,

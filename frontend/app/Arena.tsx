@@ -396,12 +396,30 @@ export default function Arena() {
                   {seatName(vm, vm.intel.buyerSeat as Seat)} bought a dossier · {fmtSui(vm.intel.amount)}
                 </strong>
                 <div className="intel-summary">{stripMd(vm.intel.summary)}</div>
-                <div className="intel-meta mono">
-                  pay{" "}
-                  <a href={suiscan(vm.intel.payDigest)} target="_blank" rel="noreferrer" className="suiscan-link">
-                    {short(vm.intel.payDigest)}
+                {/* The x402 micropayment, on Sui: the proof that the intel was paid for, made
+                    prominent because it is the whole point. */}
+                <a
+                  className="x402-proof"
+                  href={suiscan(vm.intel.payDigest)}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="The x402 micropayment for this dossier, settled on Sui"
+                >
+                  <span className="x402-tag">x402 · paid on Sui</span>
+                  <span className="x402-digest mono">{short(vm.intel.payDigest)} ↗</span>
+                </a>
+                {vm.intel.dossierDigest && (
+                  <a
+                    className="x402-proof alt"
+                    href={suiscan(vm.intel.dossierDigest)}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="The dossier delivery, anchored on Sui"
+                  >
+                    <span className="x402-tag">dossier anchored</span>
+                    <span className="x402-digest mono">{short(vm.intel.dossierDigest)} ↗</span>
                   </a>
-                </div>
+                )}
               </>
             ) : (
               <>
@@ -434,7 +452,26 @@ export default function Arena() {
           <div className="tile canvas" id="feed">
             <div className="kicker">Feed · newest first</div>
             <div className="feed">
-              {vm.moveList.length === 0 && <div className="muted-small">No moves yet. Run a match.</div>}
+              {vm.intel && (
+                <div className="move intel-feed">
+                  <div className="head">
+                    <span className="who">{seatName(vm, vm.intel.buyerSeat as Seat)}</span>
+                    <span className="act">bought intel · {fmtSui(vm.intel.amount)}</span>
+                  </div>
+                  <div className="why">{stripMd(vm.intel.summary)}</div>
+                  <a
+                    className="badge x402"
+                    href={suiscan(vm.intel.payDigest)}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title="The x402 micropayment for this dossier, on Sui"
+                  >
+                    <span className="b-dot" /> x402 paid · {short(vm.intel.payDigest)}
+                  </a>
+                </div>
+              )}
+              {vm.moveList.length === 0 && !vm.intel && <div className="muted-small">No moves yet. Run a match.</div>}
               {[...vm.moveList]
                 .reverse()
                 .slice(0, feedShown)

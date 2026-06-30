@@ -4436,6 +4436,50 @@ input:focus:not(:focus-visible) {
   background: var(--signal);
   color: #fff;
 }
+
+/* x402 payment proof: the on-chain micropayment for a dossier, made prominent. On the red intel
+   tile it reads as a cream chip; in the feed it's a red badge. */
+.x402-proof {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: rgba(244, 241, 234, 0.16);
+  border: 1px solid rgba(244, 241, 234, 0.32);
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--cream);
+}
+.x402-proof:hover {
+  background: rgba(244, 241, 234, 0.26);
+}
+.x402-proof.alt {
+  background: rgba(244, 241, 234, 0.08);
+}
+.x402-tag {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.x402-digest {
+  font-size: 12px;
+  opacity: 0.92;
+  white-space: nowrap;
+}
+.move.intel-feed {
+  border-left: 3px solid var(--signal);
+}
+.badge.x402 {
+  background: var(--signal);
+  color: #fff;
+}
+.badge.x402 .b-dot {
+  background: #fff;
+}
 @media (max-width: 640px) {
   .tut-btn {
     right: 14px;
