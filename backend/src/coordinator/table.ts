@@ -76,12 +76,15 @@ const DEFAULTS = {
   anchor: true,
   untilBust: true,
   sponsorTable: true,
-  // Capped so a match is a tight demo length (~5-8 hands), not a marathon: if no one busts first,
-  // the chip leader takes it at the cap.
-  maxHands: 8,
+  // Capped so a match is a tight demo length, not a marathon: if no one busts first, the chip
+  // leader takes it at the cap.
+  maxHands: 6,
   // Blinds escalate slowly (every 4 hands) so the early hands stay deep for real play, then apply
   // enough pressure to push toward a result by the cap.
   escalateEvery: 4,
+  // Hard wall-clock cap. Poker turns are sequential and reasoned, so a long match drags; like a
+  // timed league, when the clock runs out the chip leader wins. Checked at the start of each hand.
+  timeCapMs: (Number(process.env.MATCH_TIME_CAP_SECONDS) || 240) * 1000,
 };
 
 function toMatchAgent(e: RosterEntry): MatchAgent {
@@ -154,8 +157,14 @@ export async function playMatch(
   // A freezeout: play until one agent can no longer post the big blind (busted), or the
   // safety cap. Either way the match yields exactly one winner.
   const cap = o.untilBust ? o.maxHands : o.hands;
+  const matchStart = Date.now();
   let handsPlayed = 0;
   for (let handIndex = 0; handIndex < cap; handIndex++) {
+    // Wall-clock cap: when the clock runs out, stop and let the chip leader win (decided below).
+    if (Date.now() - matchStart >= o.timeCapMs) {
+      log(matchId, "status", { status: "time", detail: `time cap reached after ${handIndex} hands; chip leader wins` });
+      break;
+    }
     const { sb, bb } = blindsForHand(handIndex, o.smallBlind, o.bigBlind, o.escalateEvery);
     if (chips.A <= bb || chips.B <= bb) {
       log(matchId, "status", { status: "busted", detail: `${otherSeat(chips.A <= bb ? "A" : "B")} takes it after ${handIndex} hands` });
@@ -190,7 +199,17 @@ export async function playMatch(
         }),
       );
       for (const d of decisions) {
-        if (d.buy) await runIntelBeat(matchId, intelRef, d.seat, bySeat, injected, intelBought, scoutLog[otherSeat(d.seat)]);
+        if (!d.buy) continue;
+        // Reserve the budget slot now, before the (possibly slow) beat, so the per-tier cap holds
+        // even if the beat times out below and its own increment never runs.
+        intelBought[d.seat] += 1;
+        // Cap the intel beat: the on-chain buy_intel + delivery should be quick, but a slow RPC must
+        // never hang the whole match. If it overruns, move on; any in-flight purchase finishes in the
+        // background (the payment is tiny and harmless if it lands late).
+        await Promise.race([
+          runIntelBeat(matchId, intelRef, d.seat, bySeat, injected, scoutLog[otherSeat(d.seat)]),
+          new Promise<void>((resolve) => setTimeout(resolve, 25_000)),
+        ]);
       }
     }
     const button: Seat = handIndex % 2 === 0 ? "A" : "B";
@@ -460,22 +479,12 @@ async function runIntelBeat(
   buyerSeat: Seat,
   bySeat: Record<Seat, MatchAgent>,
   injected: Record<Seat, string[]>,
-  intelBought: Record<Seat, number>,
   scoutMoves?: DossierMove[],
 ): Promise<void> {
   const buyer = bySeat[buyerSeat];
   const target = bySeat[otherSeat(buyerSeat)];
-
-  // Per-tier spending cap: refuse once this tier has used its dossier budget for the
-  // match, so an agent cannot buy a fresh read every street.
-  const budget = intelBudgetForLevel(buyer.level);
-  if (intelBought[buyerSeat] >= budget) {
-    log(matchId, "status", {
-      status: "intel-capped",
-      detail: `${buyer.name} hit its tier intel cap (${intelBought[buyerSeat]}/${budget})`,
-    });
-    return;
-  }
+  // The per-tier spending cap is enforced by the caller (the budget slot is reserved before this
+  // runs), so the beat just delivers.
 
   log(matchId, "status", { status: "intel", detail: `${buyer.name} buys a dossier on ${target.name}` });
   try {
@@ -517,10 +526,9 @@ async function runIntelBeat(
         summary,
       },
     });
-    intelBought[buyerSeat] += 1;
     log(matchId, "status", {
       status: "intel-delivered",
-      detail: `${delivered.dossier.verifiedCount}/${delivered.dossier.sourceCount} moves verified; loaded into ${buyer.name} (${intelBought[buyerSeat]}/${budget})`,
+      detail: `${delivered.dossier.verifiedCount}/${delivered.dossier.sourceCount} moves verified; loaded into ${buyer.name}`,
     });
   } catch (e) {
     console.warn(`intel beat failed:`, (e as Error).message);

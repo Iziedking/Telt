@@ -260,7 +260,7 @@ export default function Arena() {
           game="poker"
           winnerName={leader ? vm.seats[leader].name : "Split pot"}
           line={leader ? `takes the pot · ${vm.seats[leader].chips ?? 0} chips` : "the pot is split"}
-          pool={contest ? `${contest.pool} tUSDC paid to the winner` : `payout ${fmtSui(vm.settled.amount)}`}
+          pool={contest ? `${contest.pool} tUSDC paid to the winner` : "free simulation · no stake"}
           digest={vm.settled.digest}
           onClose={() => setClosedSettle(vm.settled!.matchId)}
         />
