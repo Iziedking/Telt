@@ -70,9 +70,10 @@ export const config = {
     openrouterKey: process.env.OPENROUTER_API_KEY ?? "",
     openrouterModel: optional("LLM_MODEL", "google/gemini-2.5-flash"),
     // When the Anthropic/Conduit tier fails, the top tier and the puzzle writer fall back to this
-    // OpenRouter model. Picked to be cheap but clearly stronger than the L0-L3 ladder so Oracle
-    // stays the best tier even when Conduit is down.
-    openrouterFallbackModel: optional("OPENROUTER_FALLBACK_MODEL", "deepseek/deepseek-chat"),
+    // OpenRouter model. Gemini Flash is fast, so a fallback answer still lands inside the question
+    // timer, and it is stronger than the cheap L0-L2 ladder. The strong path is a live Conduit key;
+    // this is only the degraded mode. Set to deepseek/deepseek-chat for more strength at ~3x latency.
+    openrouterFallbackModel: optional("OPENROUTER_FALLBACK_MODEL", "google/gemini-2.5-flash"),
     tierModels: [
       { provider: "openrouter" as const, model: optional("TIER0_MODEL", "meta-llama/llama-3.2-1b-instruct") },
       { provider: "openrouter" as const, model: optional("TIER1_MODEL", "meta-llama/llama-3.2-3b-instruct") },

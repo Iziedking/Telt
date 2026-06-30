@@ -27,32 +27,41 @@ export async function solve(puzzle: Puzzle, plan: InferencePlan): Promise<Solver
   const userPrompt =
     `${puzzle.question}\n\n` + puzzle.options.map((o, i) => `${i}) ${o}`).join("\n") + "\n\nPick the best option.";
 
+  // Run the self-consistency passes in parallel. Sequentially, a higher tier (more passes on a
+  // slower model, plus any provider fallback) takes several times as long and blows past the
+  // per-question time limit, leaving the agent with no answer.
+  const passes = await Promise.all(
+    Array.from({ length: plan.samples }, async () => {
+      try {
+        const res = await callModel({
+          systemPrompt: SYSTEM,
+          userPrompt,
+          maxTokens: plan.maxTokens,
+          temperature: plan.temperature,
+          provider: plan.provider,
+          model: plan.model,
+        });
+        const p = JSON.parse(stripFences(res.text)) as { answer?: number; confidence?: number; rationale?: string };
+        const a = Number(p.answer);
+        if (a >= 0 && a < puzzle.options.length) {
+          return { answer: a, confidence: Number(p.confidence ?? 0), rationale: String(p.rationale ?? "") };
+        }
+      } catch {
+        /* a bad pass just does not vote */
+      }
+      return null;
+    }),
+  );
+
   const votes: number[] = [];
   let bestRationale = "";
   let bestConfidence = 0;
-
-  for (let pass = 0; pass < plan.samples; pass++) {
-    try {
-      const res = await callModel({
-        systemPrompt: SYSTEM,
-        userPrompt,
-        maxTokens: plan.maxTokens,
-        temperature: plan.temperature,
-        provider: plan.provider,
-        model: plan.model,
-      });
-      const p = JSON.parse(stripFences(res.text)) as { answer?: number; confidence?: number; rationale?: string };
-      const a = Number(p.answer);
-      if (a >= 0 && a < puzzle.options.length) {
-        votes.push(a);
-        const conf = Number(p.confidence ?? 0);
-        if (conf >= bestConfidence) {
-          bestConfidence = conf;
-          bestRationale = String(p.rationale ?? "");
-        }
-      }
-    } catch {
-      /* a bad pass just does not vote */
+  for (const r of passes) {
+    if (!r) continue;
+    votes.push(r.answer);
+    if (r.confidence >= bestConfidence) {
+      bestConfidence = r.confidence;
+      bestRationale = r.rationale;
     }
   }
 

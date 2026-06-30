@@ -75,15 +75,15 @@ export async function decide(ctx: DecisionContext, plan: InferencePlan): Promise
   // Tier = reasoning (plan.samples passes) + training (the level's expert skill, injected
   // into the system prompt). A higher tier both thinks more and knows more.
   const systemPrompt = SYSTEM_PROMPT + pokerSkill(ctx.level).system + plan.hint;
-  const proposals: Proposal[] = [];
-  let latencyMs = 0;
   let lastRaw = "";
   let source = "offline-dev";
+  const t0 = Date.now();
 
-  for (let pass = 0; pass < plan.samples; pass++) {
-    let res: CallResult;
-    try {
-      res = await callWithRetry(
+  // Run the self-consistency passes in parallel: sequentially, a higher tier (more passes, plus
+  // any provider fallback latency) takes several times as long, which stalls the table.
+  const settled = await Promise.all(
+    Array.from({ length: plan.samples }, () =>
+      callWithRetry(
         {
           systemPrompt,
           userPrompt,
@@ -93,16 +93,19 @@ export async function decide(ctx: DecisionContext, plan: InferencePlan): Promise
           model: plan.model,
         },
         plan.retries,
-      );
-    } catch {
-      continue;
-    }
-    latencyMs += res.latencyMs;
+      ).catch(() => null),
+    ),
+  );
+
+  const proposals: Proposal[] = [];
+  for (const res of settled) {
+    if (!res) continue;
     source = res.source;
     lastRaw = res.text;
     const p = extractProposal(res.text, ctx);
     if (p) proposals.push(p);
   }
+  const latencyMs = Date.now() - t0;
 
   if (proposals.length === 0) {
     // The model never returned a parseable action. Fall back to the safest legal line.
@@ -228,10 +231,53 @@ function extractProposal(text: string, ctx: DecisionContext): Proposal | null {
   return { action: a, size, confidence, rationale, raw: text };
 }
 
+// When the model produces nothing usable, fall back to a real hand-strength heuristic rather than
+// always folding (which makes every hand look broken). Cards are two chars like "Ah" or "Td".
+const RANK_ORDER = "23456789TJQKA";
+const cardRank = (c: Card): number => RANK_ORDER.indexOf(c[0]!);
+
+// A rough 0..1 strength: preflop from the hole cards, postflop boosted by how the hole connects
+// with the board (pair, two pair, trips, quads). Library-grade accuracy is not needed here; this
+// only runs when the model failed, to keep the fallback playing something sensible.
+function handStrength(hole: [Card, Card], board: Card[]): number {
+  const r1 = cardRank(hole[0]);
+  const r2 = cardRank(hole[1]);
+  const hi = Math.max(r1, r2);
+  const lo = Math.min(r1, r2);
+  const pair = r1 === r2;
+  const suited = hole[0][1] === hole[1][1];
+  let s = pair ? 0.55 + hi / 30 : (hi + lo) / 26 + (suited ? 0.06 : 0) + (hi - lo === 1 ? 0.05 : 0);
+  if (board.length) {
+    const counts = new Map<number, number>();
+    for (const c of [...hole, ...board]) counts.set(cardRank(c), (counts.get(cardRank(c)) ?? 0) + 1);
+    const vals = [...counts.values()];
+    const maxCount = Math.max(...vals);
+    const holeRanks = [r1, r2];
+    if (maxCount >= 4) s = 0.97;
+    else if (maxCount === 3) s = Math.max(s, 0.85);
+    else if (vals.filter((c) => c === 2).length >= 2) s = Math.max(s, 0.78);
+    else if (maxCount === 2) {
+      const paired = [...counts.entries()].find(([, c]) => c === 2)?.[0];
+      s = Math.max(s, paired !== undefined && holeRanks.includes(paired) ? 0.6 : 0.4);
+    }
+  }
+  return Math.max(0, Math.min(1, s));
+}
+
 function safeAction(ctx: DecisionContext): { action: ActionType; size: number; rationale: string } {
-  if (ctx.canCheck) return { action: "check", size: 0, rationale: "Fallback: check, no parseable decision." };
-  if (ctx.canCall && ctx.toCall <= ctx.pot) return { action: "call", size: 0, rationale: "Fallback: call a small bet." };
-  return { action: "fold", size: 0, rationale: "Fallback: fold to pressure." };
+  const s = handStrength(ctx.hole, ctx.board);
+  const potOdds = ctx.toCall > 0 ? ctx.toCall / (ctx.pot + ctx.toCall) : 0;
+  if (s >= 0.72 && ctx.canRaise) {
+    const size = Math.round(Math.min(ctx.maxRaiseTo, Math.max(ctx.minRaiseTo, ctx.currentBet + ctx.pot * 0.7)));
+    return { action: "raise", size, rationale: "Fallback: strong hand, value raise." };
+  }
+  if (s >= 0.45) {
+    if (ctx.canCall && potOdds <= s) return { action: "call", size: 0, rationale: "Fallback: decent hand, price is right." };
+    if (ctx.canCheck) return { action: "check", size: 0, rationale: "Fallback: decent hand, take a free card." };
+  }
+  if (ctx.canCheck) return { action: "check", size: 0, rationale: "Fallback: weak hand, check." };
+  if (ctx.canCall && ctx.toCall <= ctx.pot * 0.1) return { action: "call", size: 0, rationale: "Fallback: weak hand, cheap call." };
+  return { action: "fold", size: 0, rationale: "Fallback: weak hand, fold." };
 }
 
 function median(nums: number[]): number {

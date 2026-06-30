@@ -50,6 +50,12 @@ export function reasonMode(): ReasonSource {
 // it is not a transient warmup, so we skip that key entirely.
 const CONDUIT_PLACEHOLDER = /response did not generate correctly|please resend/i;
 
+// A Conduit key that returns the placeholder (or errors) is parked for a cooldown, so we do not
+// pay its latency on every reasoning call. If every key is parked we still retry them all, in case
+// access came back.
+const DEAD_KEY_COOLDOWN_MS = 5 * 60 * 1000;
+const deadKeyUntil = new Map<string, number>();
+
 const clientCache = new Map<string, Anthropic>();
 function anthropicClientFor(key: string, conduit: boolean): Anthropic {
   const ck = (conduit ? "c:" : "a:") + key;
@@ -104,8 +110,15 @@ async function callAnthropic(params: CallParams): Promise<CallResult> {
   // Try each Conduit key in order, skipping any that returns Conduit's placeholder; fall back to
   // the real Anthropic key when no Conduit keys are set. Streaming, because Conduit only returns
   // SSE (and streaming also works against the real Anthropic API).
-  const attempts = config.reason.conduitKeys.length
-    ? config.reason.conduitKeys.map((key) => ({ key, conduit: true }))
+  // Prefer Conduit keys not currently parked as dead; if all are parked, try them all anyway.
+  let conduitKeys = config.reason.conduitKeys;
+  if (conduitKeys.length) {
+    const now = Date.now();
+    const live = conduitKeys.filter((k) => (deadKeyUntil.get(k) ?? 0) <= now);
+    if (live.length) conduitKeys = live;
+  }
+  const attempts = conduitKeys.length
+    ? conduitKeys.map((key) => ({ key, conduit: true }))
     : config.reason.anthropicKey
       ? [{ key: config.reason.anthropicKey, conduit: false }]
       : [];
@@ -126,11 +139,14 @@ async function callAnthropic(params: CallParams): Promise<CallResult> {
         .join("")
         .trim();
       if (a.conduit && CONDUIT_PLACEHOLDER.test(text)) {
+        deadKeyUntil.set(a.key, Date.now() + DEAD_KEY_COOLDOWN_MS);
         lastErr = new Error("conduit key returned a placeholder");
         continue;
       }
+      if (a.conduit) deadKeyUntil.delete(a.key); // a live key clears any park
       return { text, source: "anthropic", provider: "anthropic", model, chatID: message.id ?? null, verified: null, latencyMs: Date.now() - t0 };
     } catch (e) {
+      if (a.conduit) deadKeyUntil.set(a.key, Date.now() + DEAD_KEY_COOLDOWN_MS);
       lastErr = e as Error;
     }
   }

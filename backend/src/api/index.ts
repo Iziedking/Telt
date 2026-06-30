@@ -33,7 +33,7 @@ import {
   contestDifficulty,
 } from "../coordinator/contestKinds.js";
 import { runAutopilotCycle, recentContests, difficultyTiers, autopilotEnabled } from "../coordinator/autopilot.js";
-import { query, dbAvailable } from "../db/pool.js";
+import { query, dbAvailable, persist } from "../db/pool.js";
 
 // The read API and the WS live feed. Routes are intentionally thin: health, a status
 // probe that never leaks secrets, and read-back of matches and moves for the frontend.
@@ -135,27 +135,48 @@ app.post("/contests/:id/run", (c) => {
   return c.json({ started: true, contestId: id });
 });
 
-// tUSDC faucet: a modest drip, claimable twice a week per wallet. Kept small on purpose so
-// tUSDC stays scarce and winning contests is what actually grows a balance. (In-memory rate
-// limit; a restart resets it. Move to the DB for a persistent limit later.)
+// tUSDC faucet: a modest drip, claimable twice a week per wallet. Kept small on purpose so tUSDC
+// stays scarce and winning contests is what actually grows a balance. Claims are persisted to the
+// DB so the rate limit survives a restart; an in-memory map is the fallback when the DB is down.
 const FAUCET_CLAIM_USDC = 25;
 const FAUCET_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const FAUCET_MAX_CLAIMS = 2;
 const faucetClaims = new Map<string, number[]>();
+
+// Claim timestamps (ms) inside the window for an address, durable via the DB when available.
+async function recentFaucetClaims(address: string, now: number): Promise<number[]> {
+  if (dbAvailable()) {
+    try {
+      const since = new Date(now - FAUCET_WINDOW_MS).toISOString();
+      const r = await query<{ created_at: Date }>(
+        "select created_at from faucet_claims where address = $1 and created_at > $2 order by created_at asc",
+        [address, since],
+      );
+      return r.rows.map((row) => new Date(row.created_at).getTime());
+    } catch {
+      /* fall through to the in-memory mirror */
+    }
+  }
+  return (faucetClaims.get(address) ?? []).filter((t) => now - t < FAUCET_WINDOW_MS);
+}
+
 app.post("/faucet", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const address = String(body.address ?? "").toLowerCase();
   if (!/^0x[0-9a-f]{1,64}$/.test(address)) return c.json({ error: "invalid address" }, 400);
   const now = Date.now();
-  const claims = (faucetClaims.get(address) ?? []).filter((t) => now - t < FAUCET_WINDOW_MS);
+  const claims = await recentFaucetClaims(address, now);
   if (claims.length >= FAUCET_MAX_CLAIMS) {
     return c.json({ error: "faucet limit reached: twice a week", retryAt: claims[0]! + FAUCET_WINDOW_MS, remaining: 0 }, 429);
   }
   try {
     const digest = await faucetMintUsdc(address, BigInt(FAUCET_CLAIM_USDC) * 1_000_000n);
-    claims.push(now);
-    faucetClaims.set(address, claims);
-    return c.json({ ok: true, address, amount: FAUCET_CLAIM_USDC, digest, remaining: FAUCET_MAX_CLAIMS - claims.length });
+    // Record durably and in the in-memory mirror (the fallback when the DB is down).
+    await persist(() =>
+      query("insert into faucet_claims (address, amount, digest) values ($1, $2, $3)", [address, FAUCET_CLAIM_USDC, digest]),
+    );
+    faucetClaims.set(address, [...(faucetClaims.get(address) ?? []).filter((t) => now - t < FAUCET_WINDOW_MS), now]);
+    return c.json({ ok: true, address, amount: FAUCET_CLAIM_USDC, digest, remaining: FAUCET_MAX_CLAIMS - claims.length - 1 });
   } catch (e) {
     return c.json({ error: (e as Error).message }, 500);
   }

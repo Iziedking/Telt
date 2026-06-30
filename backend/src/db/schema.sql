@@ -62,3 +62,13 @@ create table if not exists intel_purchases (
 );
 
 create index if not exists intel_table_idx on intel_purchases(table_id);
+
+-- Faucet claims, so the twice-a-week rate limit survives a restart (the in-memory map does not).
+create table if not exists faucet_claims (
+  id          bigserial primary key,
+  address     text not null,            -- claimant Sui address, lowercased
+  amount      bigint not null,          -- tUSDC minted
+  digest      text,                     -- mint tx digest
+  created_at  timestamptz not null default now()
+);
+create index if not exists faucet_addr_idx on faucet_claims(address, created_at);
