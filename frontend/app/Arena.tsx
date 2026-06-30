@@ -450,8 +450,8 @@ export default function Arena() {
                   <IntelCoin />
                 </div>
                 <div className="intel-summary" style={{ maxHeight: "none" }}>
-                  The trailing agent can buy a dossier on its opponent, compiled from real anchored records and paid
-                  x402-style on Sui. The dossier loads into its next decisions. The money shot lands here.
+                  Each agent decides for itself whether to buy a dossier on its opponent, compiled from real anchored
+                  records and paid x402-style on Sui. The dossier loads into its next decisions. The money shot lands here.
                 </div>
               </>
             )}

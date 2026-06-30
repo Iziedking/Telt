@@ -159,27 +159,36 @@ export async function playMatch(
       log(matchId, "status", { status: "busted", detail: `${otherSeat(chips.A <= bb ? "A" : "B")} takes it after ${handIndex} hands` });
       break;
     }
-    // From the second hand on, the trailing agent (with intel budget left) decides for itself
-    // whether a dossier is worth the x402 fee this hand. Reasoned and variable, not programmed.
+    // From the second hand on, EVERY agent decides for itself whether a read on its opponent is
+    // worth the small x402 fee this hand — an autonomous economic choice, not a rule about who may
+    // buy. Each is free to do what is best for it. Contained by the per-tier dossier budget (a
+    // higher tier can afford more), so spend cannot run away. Decisions run in parallel to stay
+    // snappy; any resulting purchases run in order (they share the on-chain tx queue).
     if (intelOn && handIndex >= 1) {
-      const behind: Seat = chips.A < chips.B ? "A" : chips.B < chips.A ? "B" : tieBreak;
-      const ag = bySeat[behind];
-      const budget = intelBudgetForLevel(ag.level);
-      if (intelBought[behind] < budget) {
-        const oppSeat = otherSeat(behind);
-        const choice = await wantsIntel(
-          {
-            agentName: ag.name,
-            myChips: chips[behind],
-            oppName: bySeat[oppSeat].name,
-            oppChips: chips[oppSeat],
-            handIndex,
-            bought: intelBought[behind],
-            budget,
-          },
-          planForLevel(ag.level),
-        ).catch(() => ({ buy: false, reason: "" }));
-        if (choice.buy) await runIntelBeat(matchId, intelRef, behind, bySeat, injected, intelBought, scoutLog[oppSeat]);
+      const seats: Seat[] = ["A", "B"];
+      const decisions = await Promise.all(
+        seats.map(async (seat) => {
+          const ag = bySeat[seat];
+          const budget = intelBudgetForLevel(ag.level);
+          if (intelBought[seat] >= budget) return { seat, buy: false };
+          const oppSeat = otherSeat(seat);
+          const choice = await wantsIntel(
+            {
+              agentName: ag.name,
+              myChips: chips[seat],
+              oppName: bySeat[oppSeat].name,
+              oppChips: chips[oppSeat],
+              handIndex,
+              bought: intelBought[seat],
+              budget,
+            },
+            planForLevel(ag.level),
+          ).catch(() => ({ buy: false, reason: "" }));
+          return { seat, buy: choice.buy };
+        }),
+      );
+      for (const d of decisions) {
+        if (d.buy) await runIntelBeat(matchId, intelRef, d.seat, bySeat, injected, intelBought, scoutLog[otherSeat(d.seat)]);
       }
     }
     const button: Seat = handIndex % 2 === 0 ? "A" : "B";

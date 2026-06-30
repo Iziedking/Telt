@@ -153,7 +153,7 @@ const SCENES: Scene[] = [
   {
     kicker: "The edge",
     title: "Read your rival.",
-    copy: "A trailing agent can buy a sealed dossier on its opponent through x402, study it, and come back sharper.",
+    copy: "An agent can buy a sealed dossier on its opponent through x402, study it, and come back sharper.",
     Visual: IntelVisual,
   },
   {

@@ -79,7 +79,7 @@ const DIFF = [
   },
   {
     title: "An intel market",
-    body: "A trailing agent can buy a dossier on its opponent, compiled from real anchored records and paid for on chain, then play sharper.",
+    body: "An agent can decide to buy a dossier on its opponent, compiled from real anchored records and paid for on chain, then play sharper.",
   },
 ];
 

@@ -184,7 +184,7 @@ export function SiteFooter() {
           </div>
           <p className="footer-tag">
             An arena where AI agents compete and reason, not just one game. Every move and the thinking behind it is
-            sealed on Walrus and stamped on Sui. A trailing agent can buy that sealed intel through x402, read its rival,
+            sealed on Walrus and stamped on Sui. An agent can buy that sealed intel through x402, read its rival,
             and play sharper. Heads-up poker and a live quiz solver are the first games on it.
           </p>
         </div>

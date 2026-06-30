@@ -72,8 +72,9 @@ const SYSTEM_PROMPT =
 const INTEL_SYSTEM =
   "You are a heads-up poker player deciding whether to spend a small x402 fee on a scouting dossier of your " +
   "opponent — a report of their real tendencies, compiled from their anchored move history, that loads into your " +
-  "next decisions. Buy it when a read is genuinely worth the cost: you are behind and need an edge, or you have not " +
-  "scouted them and the match is live. Skip it when you are comfortably ahead or already understand their game. " +
+  "next decisions. It is a tiny fraction of a chip. Buy it whenever a sharper read would help you win more — to find " +
+  "an exploit, pressure a weak spot, or confirm a pattern — whether you are ahead or behind. Do what is best for you. " +
+  "Skip it only when you already understand their game or have no read to gain. " +
   'Reply with ONLY JSON: {"buy": true|false, "reason": "<one short sentence>"}.';
 
 export interface IntelChoiceContext {
