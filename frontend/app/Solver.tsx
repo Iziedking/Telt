@@ -14,6 +14,7 @@ import {
 } from "./feed";
 import GameTabs from "./GameTabs";
 import { play as sound } from "./sound";
+import WinnerCard from "./WinnerCard";
 import PlatformBadge from "./PlatformBadge";
 
 const TIERS = ["Mark", "Reader", "Spotter", "Profiler", "Oracle"];
@@ -140,6 +141,8 @@ export default function Solver() {
   const [now, setNow] = useState(() => Date.now());
   const [contestId, setContestId] = useState<string | null>(null);
   const [contest, setContest] = useState<ContestInfo | null>(null);
+  // Which settle the winner card has been dismissed for, so it pops once per event but can close.
+  const [closedSettle, setClosedSettle] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const watching = !!contestId;
 
@@ -284,6 +287,16 @@ export default function Solver() {
 
   return (
     <section className="solver">
+      {vm.settled && closedSettle !== vm.settled.matchId && (
+        <WinnerCard
+          game="solver"
+          winnerName={vm.settled.winnerName}
+          line={`${vm.settled.scores[vm.settled.winnerSeat] ?? 0} / ${vm.total || vm.questions.length} correct`}
+          pool={contest ? `${contest.pool} tUSDC paid to the winner` : null}
+          tiebreak={vm.settled.tiebreak ?? null}
+          onClose={() => setClosedSettle(vm.settled!.matchId)}
+        />
+      )}
       <GameTabs />
       <header className="solver-head">
         <div className="kicker">Arena · Solver</div>

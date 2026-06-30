@@ -74,7 +74,7 @@ async function runContestInner(contestId: string, opts: { puzzles?: number }): P
   }
 
   if (c.game === GAME_SOLVER) {
-    await playSolverMatch({ puzzles: opts.puzzles ?? 6, participants, contestId });
+    await playSolverMatch({ puzzles: opts.puzzles ?? 10, participants, contestId });
     return;
   }
 

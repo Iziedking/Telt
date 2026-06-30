@@ -13,6 +13,7 @@ import {
 import GameTabs from "./GameTabs";
 import { play as sound } from "./sound";
 import PlatformBadge from "./PlatformBadge";
+import WinnerCard from "./WinnerCard";
 
 type Seat = "A" | "B";
 
@@ -112,6 +113,8 @@ export default function Arena() {
   const [contestId, setContestId] = useState<string | null>(null);
   const [contest, setContest] = useState<ArenaContest | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  // Which settle the winner card has been dismissed for, so it pops once per event but can close.
+  const [closedSettle, setClosedSettle] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const watching = !!contestId;
 
@@ -249,6 +252,16 @@ export default function Arena() {
 
   return (
     <div className="page">
+      {vm.settled && closedSettle !== vm.settled.matchId && (
+        <WinnerCard
+          game="poker"
+          winnerName={leader ? vm.seats[leader].name : "Split pot"}
+          line={leader ? `takes the pot · ${vm.seats[leader].chips ?? 0} chips` : "the pot is split"}
+          pool={contest ? `${contest.pool} tUSDC paid to the winner` : `payout ${fmtSui(vm.settled.amount)}`}
+          digest={vm.settled.digest}
+          onClose={() => setClosedSettle(vm.settled!.matchId)}
+        />
+      )}
       <GameTabs />
       <header className="hero-section">
         <div className="hero-text">
