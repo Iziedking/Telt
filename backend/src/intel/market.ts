@@ -2,7 +2,7 @@ import type { Hono } from "hono";
 import type { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { sui, coordinator, buyIntel } from "../chain/sui.js";
 import { config } from "../config/index.js";
-import { compileDossier, type Dossier } from "../avow/dossier.js";
+import { compileDossier, compileDossierFromMoves, type Dossier, type DossierMove } from "../avow/dossier.js";
 import type { AgentAvow } from "../avow/anchorMove.js";
 
 // The intel marketplace: x402 the pattern, on Sui, with our own thin facilitator. A
@@ -67,12 +67,19 @@ export async function buyAndDeliver(opts: {
   targetAgentId: string;
   buyer: AgentAvow;
   buyerSigner?: Ed25519Keypair;
+  // Moves observed live this match. When given, the dossier is built from these in memory (fast) and
+  // the delivery is anchored in the background, so the live match is not blocked on the Walrus round
+  // trip. Without it, the full on-chain compile (fetch + Seal decrypt every record) is used.
+  scoutMoves?: DossierMove[];
+  onDossierAnchored?: (digest: string | null) => void;
 }): Promise<DeliveredIntel> {
   const signer = opts.buyerSigner ?? coordinator();
   const { receiptId, digest } = await buyIntel(opts.tableId, opts.targetAgentId, PRICE_MIST, signer);
   const check = await verifyPayment(digest, opts.targetAgentId);
   if (!check.ok) throw new Error(`payment verify failed: ${check.reason}`);
-  const dossier = await compileDossier(opts.targetAgentId, opts.buyer);
+  const dossier = opts.scoutMoves
+    ? await compileDossierFromMoves(opts.targetAgentId, opts.buyer, opts.scoutMoves, opts.onDossierAnchored)
+    : await compileDossier(opts.targetAgentId, opts.buyer);
   return { payDigest: digest, receiptId, amount: check.amount, dossier };
 }
 

@@ -129,6 +129,63 @@ export async function compileDossier(targetAgentId: string, buyer: AgentAvow): P
   return { targetAgentId, moves, sourceCount: poker.length, verifiedCount, summary, anchor: anchored };
 }
 
+// Fast path for live play: build the dossier from moves we already hold in memory (we generated and
+// anchored them this match, so we have the plaintext) instead of re-fetching and Seal-decrypting the
+// opponent's records from Walrus at purchase time. The summary returns in ~1-2s; the dossier delivery
+// is anchored in the BACKGROUND so the match is not blocked on the Walrus write. The x402 payment is
+// still settled on chain by the caller, so the purchase stays provable — this only moves the slow
+// retrieval off the critical path, exactly the parallel-process idea. `onAnchored` fires with the
+// delivery digest when the background anchor lands, so the UI can fill in the dossier proof link.
+export async function compileDossierFromMoves(
+  targetAgentId: string,
+  buyer: AgentAvow,
+  moves: DossierMove[],
+  onAnchored?: (digest: string | null) => void,
+): Promise<Dossier> {
+  const summary = await summarize(moves);
+
+  if (moves.length > 0) {
+    void (async () => {
+      try {
+        const r = new Reasoning("Compile an intel dossier on an opponent");
+        r.observe("Read the opponent's moves this match", `${moves.length} moves observed live.`, { count: moves.length });
+        r.decide("Summarize the read", summary, { count: moves.length });
+        const anchored = await serialize(() =>
+          anchor({
+            suiClient: sui,
+            sealClient: seal,
+            walrusClient: walrus,
+            signer: buyer.signer,
+            mandateId: buyer.mandateId,
+            accessId: buyer.accessId,
+            bundle: {
+              version: EVIDENCE_VERSION,
+              mandateId: buyer.mandateId,
+              agent: buyer.agentAddress,
+              user: buyer.user,
+              reasoning: r.build(summary),
+              actionType: "intel_dossier",
+              target: targetAgentId,
+              amount: "0",
+              rationale: summary,
+              observed: { moves, verifiedCount: moves.length, sourceCount: moves.length },
+              before: {},
+              after: {},
+              txDigests: [],
+              timestampMs: Date.now(),
+            },
+          }),
+        );
+        onAnchored?.(anchored.anchorDigest);
+      } catch {
+        onAnchored?.(null);
+      }
+    })();
+  }
+
+  return { targetAgentId, moves, sourceCount: moves.length, verifiedCount: moves.length, summary, anchor: null };
+}
+
 // Prove the buyer can read what it paid for: decrypt the latest intel_dossier sealed
 // to it, through the standard per-user Seal tier (its own address is its key).
 export async function decryptLatestDossier(buyerMandateId: string, buyerUserSecret: string): Promise<string | null> {

@@ -4686,9 +4686,9 @@ input:focus:not(:focus-visible) {
 .wc-modal {
   position: relative;
   display: grid;
-  grid-template-columns: 240px 1fr;
-  width: min(680px, 94vw);
-  min-height: 360px;
+  grid-template-columns: 210px 1fr;
+  width: min(560px, 90vw);
+  min-height: 320px;
   background: var(--surface);
   border: 1.5px solid var(--line);
   border-radius: 20px;

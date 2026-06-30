@@ -7,6 +7,7 @@ import { anchorMove, verifyLatestForMandate, type AgentAvow } from "../avow/anch
 import { recallNotes, rememberNote } from "../avow/memory.js";
 import { coordinatorAddress, openTable, joinTable, settleTable, recordResult } from "../chain/sui.js";
 import { buyAndDeliver } from "../intel/market.js";
+import type { DossierMove } from "../avow/dossier.js";
 import { loadRoster, avowFor, isPlatformAgent, type RosterEntry } from "./roster.js";
 import { type Participant } from "./provision.js";
 import { broadcast, type MovePayload } from "./ws.js";
@@ -138,6 +139,8 @@ export async function playMatch(
   const tieBreak: Seat = matchId.charCodeAt(matchId.length - 1) % 2 === 0 ? "A" : "B";
   // Dossiers bought mid-match are injected into the buyer's decisions as notes.
   const injected: Record<Seat, string[]> = { A: [], B: [] };
+  // Each agent's moves this match, kept in memory so a bought dossier is served fast from here.
+  const scoutLog: Record<Seat, DossierMove[]> = { A: [], B: [] };
   // How many dossiers each seat has bought this match, against its per-tier cap.
   const intelBought: Record<Seat, number> = { A: 0, B: 0 };
 
@@ -176,11 +179,11 @@ export async function playMatch(
           },
           planForLevel(ag.level),
         ).catch(() => ({ buy: false, reason: "" }));
-        if (choice.buy) await runIntelBeat(matchId, intelRef, behind, bySeat, injected, intelBought);
+        if (choice.buy) await runIntelBeat(matchId, intelRef, behind, bySeat, injected, intelBought, scoutLog[oppSeat]);
       }
     }
     const button: Seat = handIndex % 2 === 0 ? "A" : "B";
-    await playHand(matchId, tableId, handIndex, button, bySeat, chips, injected, o, sb, bb);
+    await playHand(matchId, tableId, handIndex, button, bySeat, chips, injected, scoutLog, o, sb, bb);
     handsPlayed = handIndex + 1;
   }
 
@@ -244,6 +247,7 @@ async function playHand(
   bySeat: Record<Seat, MatchAgent>,
   chips: Record<Seat, number>,
   injected: Record<Seat, string[]>,
+  scoutLog: Record<Seat, DossierMove[]>,
   o: typeof DEFAULTS,
   smallBlind: number,
   bigBlind: number,
@@ -369,6 +373,16 @@ async function playHand(
     };
     broadcast({ type: "move", payload });
 
+    // Keep the move in memory (plaintext, as we just played it) so a dossier can be served instantly
+    // from this log when an opponent buys intel, instead of re-fetching and decrypting from Walrus.
+    scoutLog[seat].push({
+      street: streetAtDecision,
+      board: boardAtDecision,
+      action: applied.action,
+      amount: String(applied.amount),
+      rationale: decision.rationale,
+    });
+
     moveRows.push([
       tableId,
       handIndex,
@@ -436,6 +450,7 @@ async function runIntelBeat(
   bySeat: Record<Seat, MatchAgent>,
   injected: Record<Seat, string[]>,
   intelBought: Record<Seat, number>,
+  scoutMoves?: DossierMove[],
 ): Promise<void> {
   const buyer = bySeat[buyerSeat];
   const target = bySeat[otherSeat(buyerSeat)];
@@ -457,6 +472,25 @@ async function runIntelBeat(
       tableId,
       targetAgentId: target.agentId,
       buyer: buyer.avow,
+      // Serve from the moves we already hold in memory (fast); the delivery anchors in the
+      // background. The x402 payment still settles on chain, so the purchase stays provable.
+      scoutMoves,
+      onDossierAnchored: (digest) => {
+        if (!digest) return;
+        // The dossier delivery just anchored: re-broadcast so the UI fills in its proof link.
+        broadcast({
+          type: "intel",
+          payload: {
+            matchId,
+            buyerSeat,
+            targetAgentId: target.agentId,
+            amount: Number(delivered.amount),
+            payDigest: delivered.payDigest,
+            dossierDigest: digest,
+            summary: delivered.dossier.summary,
+          },
+        });
+      },
     });
     const summary = delivered.dossier.summary;
     injected[buyerSeat].push(`Scouting report on ${target.name}: ${summary}`);
