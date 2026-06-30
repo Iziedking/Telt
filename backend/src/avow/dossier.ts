@@ -211,6 +211,9 @@ async function summarize(moves: DossierMove[]): Promise<string> {
     userPrompt: `Opponent's anchored moves and stated reasons:\n${lines}\n\nWrite the scouting report.`,
     maxTokens: 200,
     temperature: 0.4,
+    // On OpenRouter directly: this is on the live intel critical path, so it must not pay the
+    // Conduit-failure-then-fallback penalty that would stall the match.
+    provider: "openrouter",
   });
   return res.text.trim() || lines;
 }
