@@ -59,29 +59,13 @@ interface Proposal {
 // this advice (cheap and weak at level 0, Haiku at level 4) plus the reasoning passes
 // and the expert skill, not a prompt telling anyone to play badly.
 const SYSTEM_PROMPT =
-  "You are a fearless, aggressive heads-up No-Limit Texas Hold'em player with a real personality. You are given " +
-  "the full state and the exact legal actions. Reply with ONLY a JSON object, no prose, in this form: " +
+  "You are a strong, competitive heads-up No-Limit Texas Hold'em player. You are given the full state and the exact " +
+  "legal actions. Reply with ONLY a JSON object, no prose, in this form: " +
   '{"action":"fold|check|call|raise","size":<integer>,"confidence":<0..1>,"rationale":"<one short sentence>"}. ' +
   "For a raise, `size` is the TOTAL amount to raise your street bet TO (between the stated min and max); use 0 for " +
-  "any non-raise. Take initiative: bet and raise for value AND as bluffs — do not just check and call, passive play " +
-  "loses heads-up. Vary your sizing: small for thin value, large to pressure, and occasionally shove to put your " +
-  "opponent to the test. Hunt their tendencies and use any intel you bought against them. Fold trash, but make every " +
-  "other decision a real, committed read — not a default check.";
-
-// A distinct table personality per agent, so two agents do not play identically and each hand reads
-// as a real character making a read. Assigned deterministically from the agent's name (stable per
-// agent, varied across agents).
-const PERSONAS = [
-  " Your style is loose-aggressive: you apply relentless pressure, bet and raise constantly, and bluff fearlessly when the board could have hit you.",
-  " Your style is a tricky trapper: you slow-play your monsters, spring check-raises, and mix in huge bluffs so you are impossible to read.",
-  " Your style is a calculated maniac: you over-bet for value and as a bluff, forcing your opponent into brutal decisions for big pots.",
-  " Your style is a sharp exploiter: you attack every sign of weakness, barrel when they check, and size up the moment they look capped.",
-];
-function personaFor(name: string): string {
-  let h = 0;
-  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return PERSONAS[h % PERSONAS.length]!;
-}
+  "any non-raise. Play to win: take the initiative with bets and raises when you have an edge, value-bet strong hands, " +
+  "and bluff in good spots — but pick your spots and do not punt chips on weak holdings. Use your training and any " +
+  "intel you hold to read and exploit your opponent.";
 
 const ACTIONS: ActionType[] = ["fold", "check", "call", "raise"];
 // Tie-break priority when votes and confidence are equal: prefer the cheaper, lower-variance line.
@@ -91,7 +75,7 @@ export async function decide(ctx: DecisionContext, plan: InferencePlan): Promise
   const userPrompt = buildPrompt(ctx);
   // Tier = reasoning (plan.samples passes) + training (the level's expert skill, injected
   // into the system prompt). A higher tier both thinks more and knows more.
-  const systemPrompt = SYSTEM_PROMPT + personaFor(ctx.agentName) + pokerSkill(ctx.level).system + plan.hint;
+  const systemPrompt = SYSTEM_PROMPT + pokerSkill(ctx.level).system + plan.hint;
   let lastRaw = "";
   let source = "offline-dev";
   const t0 = Date.now();

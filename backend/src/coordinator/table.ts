@@ -41,8 +41,9 @@ export interface MatchOptions {
   bigBlind?: number;
   /** Anchor every move through Avow. Off makes a fast engine/LLM-only dry run. */
   anchor?: boolean;
-  /** The underdog buys a dossier on its opponent before the hand at this index. */
-  intel?: { buyerSeat: Seat; beforeHand: number };
+  /** The underdog buys a dossier on its opponent before the hand at this index. When buyerSeat is
+   *  omitted, the buyer is whichever seat is actually behind on chips at that point. */
+  intel?: { buyerSeat?: Seat; beforeHand: number };
   /** Play a freezeout until one agent busts (a natural single winner). Default true. */
   untilBust?: boolean;
   /** Safety cap on hands when playing to bust. */
@@ -123,6 +124,8 @@ export async function playMatch(
   log(matchId, "status", { status: "seated", detail: `${A.name} (L${A.level}) vs ${B.name} (L${B.level})` });
 
   const chips: Record<Seat, number> = { A: o.startingChips, B: o.startingChips };
+  // Tie-break seat, varied per match (not always A), used when chips are dead even.
+  const tieBreak: Seat = matchId.charCodeAt(matchId.length - 1) % 2 === 0 ? "A" : "B";
   // Dossiers bought mid-match are injected into the buyer's decisions as notes.
   const injected: Record<Seat, string[]> = { A: [], B: [] };
   // How many dossiers each seat has bought this match, against its per-tier cap.
@@ -133,12 +136,10 @@ export async function playMatch(
   // before the second hand. Callers can override the buyer/timing, or pass intel: null off.
   // Skipped on a dry run (no anchoring), and for contests, where there is no on-chain table
   // object for the dossier to reference.
+  // The buyer is decided at the beat from who is actually behind on chips, so it is not always the
+  // same seat (which made one agent the only one ever paying for intel, and then winning).
   const intel =
-    "intel" in opts
-      ? opts.intel
-      : o.anchor && o.sponsorTable
-        ? { buyerSeat: (A.level <= B.level ? "A" : "B") as Seat, beforeHand: 1 }
-        : undefined;
+    "intel" in opts ? opts.intel : o.anchor && o.sponsorTable ? { beforeHand: 1 } : undefined;
 
   // A freezeout: play until one agent can no longer post the big blind (busted), or the
   // safety cap. Either way the match yields exactly one winner.
@@ -151,7 +152,9 @@ export async function playMatch(
       break;
     }
     if (intel && handIndex === intel.beforeHand) {
-      await runIntelBeat(matchId, tableId, intel.buyerSeat, bySeat, injected, intelBought);
+      const buyer: Seat =
+        intel.buyerSeat ?? (chips.A < chips.B ? "A" : chips.B < chips.A ? "B" : tieBreak);
+      await runIntelBeat(matchId, tableId, buyer, bySeat, injected, intelBought);
     }
     const button: Seat = handIndex % 2 === 0 ? "A" : "B";
     await playHand(matchId, tableId, handIndex, button, bySeat, chips, injected, o, sb, bb);
@@ -160,7 +163,7 @@ export async function playMatch(
 
   // Exactly one winner: the survivor, or the chip leader at the cap (higher seat A on a
   // dead-even tie, which is vanishingly rare).
-  const winner: Seat = chips.A >= chips.B ? "A" : "B";
+  const winner: Seat = chips.A > chips.B ? "A" : chips.B > chips.A ? "B" : tieBreak;
   const loser = otherSeat(winner);
   const settleDigest = o.sponsorTable ? await settleTable(tableId, coordinatorAddress(), handsPlayed) : "";
   broadcast({
