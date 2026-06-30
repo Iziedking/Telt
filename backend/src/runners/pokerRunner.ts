@@ -64,8 +64,10 @@ const SYSTEM_PROMPT =
   '{"action":"fold|check|call|raise","size":<integer>,"confidence":<0..1>,"rationale":"<one short sentence>"}. ' +
   "For a raise, `size` is the TOTAL amount to raise your street bet TO (between the stated min and max); use 0 for " +
   "any non-raise. Play to win: take the initiative with bets and raises when you have an edge, value-bet strong hands, " +
-  "and bluff in good spots — but pick your spots and do not punt chips on weak holdings. Use your training and any " +
-  "intel you hold to read and exploit your opponent.";
+  "and bluff in good spots — but pick your spots and do not punt chips on weak holdings. Crucial: the river is the " +
+  "final card, so a draw that has not completed is now worthless — never raise or value-bet a busted draw on the " +
+  "river; check or fold it, and only bet it as a bluff when the story is credible. Use your training and any intel " +
+  "you hold to read and exploit your opponent.";
 
 // The intel decision is the agent's own call: spend a small x402 fee on a dossier when a read is
 // worth it, not a scripted one-time purchase. Kept cheap (one short call) so it does not stall play.

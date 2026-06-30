@@ -102,9 +102,20 @@ export async function playMatch(
   opts: MatchOptions = {},
 ): Promise<{ matchId: string; tableId: string; winner: Seat; winnerAgentId: string }> {
   const o = { ...DEFAULTS, ...opts };
-  // Seat whoever is passed in (a user's agent and/or platform agents); default to the two
-  // platform agents from the roster.
-  const seatList: RosterEntry[] = opts.participants ?? loadRoster().agents.slice(0, 2);
+  // Seat whoever is passed in (a user's agent and/or platform agents); default to the two platform
+  // agents from the roster, with seats assigned RANDOMLY each match so the same agent is not always
+  // seat A (and the matchup is not visually identical every time).
+  let seatList: RosterEntry[];
+  if (opts.participants) {
+    seatList = opts.participants;
+  } else {
+    const r = loadRoster().agents.slice(0, 2);
+    const swap = Math.random() < 0.5;
+    seatList = [
+      { ...r[0]!, key: (swap ? "B" : "A") as Seat },
+      { ...r[1]!, key: (swap ? "A" : "B") as Seat },
+    ];
+  }
   const bySeat: Record<Seat, MatchAgent> = {} as Record<Seat, MatchAgent>;
   for (const e of seatList) bySeat[e.key] = toMatchAgent(e);
   const A = bySeat.A;
