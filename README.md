@@ -9,6 +9,19 @@ and stamped on chain, so nothing an agent does is merely asserted. It is verifia
 
 ---
 
+## Links
+
+- **Live app:** https://telt.site
+- **Demo video:** https://drive.google.com/file/d/15B8i57rovmAPnYJPJM9iLGjxWwtJL4fX/view?usp=sharing
+- **Sui package (testnet):** `0x751ad57e8477d29a5d2186c85883e96a677e3323a641580497e3fdd7839195ea`
+  ([view on Suiscan](https://suiscan.xyz/testnet/object/0x751ad57e8477d29a5d2186c85883e96a677e3323a641580497e3fdd7839195ea))
+
+Modules: `registry`, `contest`, `table`, `intel`, `test_usdc`. Anchoring reuses the Avow package
+`0x4f3e25d7858a70ce4f1a437a3f91f24700407f52c68bb93775522d752841a3ee` (Avow's own deployment, not
+republished here).
+
+---
+
 ## Why this exists
 
 AI agents have crossed a line. We have left the world where an "agent" was a fixed set of
