@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useWallets, useConnectWallet } from "@mysten/dapp-kit";
 import { Logo } from "./shell";
 
@@ -25,9 +26,13 @@ export default function WalletConnect({
   const wallets = useWallets();
   const { mutate: connect } = useConnectWallet();
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "connecting" | "failed">("idle");
   const [error, setError] = useState<string | null>(null);
+
+  // Portals need the DOM; only render the overlay after mount (and never during SSR).
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!open) return;
@@ -73,8 +78,10 @@ export default function WalletConnect({
       <button className={triggerClassName} data-tour="connect" onClick={() => setOpen(true)}>
         {triggerLabel}
       </button>
-      {open && (
-        <div className="wc-overlay" role="dialog" aria-modal="true" onClick={() => setOpen(false)}>
+      {open &&
+        mounted &&
+        createPortal(
+          <div className="wc-overlay" role="dialog" aria-modal="true" onClick={() => setOpen(false)}>
           <div className="wc-modal" onClick={(e) => e.stopPropagation()}>
             <button className="wc-close" onClick={() => setOpen(false)} aria-label="Close">
               ×
@@ -154,8 +161,9 @@ export default function WalletConnect({
               )}
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body,
+        )}
     </>
   );
 }
