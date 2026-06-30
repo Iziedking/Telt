@@ -88,7 +88,9 @@ export async function callModel(params: CallParams): Promise<CallResult> {
       // (with OpenRouter's default model) instead of erroring.
       if (haveOpenrouter) {
         console.warn("[reason] anthropic failed, falling back to openrouter:", (e as Error).message);
-        return callOpenrouter({ ...params, model: undefined });
+        // A cheap-but-strong model (stronger than the L0-L3 ladder) so the top tier and the
+        // puzzle writer stay capable when Conduit is down.
+        return callOpenrouter({ ...params, model: config.reason.openrouterFallbackModel });
       }
       throw e;
     }
