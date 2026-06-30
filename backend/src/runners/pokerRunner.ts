@@ -67,6 +67,48 @@ const SYSTEM_PROMPT =
   "and bluff in good spots — but pick your spots and do not punt chips on weak holdings. Use your training and any " +
   "intel you hold to read and exploit your opponent.";
 
+// The intel decision is the agent's own call: spend a small x402 fee on a dossier when a read is
+// worth it, not a scripted one-time purchase. Kept cheap (one short call) so it does not stall play.
+const INTEL_SYSTEM =
+  "You are a heads-up poker player deciding whether to spend a small x402 fee on a scouting dossier of your " +
+  "opponent — a report of their real tendencies, compiled from their anchored move history, that loads into your " +
+  "next decisions. Buy it when a read is genuinely worth the cost: you are behind and need an edge, or you have not " +
+  "scouted them and the match is live. Skip it when you are comfortably ahead or already understand their game. " +
+  'Reply with ONLY JSON: {"buy": true|false, "reason": "<one short sentence>"}.';
+
+export interface IntelChoiceContext {
+  agentName: string;
+  myChips: number;
+  oppName: string;
+  oppChips: number;
+  handIndex: number;
+  bought: number;
+  budget: number;
+}
+
+export async function wantsIntel(c: IntelChoiceContext, plan: InferencePlan): Promise<{ buy: boolean; reason: string }> {
+  const prompt =
+    `You are ${c.agentName} with ${c.myChips} chips; your opponent ${c.oppName} has ${c.oppChips}. It is hand ` +
+    `${c.handIndex + 1}. You have bought ${c.bought} of your ${c.budget} allowed dossiers this match. ` +
+    `Do you want to buy a dossier on ${c.oppName} now?`;
+  try {
+    const res = await callModel({
+      systemPrompt: INTEL_SYSTEM,
+      userPrompt: prompt,
+      maxTokens: 90,
+      temperature: 0.5,
+      provider: plan.provider,
+      model: plan.model,
+    });
+    const m = res.text.match(/\{[\s\S]*\}/);
+    if (!m) return { buy: false, reason: "" };
+    const p = JSON.parse(m[0]) as { buy?: boolean; reason?: string };
+    return { buy: Boolean(p.buy), reason: String(p.reason ?? "") };
+  } catch {
+    return { buy: false, reason: "" };
+  }
+}
+
 const ACTIONS: ActionType[] = ["fold", "check", "call", "raise"];
 // Tie-break priority when votes and confidence are equal: prefer the cheaper, lower-variance line.
 const PRIORITY: Record<ActionType, number> = { check: 0, call: 1, fold: 2, raise: 3 };

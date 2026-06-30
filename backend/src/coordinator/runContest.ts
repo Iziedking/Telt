@@ -82,7 +82,9 @@ async function runContestInner(contestId: string, opts: { puzzles?: number }): P
   // skipped (sponsorTable: false) because the coordinator does not own the players' agents, so
   // join_table would abort; the contest pool is the escrow. House agents cannot win, so the
   // pool falls to the best real entrant.
-  const { winnerAgentId } = await playMatch({ participants, sponsorTable: false });
+  // intelRef = the contest id, so agents can buy x402 intel during a contest too (buy_intel only
+  // references the id; there is no SUI table to point at in a contest).
+  const { winnerAgentId } = await playMatch({ participants, sponsorTable: false, intelRef: contestId });
   const champ = participants.find((p) => p.agentId === winnerAgentId && !p.isHouse);
   const winner = champ ?? participants.find((p) => !p.isHouse);
   if (!winner) throw new Error("no eligible winner");

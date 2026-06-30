@@ -2,7 +2,7 @@ import { Hand, otherSeat } from "../poker/engine.js";
 import { blindsForHand } from "../poker/blinds.js";
 import type { Seat } from "../poker/types.js";
 import { planForLevel, intelBudgetForLevel } from "../reason/levels.js";
-import { decide } from "../runners/pokerRunner.js";
+import { decide, wantsIntel } from "../runners/pokerRunner.js";
 import { anchorMove, verifyLatestForMandate, type AgentAvow } from "../avow/anchorMove.js";
 import { recallNotes, rememberNote } from "../avow/memory.js";
 import { coordinatorAddress, openTable, joinTable, settleTable, recordResult } from "../chain/sui.js";
@@ -44,6 +44,10 @@ export interface MatchOptions {
   /** The underdog buys a dossier on its opponent before the hand at this index. When buyerSeat is
    *  omitted, the buyer is whichever seat is actually behind on chips at that point. */
   intel?: { buyerSeat?: Seat; beforeHand: number };
+  /** A valid on-chain object id for `buy_intel` to reference when there is no SUI table (a contest
+   *  passes its contest id). buy_intel only records this id, so any real object id works and intel
+   *  can run in contests, not just standalone. */
+  intelRef?: string;
   /** Play a freezeout until one agent busts (a natural single winner). Default true. */
   untilBust?: boolean;
   /** Safety cap on hands when playing to bust. */
@@ -63,16 +67,18 @@ export interface MatchOptions {
 const DEFAULTS = {
   hands: 2,
   buyinMist: 50_000_000n, // 0.05 SUI
-  // Small stacks and modest blinds so the freezeout reaches a bust in a handful of hands.
-  startingChips: 300,
+  // ~60 big blinds deep: enough room for real preflop/flop/turn/river play and several hands,
+  // instead of a 15 BB push/fold stack where one pot busts someone and the game ends instantly.
+  startingChips: 1200,
   smallBlind: 10,
   bigBlind: 20,
   anchor: true,
   untilBust: true,
   sponsorTable: true,
   maxHands: 24,
-  // Blinds double every few hands so the freezeout reaches a bust quickly.
-  escalateEvery: 3,
+  // Blinds escalate slowly so the stacks stay deep through the early hands; the maxHands cap still
+  // guarantees the freezeout resolves.
+  escalateEvery: 8,
 };
 
 function toMatchAgent(e: RosterEntry): MatchAgent {
@@ -104,6 +110,9 @@ export async function playMatch(
   // is the real escrow; the hands still play and anchor exactly the same off a synthetic id.
   const tableId = o.sponsorTable ? (await openTable(o.buyinMist)).tableId : `off-${Date.now().toString(36)}`;
   const matchId = tableId;
+  // The valid on-chain id `buy_intel` references: the SUI table for a standalone match, or the
+  // contest id for a contest. Empty when neither (a dry run), which disables intel.
+  const intelRef = o.sponsorTable ? tableId : (o.intelRef ?? "");
   log(matchId, "status", { status: "opening", detail: o.sponsorTable ? `table ${short(tableId)} buyin ${fmtSui(o.buyinMist)}` : "contest table (off-chain escrow)" });
   if (o.sponsorTable) {
     await joinTable(tableId, A.agentId, o.buyinMist);
@@ -131,15 +140,10 @@ export async function playMatch(
   // How many dossiers each seat has bought this match, against its per-tier cap.
   const intelBought: Record<Seat, number> = { A: 0, B: 0 };
 
-  // The intel beat, on by default for every match so the dossier money shot is always shown:
-  // the underdog (the lower-level seat, which carries the dossier budget) scouts its opponent
-  // before the second hand. Callers can override the buyer/timing, or pass intel: null off.
-  // Skipped on a dry run (no anchoring), and for contests, where there is no on-chain table
-  // object for the dossier to reference.
-  // The buyer is decided at the beat from who is actually behind on chips, so it is not always the
-  // same seat (which made one agent the only one ever paying for intel, and then winning).
-  const intel =
-    "intel" in opts ? opts.intel : o.anchor && o.sponsorTable ? { beforeHand: 1 } : undefined;
+  // Intel runs in any match that anchors and has a valid on-chain id to reference (a standalone
+  // SUI table or a contest id) — standalone AND contests, not just standalone. Whether and when a
+  // dossier is actually bought is the agent's own reasoned choice each hand (below), not scripted.
+  const intelOn = "intel" in opts ? opts.intel != null : Boolean(o.anchor && intelRef);
 
   // A freezeout: play until one agent can no longer post the big blind (busted), or the
   // safety cap. Either way the match yields exactly one winner.
@@ -151,10 +155,28 @@ export async function playMatch(
       log(matchId, "status", { status: "busted", detail: `${otherSeat(chips.A <= bb ? "A" : "B")} takes it after ${handIndex} hands` });
       break;
     }
-    if (intel && handIndex === intel.beforeHand) {
-      const buyer: Seat =
-        intel.buyerSeat ?? (chips.A < chips.B ? "A" : chips.B < chips.A ? "B" : tieBreak);
-      await runIntelBeat(matchId, tableId, buyer, bySeat, injected, intelBought);
+    // From the second hand on, the trailing agent (with intel budget left) decides for itself
+    // whether a dossier is worth the x402 fee this hand. Reasoned and variable, not programmed.
+    if (intelOn && handIndex >= 1) {
+      const behind: Seat = chips.A < chips.B ? "A" : chips.B < chips.A ? "B" : tieBreak;
+      const ag = bySeat[behind];
+      const budget = intelBudgetForLevel(ag.level);
+      if (intelBought[behind] < budget) {
+        const oppSeat = otherSeat(behind);
+        const choice = await wantsIntel(
+          {
+            agentName: ag.name,
+            myChips: chips[behind],
+            oppName: bySeat[oppSeat].name,
+            oppChips: chips[oppSeat],
+            handIndex,
+            bought: intelBought[behind],
+            budget,
+          },
+          planForLevel(ag.level),
+        ).catch(() => ({ buy: false, reason: "" }));
+        if (choice.buy) await runIntelBeat(matchId, intelRef, behind, bySeat, injected, intelBought);
+      }
     }
     const button: Seat = handIndex % 2 === 0 ? "A" : "B";
     await playHand(matchId, tableId, handIndex, button, bySeat, chips, injected, o, sb, bb);
