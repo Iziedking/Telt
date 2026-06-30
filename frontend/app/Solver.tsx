@@ -294,7 +294,8 @@ export default function Solver() {
           game="solver"
           winnerName={vm.settled.winnerName}
           line={`${vm.settled.scores[vm.settled.winnerSeat] ?? 0} / ${vm.total || vm.questions.length} correct`}
-          pool={contest ? `${contest.pool} tUSDC paid to the winner` : null}
+          tie={vm.settled.tie}
+          pool={contest ? `${contest.pool} tUSDC ${vm.settled.tie ? "split equally" : "paid to the winner"}` : null}
           tiebreak={vm.settled.tiebreak ?? null}
           onClose={() => setClosedSettle(vm.settled!.matchId)}
         />
@@ -395,9 +396,9 @@ export default function Solver() {
                     {a.name}
                     {a.platform && <PlatformBadge small />}
                   </div>
-                  <div className="sa-tier">
-                    {tierName(a.level)} · L{a.level}
-                  </div>
+                  {/* Hide the tier and level during the live race so an opponent cannot scout it
+                      and dodge strong agents; reveal it once the result is in. */}
+                  <div className="sa-tier">{vm.settled ? `${tierName(a.level)} · L${a.level}` : "competing"}</div>
                   <div className="sa-score">
                     {scores[a.seat] ?? 0}
                     <span className="sa-of"> / {vm.total}</span>

@@ -118,6 +118,8 @@ export interface SolverSettledPayload {
   winnerName: string;
   scores: Record<string, number>;
   tiebreak?: string | null;
+  // A genuine dead heat: nobody won and the pool was split equally.
+  tie?: boolean;
 }
 
 export type FeedMessage =

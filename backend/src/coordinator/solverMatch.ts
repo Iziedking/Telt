@@ -7,7 +7,7 @@ import { solverSourcesConfigured } from "../solver/sources.js";
 import { loadRoster, avowFor, isPlatformAgent } from "./roster.js";
 import { type Participant } from "./provision.js";
 import { broadcast } from "./ws.js";
-import { recordResult, settleContest } from "../chain/sui.js";
+import { recordResult, settleContest, readContest, faucetMintUsdc } from "../chain/sui.js";
 
 // A solver match: generate live puzzles, have every seated agent answer each, anchor every
 // answer on Walrus, score against the held-back answers, and settle. Seats whoever is
@@ -182,34 +182,66 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
   const topScore = () => Math.max(...pool.map((p) => scores[p.key] ?? 0));
   const tiedAtTop = () => pool.filter((p) => (scores[p.key] ?? 0) === topScore());
   let tiebreak: string | null = null;
-  const MAX_SUDDEN_DEATH = 6;
+  const MAX_SUDDEN_DEATH = 3;
   for (let sd = 0; tiedAtTop().length > 1 && sd < MAX_SUDDEN_DEATH; sd++) {
     tiebreak = "sudden death";
     const idx = count + sd;
     const pz = await generatePuzzle(idx);
     await askQuestion(idx, pz, idx + 1, tiedAtTop());
   }
-  // Winner: top score (now usually unique). A dead heat that survived sudden death goes to the
-  // higher tier, the more capable model.
+
+  // A genuine dead heat after sudden death: nobody won, so the pool is split equally rather than
+  // handed to one agent on a coin flip.
+  const tied = tiedAtTop();
+  const isTie = tied.length > 1;
   const winner = pool.reduce((best, p) => {
     const sp = scores[p.key] ?? 0;
     const sb = scores[best.key] ?? 0;
     if (sp !== sb) return sp > sb ? p : best;
     return p.level > best.level ? p : best;
   }, pool[0]!);
-  if (tiebreak === "sudden death" && tiedAtTop().length > 1) tiebreak = "tier";
+  if (isTie) tiebreak = "split";
 
-  // Record win/loss for real players only; platform agents are never graded. Pay out the
-  // contest pool if this was one.
-  for (const p of eligible) {
-    if (isPlatformAgent(p.agentId)) continue;
-    await bestEffort(() => recordResult(p.agentId, p.agentId === winner.agentId));
+  // Record win/loss for real players only; a tie is neither a win nor a loss, so it is not graded.
+  if (!isTie) {
+    for (const p of eligible) {
+      if (isPlatformAgent(p.agentId)) continue;
+      await bestEffort(() => recordResult(p.agentId, p.agentId === winner.agentId));
+    }
   }
-  if (opts.contestId) await bestEffort(() => settleContest(opts.contestId!, winner.agentId));
+
+  if (opts.contestId) {
+    if (isTie) {
+      // Split the pool equally. The on-chain escrow is winner-take-all, so close the contest by
+      // settling its pool to a platform/coordinator tied agent (recovering it), and pay each other
+      // tied agent its equal share via the treasury. For the common case (a user agent vs a
+      // platform agent) the user gets exactly its half and the game ends cleanly.
+      const c = await readContest(opts.contestId).catch(() => null);
+      const closeTo = tied.find((p) => isPlatformAgent(p.agentId)) ?? tied[0]!;
+      if (c && c.pool > 0n) {
+        const share = c.pool / BigInt(tied.length);
+        for (const p of tied) {
+          if (p.agentId === closeTo.agentId) continue; // the close target takes the on-chain pool
+          const ent = c.entrants.find((e) => e.agentId === p.agentId);
+          if (ent?.owner && share > 0n) await bestEffort(() => faucetMintUsdc(ent.owner, share));
+        }
+      }
+      await bestEffort(() => settleContest(opts.contestId!, closeTo.agentId));
+    } else {
+      await bestEffort(() => settleContest(opts.contestId!, winner.agentId));
+    }
+  }
 
   broadcast({
     type: "solverSettled",
-    payload: { matchId, winnerSeat: winner.key, winnerName: winner.name, scores: { ...scores }, tiebreak },
+    payload: {
+      matchId,
+      winnerSeat: winner.key,
+      winnerName: winner.name,
+      scores: { ...scores },
+      tiebreak,
+      tie: isTie,
+    },
   });
   return { matchId, winner: winner.name, winnerAgentId: winner.agentId, scores };
 }

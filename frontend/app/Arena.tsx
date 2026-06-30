@@ -240,6 +240,9 @@ export default function Arena() {
   const A = vm.seats.A;
   const B = vm.seats.B;
   const live = vm.status !== "idle" && !vm.settled;
+  // Hide agent tiers/levels until the match settles, so an opponent cannot scout strength and dodge
+  // strong agents before or during a race.
+  const revealLevel = !!vm.settled;
   const leader = (A.chips ?? 0) === (B.chips ?? 0) ? null : (A.chips ?? 0) > (B.chips ?? 0) ? "A" : "B";
   const ctEndsAt = contest?.endsAt ?? null;
   const ctCountdown =
@@ -359,9 +362,11 @@ export default function Arena() {
               </div>
             </div>
             <div className="versus">
-              <span className="chip-dot dot-felt" /> <strong>{A.name}</strong> L{A.level}
+              <span className="chip-dot dot-felt" /> <strong>{A.name}</strong>
+              {revealLevel ? ` L${A.level}` : ""}
               <span style={{ margin: "0 6px", color: "#6a737d" }}>vs</span>
-              <span className="chip-dot dot-peri" /> <strong>{B.name}</strong> L{B.level}
+              <span className="chip-dot dot-peri" /> <strong>{B.name}</strong>
+              {revealLevel ? ` L${B.level}` : ""}
             </div>
             <div className="agent-foot" style={{ marginTop: 8 }}>
               <Stat k="A hands won" v={A.handsWon} />
@@ -391,16 +396,16 @@ export default function Arena() {
             </div>
             <div className="potpill">pot {vm.pot}</div>
             <div className="seatrow">
-              <SeatBox seat="A" view={A} active={vm.active === "A"} live={live} />
-              <SeatBox seat="B" view={B} active={vm.active === "B"} live={live} />
+              <SeatBox seat="A" view={A} active={vm.active === "A"} live={live} reveal={revealLevel} />
+              <SeatBox seat="B" view={B} active={vm.active === "B"} live={live} reveal={revealLevel} />
             </div>
           </div>
         </div>
 
         {/* Agent A, Agent B, Intel */}
         <div className="row3" id="intel">
-          <AgentTile tone="felt" seat="A" view={A} />
-          <AgentTile tone="peri" seat="B" view={B} />
+          <AgentTile tone="felt" seat="A" view={A} reveal={revealLevel} />
+          <AgentTile tone="peri" seat="B" view={B} reveal={revealLevel} />
 
           <div className="tile signal">
             <div className="kicker">Intel</div>
@@ -540,7 +545,7 @@ export default function Arena() {
   );
 }
 
-function AgentTile({ tone, seat, view }: { tone: "felt" | "peri"; seat: Seat; view: SeatView }) {
+function AgentTile({ tone, seat, view, reveal }: { tone: "felt" | "peri"; seat: Seat; view: SeatView; reveal: boolean }) {
   const passes = passesFor(view.level);
   return (
     <div className={`tile ${tone} agent`}>
@@ -553,9 +558,7 @@ function AgentTile({ tone, seat, view }: { tone: "felt" | "peri"; seat: Seat; vi
             {view.name}
             {view.platform && <PlatformBadge small />}
           </div>
-          <div className="agent-perk">
-            {tierName(view.level)} · level {view.level}
-          </div>
+          <div className="agent-perk">{reveal ? `${tierName(view.level)} · level ${view.level}` : "competing"}</div>
         </div>
       </div>
 
@@ -607,7 +610,7 @@ function Stat({ k, v }: { k: string; v: string | number }) {
   );
 }
 
-function SeatBox({ seat, view, active, live }: { seat: Seat; view: SeatView; active: boolean; live: boolean }) {
+function SeatBox({ seat, view, active, live, reveal }: { seat: Seat; view: SeatView; active: boolean; live: boolean; reveal: boolean }) {
   return (
     <div className={`seat ${active ? "active" : ""}`}>
       {live && (
@@ -617,9 +620,7 @@ function SeatBox({ seat, view, active, live }: { seat: Seat; view: SeatView; act
         </div>
       )}
       <div className="name">{view.name}</div>
-      <div className="lvl">
-        Seat {seat} · {tierName(view.level)} L{view.level}
-      </div>
+      <div className="lvl">Seat {seat}{reveal ? ` · ${tierName(view.level)} L${view.level}` : ""}</div>
       <div className="chips">{view.chips ?? "·"}</div>
       <div className="last">{view.lastMove}</div>
     </div>

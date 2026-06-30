@@ -126,8 +126,10 @@ export interface SolverSettledPayload {
   winnerSeat: string;
   winnerName: string;
   scores: Record<string, number>;
-  /** How a tie was broken ("speed" | "conviction" | "tier"), or null when the score decided it. */
+  /** How a tie was broken ("sudden death" | "tier" | "split"), or null when the score decided it. */
   tiebreak?: string | null;
+  /** True for a genuine dead heat: nobody won and the pool was split equally. */
+  tie?: boolean;
 }
 
 export type FeedMessage =
