@@ -15,6 +15,15 @@ function optional(name: string, fallback: string): string {
   return process.env[name] ?? fallback;
 }
 
+// An OpenRouter model id is always "vendor/model". A bare id (e.g. a stale TIER4_MODEL=claude-haiku-4-5
+// left over from when the top tier used Anthropic) is invalid on OpenRouter and would 400 every call,
+// silently dropping the tier to the heuristic. So if an env override has no slash, ignore it and use
+// the (valid) default rather than trust a broken value.
+function orModel(name: string, fallback: string): string {
+  const v = process.env[name];
+  return v && v.includes("/") ? v : fallback;
+}
+
 // Parse daily windows like "7-10,12-15,18-21" into [startHour, endHour] pairs.
 function parseWindows(s: string): [number, number][] {
   return s
@@ -74,16 +83,16 @@ export const config = {
     // timer, and it is stronger than the cheap L0-L2 ladder. The strong path is a live Conduit key;
     // this is only the degraded mode. Set to deepseek/deepseek-chat for more strength at ~3x latency.
     openrouterFallbackModel: optional("OPENROUTER_FALLBACK_MODEL", "google/gemini-2.5-flash"),
+    // All tiers run on OpenRouter, so each model must be a valid "vendor/model" id; orModel ignores
+    // a stale bare override (e.g. claude-haiku-4-5) that would otherwise 400 every call.
     tierModels: [
-      { provider: "openrouter" as const, model: optional("TIER0_MODEL", "meta-llama/llama-3.2-1b-instruct") },
-      { provider: "openrouter" as const, model: optional("TIER1_MODEL", "meta-llama/llama-3.2-3b-instruct") },
-      { provider: "openrouter" as const, model: optional("TIER2_MODEL", "meta-llama/llama-3.1-8b-instruct") },
+      { provider: "openrouter" as const, model: orModel("TIER0_MODEL", "meta-llama/llama-3.2-1b-instruct") },
+      { provider: "openrouter" as const, model: orModel("TIER1_MODEL", "meta-llama/llama-3.2-3b-instruct") },
+      { provider: "openrouter" as const, model: orModel("TIER2_MODEL", "meta-llama/llama-3.1-8b-instruct") },
       // T3: much cheaper than gpt-4o-mini but clearly above the llama ladder.
-      { provider: "openrouter" as const, model: optional("TIER3_MODEL", "google/gemini-2.5-flash-lite") },
-      // T4 on OpenRouter too (Conduit's free tier 429-rate-limits under match load and dropped
-      // agents to the heuristic fallback). gpt-4o-mini is reliable and the top tier without the
-      // cost of full gpt-4o.
-      { provider: "openrouter" as const, model: optional("TIER4_MODEL", "openai/gpt-4o-mini") },
+      { provider: "openrouter" as const, model: orModel("TIER3_MODEL", "google/gemini-2.5-flash-lite") },
+      // T4: reliable top tier without the cost of full gpt-4o.
+      { provider: "openrouter" as const, model: orModel("TIER4_MODEL", "openai/gpt-4o-mini") },
     ],
   },
   memory: {

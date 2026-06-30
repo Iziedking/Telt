@@ -70,12 +70,12 @@ const SYSTEM_PROMPT =
 // The intel decision is the agent's own call: spend a small x402 fee on a dossier when a read is
 // worth it, not a scripted one-time purchase. Kept cheap (one short call) so it does not stall play.
 const INTEL_SYSTEM =
-  "You are a heads-up poker player deciding whether to spend a small x402 fee on a scouting dossier of your " +
-  "opponent — a report of their real tendencies, compiled from their anchored move history, that loads into your " +
-  "next decisions. It is a tiny fraction of a chip. Buy it whenever a sharper read would help you win more — to find " +
-  "an exploit, pressure a weak spot, or confirm a pattern — whether you are ahead or behind. Do what is best for you. " +
-  "Skip it only when you already understand their game or have no read to gain. " +
-  'Reply with ONLY JSON: {"buy": true|false, "reason": "<one short sentence>"}.';
+  "You are a heads-up poker player deciding whether to spend a tiny x402 fee — a fraction of one chip — on a scouting " +
+  "dossier of your opponent: a report of their real tendencies, compiled from their anchored move history, that loads " +
+  "into your next decisions. At this price a real read is almost always +EV. Lean toward buying whenever you still " +
+  "have budget left and a sharper read could help you win more — to find an exploit, pressure a weak spot, or confirm " +
+  "a pattern — whether you are ahead or behind. It is your call: only skip when you have no read left to gain or have " +
+  'already fully solved their game. Reply with ONLY JSON: {"buy": true|false, "reason": "<one short sentence>"}.';
 
 export interface IntelChoiceContext {
   agentName: string;

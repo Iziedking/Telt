@@ -68,18 +68,20 @@ export interface MatchOptions {
 const DEFAULTS = {
   hands: 2,
   buyinMist: 50_000_000n, // 0.05 SUI
-  // ~60 big blinds deep: enough room for real preflop/flop/turn/river play and several hands,
-  // instead of a 15 BB push/fold stack where one pot busts someone and the game ends instantly.
-  startingChips: 1200,
+  // ~75 big blinds deep so a single cooler does not bust someone in a hand or two; there is room
+  // for real multi-street play across several hands (and for an agent to spend its intel budget).
+  startingChips: 1500,
   smallBlind: 10,
   bigBlind: 20,
   anchor: true,
   untilBust: true,
   sponsorTable: true,
-  maxHands: 24,
-  // Blinds escalate slowly so the stacks stay deep through the early hands; the maxHands cap still
-  // guarantees the freezeout resolves.
-  escalateEvery: 8,
+  // Capped so a match is a tight demo length (~5-8 hands), not a marathon: if no one busts first,
+  // the chip leader takes it at the cap.
+  maxHands: 8,
+  // Blinds escalate slowly (every 4 hands) so the early hands stay deep for real play, then apply
+  // enough pressure to push toward a result by the cap.
+  escalateEvery: 4,
 };
 
 function toMatchAgent(e: RosterEntry): MatchAgent {
