@@ -63,6 +63,25 @@ export function primeMusicOnGesture(): void {
   window.addEventListener("keydown", go, { once: true });
 }
 
+// Stop the music entirely (used when leaving the app for the landing, so it does not keep playing
+// over a page with no chrome). Also clears any pending resume and cuts a playing game sound.
+export function stopMusic(): void {
+  if (resumeTimer) {
+    clearTimeout(resumeTimer);
+    resumeTimer = null;
+  }
+  if (music && !music.paused) music.pause();
+  if (current) {
+    try {
+      current.pause();
+      current.currentTime = 0;
+    } catch {
+      /* ignore */
+    }
+    current = null;
+  }
+}
+
 export function setMuted(m: boolean): void {
   init();
   muted = m;
