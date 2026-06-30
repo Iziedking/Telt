@@ -88,16 +88,18 @@ function reduce(vm: SolverVM, msg: FeedMessage): SolverVM {
       return { ...vm, questions: msg.payload.puzzles };
     case "puzzle": {
       const p = msg.payload;
-      // Append late questions (sudden-death tie-breakers arrive after the initial set) so they
-      // show in the grid and count toward the total.
-      const questions =
-        p.index >= vm.questions.length
-          ? [...vm.questions, { index: p.index, topic: p.topic, question: p.question, options: p.options, grounded: p.grounded }]
-          : vm.questions;
+      // Key each question by its own index and keep them sorted, so a re-sent or out-of-order
+      // message (a reconnect, a late sudden-death tie-breaker) never drops or misaligns a question.
+      const has = vm.questions.some((q) => q.index === p.index);
+      const questions = has
+        ? vm.questions
+        : [...vm.questions, { index: p.index, topic: p.topic, question: p.question, options: p.options, grounded: p.grounded }].sort(
+            (a, b) => a.index - b.index,
+          );
       return {
         ...vm,
         questions,
-        total: Math.max(vm.total, questions.length),
+        total: Math.max(vm.total, p.total, questions.length),
         currentIndex: p.index,
         askedAt: { ...vm.askedAt, [p.index]: Date.now() },
         status: `Question ${p.index + 1} of ${p.total}`,

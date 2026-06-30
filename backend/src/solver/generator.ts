@@ -111,10 +111,17 @@ async function generateOne(index: number, topicOverride?: string): Promise<Puzzl
   const facts = r?.text ? `Facts from the web to build on:\n${r.text}` : "Use your own well-established knowledge.";
   const res = await callModel({
     systemPrompt: SYSTEM,
-    userPrompt: `Category: ${topic}.\n${facts}\nWrite one fresh, non-obvious question.${avoidHint()}`,
-    maxTokens: 520,
+    userPrompt:
+      `Category: ${topic}.\n${facts}\nWrite one fresh, non-obvious question. Keep each option under 12 words.` +
+      avoidHint(),
+    // Generous budget: a smaller cap truncated the JSON mid-object on verbose models, which then
+    // failed to parse and silently fell back to the same canned questions.
+    maxTokens: 1100,
     temperature: 0.85,
-    // Uses the primary (Conduit when configured) and falls back to OpenRouter automatically.
+    // Generate on OpenRouter directly. Conduit's free tier rate-limits (429) under the burst of a
+    // 10-question round, which was forcing the canned fallback (and the repeated questions). The
+    // tiered agents still use Conduit-when-live for play; only puzzle writing is pinned here.
+    provider: "openrouter",
   });
   const parsed = parsePuzzle(res.text);
   const options = Array.isArray(parsed.options) ? parsed.options.slice(0, 4).map((o) => String(o)) : [];
