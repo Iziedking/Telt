@@ -80,39 +80,45 @@ export async function anchorMove(ctx: AgentAvow, m: MoveAnchorInput): Promise<An
   // Serialize: the anchor's Walrus writes run their own on-chain transactions inside the SDK,
   // which would otherwise race the coordinator's gas coin with the match's transactions and
   // fail on a stale object version. Running it on the shared queue gives it a fresh version.
-  try {
-    const result = await serialize(() =>
-      anchor({
-        suiClient: sui,
-        sealClient: seal,
-        walrusClient: walrus,
-        signer: ctx.signer,
-        mandateId: ctx.mandateId,
-        accessId: ctx.accessId,
-        bundle: {
-          version: EVIDENCE_VERSION,
+  // Retry once on a transient Walrus failure so a single blip does not leave the move unanchored.
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const result = await serialize(() =>
+        anchor({
+          suiClient: sui,
+          sealClient: seal,
+          walrusClient: walrus,
+          signer: ctx.signer,
           mandateId: ctx.mandateId,
-          agent: ctx.agentAddress,
-          user: ctx.user,
-          reasoning,
-          actionType: "poker_move",
-          target: m.opponentAgentId,
-          amount: String(m.amount),
-          rationale: m.rationale,
-          observed: { holeCards: m.holeCards, board: m.board, pot: m.pot, action: m.action, size: m.size },
-          before: m.before,
-          after: m.after,
-          txDigests: m.txDigests ?? [],
-          timestampMs: Date.now(),
-        },
-      }),
-    );
-    recordAnchor(true);
-    return result;
-  } catch (e) {
-    recordAnchor(false);
-    throw e;
+          accessId: ctx.accessId,
+          bundle: {
+            version: EVIDENCE_VERSION,
+            mandateId: ctx.mandateId,
+            agent: ctx.agentAddress,
+            user: ctx.user,
+            reasoning,
+            actionType: "poker_move",
+            target: m.opponentAgentId,
+            amount: String(m.amount),
+            rationale: m.rationale,
+            observed: { holeCards: m.holeCards, board: m.board, pot: m.pot, action: m.action, size: m.size },
+            before: m.before,
+            after: m.after,
+            txDigests: m.txDigests ?? [],
+            timestampMs: Date.now(),
+          },
+        }),
+      );
+      recordAnchor(true);
+      return result;
+    } catch (e) {
+      lastErr = e;
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 700));
+    }
   }
+  recordAnchor(false);
+  throw lastErr;
 }
 
 // Confirm the most recent anchored record for a mandate is real: fetch it, decrypt

@@ -5,8 +5,10 @@
 // important work, then resume automatically once Walrus recovers. ANCHOR_ENABLED=off disables
 // anchoring entirely (useful for a demo when Walrus testnet is flaky).
 const HARD_OFF = (process.env.ANCHOR_ENABLED ?? "on").toLowerCase() === "off";
-const FAIL_THRESHOLD = 3;
-const COOLDOWN_MS = 60_000;
+// Forgiving by design: Walrus testnet blips should not pause anchoring (which makes some moves
+// show unanchored). Trip only after many consecutive failures, and recover quickly.
+const FAIL_THRESHOLD = 8;
+const COOLDOWN_MS = 15_000;
 
 let consecutiveFails = 0;
 let pausedUntil = 0;
