@@ -27,6 +27,8 @@ import { runContest } from "../coordinator/runContest.js";
 import {
   customContests,
   challengeContests,
+  markCustom,
+  markChallenge,
   openContestWindow,
   closeContestWindow,
   contestEndsAt,
@@ -623,8 +625,8 @@ app.post("/contests/create", async (c) => {
   try {
     const { contestId } = await createContest({ game, format, levelMin, levelMax, entryFeeUsdc, maxEntries });
     if (rewardUsdc > 0n) await fundContest(contestId, rewardUsdc);
-    if (kind === "custom") customContests.add(contestId);
-    if (kind === "challenge") challengeContests.add(contestId);
+    if (kind === "custom") markCustom(contestId);
+    if (kind === "challenge") markChallenge(contestId);
     openContestWindow(contestId);
     return c.json({ ok: true, contestId, kind });
   } catch (e) {

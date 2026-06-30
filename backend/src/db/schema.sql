@@ -72,3 +72,14 @@ create table if not exists faucet_claims (
   created_at  timestamptz not null default now()
 );
 create index if not exists faucet_addr_idx on faucet_claims(address, created_at);
+
+-- Off-chain contest markers (join-window deadline, kind, difficulty) the contract does not record.
+-- Persisted so a restart does not orphan an in-flight contest: on boot these are reloaded and the
+-- sweeper can still run and settle a contest whose window closed while the process was down.
+create table if not exists contest_markers (
+  contest_id  text primary key,
+  kind        text,                     -- 'custom' | 'challenge' | null (general)
+  difficulty  text,
+  ends_at     bigint,                   -- join-window deadline, epoch ms
+  updated_at  timestamptz not null default now()
+);

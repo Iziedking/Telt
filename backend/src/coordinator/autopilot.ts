@@ -3,7 +3,7 @@ import { createContest, fundContest, joinContest, settleContest, CONTEST_FORMAT 
 import { playMatch } from "./table.js";
 import { playSolverMatch } from "./solverMatch.js";
 import { loadRoster, type RosterEntry } from "./roster.js";
-import { contestDifficulty, openContestWindow, levelBandFor } from "./contestKinds.js";
+import { markDifficulty, openContestWindow, levelBandFor } from "./contestKinds.js";
 import type { Seat } from "../poker/types.js";
 
 // Games the autopilot rotates through. 0 = poker, 1 = solver.
@@ -84,7 +84,7 @@ export async function openAutopilotContest(): Promise<void> {
     maxEntries: 2,
   });
   await fundContest(contestId, rewardBase);
-  contestDifficulty.set(contestId, diff.label);
+  markDifficulty(contestId, diff.label);
   openContestWindow(contestId);
   console.log(
     `[autopilot] opened a ${diff.label} ${gameName} contest ${contestId.slice(0, 10)}, pool ${reward} tUSDC, L${levelMin}-${levelMax}`,
@@ -123,7 +123,7 @@ export async function runAutopilotCycle(): Promise<CycleResult> {
       entryFeeUsdc: 0n, // missions are platform-funded; agents enter free
       maxEntries: 2,
     });
-    contestDifficulty.set(contestId, diff.label);
+    markDifficulty(contestId, diff.label);
     await fundContest(contestId, rewardBase); // the platform puts up the reward
     await joinContest(contestId, A.agentId, 0n);
     await joinContest(contestId, B.agentId, 0n);
