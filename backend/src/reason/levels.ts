@@ -41,23 +41,23 @@ export interface InferencePlan {
 // lookup time (so .env can retune the model ladder without touching this).
 //
 // `intel` is the per-match cap on how many opponent dossiers this tier may buy. Intel is
-// the underdog's catch-up tool, so LOWER tiers get a bigger budget and the top tier gets
-// none: an Oracle is already the strongest and should not be buying reads. This is the
+// a tier perk: a higher-tier agent can buy MORE dossiers per match, so leveling up has real
+// economic weight. Top tiers (3, 4) get 3 each; lower tiers (0, 1, 2) get 1 each. This is the
 // spending cap that stops an agent from buying a fresh dossier every street.
 type ReasonParams = Omit<InferencePlan, "provider" | "model">;
 const LEVELS: ReasonParams[] = [
-  { maxTokens: 320, temperature: 0.7, samples: 1, retries: 1, hint: "", intel: 3 },
-  { maxTokens: 420, temperature: 0.66, samples: 2, retries: 1, hint: " Think before deciding.", intel: 3 },
-  { maxTokens: 540, temperature: 0.64, samples: 3, retries: 1, hint: " Think through the hand, then sanity-check your action.", intel: 2 },
-  { maxTokens: 680, temperature: 0.62, samples: 4, retries: 1, hint: " Reason through the hand and weigh the opponent's tendencies before committing.", intel: 1 },
-  { maxTokens: 820, temperature: 0.6, samples: 5, retries: 1, hint: " Reason carefully through ranges and the opponent's tendencies, then verify before committing.", intel: 0 },
+  { maxTokens: 320, temperature: 0.7, samples: 1, retries: 1, hint: "", intel: 1 },
+  { maxTokens: 420, temperature: 0.66, samples: 2, retries: 1, hint: " Think before deciding.", intel: 1 },
+  { maxTokens: 540, temperature: 0.64, samples: 3, retries: 1, hint: " Think through the hand, then sanity-check your action.", intel: 1 },
+  { maxTokens: 680, temperature: 0.62, samples: 4, retries: 1, hint: " Reason through the hand and weigh the opponent's tendencies before committing.", intel: 3 },
+  { maxTokens: 820, temperature: 0.6, samples: 5, retries: 1, hint: " Reason carefully through ranges and the opponent's tendencies, then verify before committing.", intel: 3 },
 ];
 
 export function levelClamp(level: number): number {
   return Math.max(0, Math.min(MAX_LEVEL, Math.floor(level || 0)));
 }
 
-// Per-match dossier cap for a tier. Lower tiers buy more; the top tier buys none.
+// Per-match dossier cap for a tier. Higher tiers get more (a perk of leveling up): L3/L4 = 3, L0-L2 = 1.
 export function intelBudgetForLevel(level: number): number {
   return LEVELS[levelClamp(level)]!.intel;
 }

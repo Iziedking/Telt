@@ -11,8 +11,9 @@ import type { AgentAvow } from "../avow/anchorMove.js";
 // the dossier. The official x402 SDK ships EVM, Solana, and Stellar only, so we settle
 // on Sui ourselves rather than block on a package that does not cover this chain.
 
-// Demo price for one dossier, in MIST.
-export const PRICE_MIST = 20_000_000n; // 0.02 SUI
+// Demo price for one dossier, in MIST. A tiny micropayment (a fraction of a cent) so x402 reads as
+// cheap, frequent, machine-scale spending rather than a meaningful cost.
+export const PRICE_MIST = 2_000_000n; // 0.002 SUI
 
 // Digests already redeemed, so a single payment cannot be replayed for many dossiers.
 // In-memory for the demo; a real facilitator would persist this.
