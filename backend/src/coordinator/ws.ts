@@ -30,6 +30,9 @@ export interface MovePayload {
   evidenceHash: string | null;
   anchorDigest: string | null;
   withinMandate: boolean | null;
+  // The mandate the move was anchored under; verify uses it (a user's agent is anchored under a
+  // coordinator-provisioned mandate, not its registered one).
+  mandateId: string | null;
 }
 
 // A move's proof landing after the move was already shown live.
@@ -39,6 +42,7 @@ export interface MoveProvenPayload {
   blobId: string;
   evidenceHash: string;
   anchorDigest: string;
+  mandateId: string;
 }
 
 export interface HandPayload {

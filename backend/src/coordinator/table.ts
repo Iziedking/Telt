@@ -307,6 +307,10 @@ async function playHand(
               blobId: proof.blobId,
               evidenceHash: proof.evidenceHashHex,
               anchorDigest: proof.anchorDigest,
+              // The mandate the move was actually anchored under. For a user's agent this is the
+              // coordinator-provisioned mandate, not the agent's registered one, so verify must use
+              // this rather than resolving the agent's on-chain mandate (which would 404).
+              mandateId: me.avow.mandateId,
             },
           });
         })
@@ -335,6 +339,7 @@ async function playHand(
       evidenceHash: null,
       anchorDigest: null,
       withinMandate: null,
+      mandateId: me.avow.mandateId,
     };
     broadcast({ type: "move", payload });
 

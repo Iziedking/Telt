@@ -30,6 +30,8 @@ export interface MovePayload {
   evidenceHash: string | null;
   anchorDigest: string | null;
   withinMandate: boolean | null;
+  // The mandate the move was anchored under (provisioned for a user's agent); verify needs it.
+  mandateId: string | null;
 }
 
 export interface HandPayload {
@@ -124,7 +126,7 @@ export type FeedMessage =
   | { type: "move"; payload: MovePayload }
   | {
       type: "moveProven";
-      payload: { matchId: string; moveKey: string; blobId: string; evidenceHash: string; anchorDigest: string };
+      payload: { matchId: string; moveKey: string; blobId: string; evidenceHash: string; anchorDigest: string; mandateId: string };
     }
   | { type: "verify"; payload: { matchId: string; hashMatches: boolean; amountMatches: boolean; withinMandate: boolean } }
   | { type: "hand"; payload: HandPayload }

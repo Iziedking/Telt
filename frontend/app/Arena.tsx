@@ -225,7 +225,8 @@ export default function Arena() {
     }
     setVerifyState({ loading: true, result: null });
     try {
-      const r = await fetch(`${API_BASE}/verify/agent/${m.agentId}?blob=${encodeURIComponent(m.blobId)}`);
+      const mandateQ = m.mandateId ? `&mandate=${encodeURIComponent(m.mandateId)}` : "";
+      const r = await fetch(`${API_BASE}/verify/agent/${m.agentId}?blob=${encodeURIComponent(m.blobId)}${mandateQ}`);
       if (!r.ok) throw new Error(`verify failed (${r.status})`);
       setVerifyState({ loading: false, result: (await r.json()) as MoveVerification });
     } catch (err) {
@@ -759,7 +760,7 @@ function reduce(prev: ViewModel, msg: FeedMessage): ViewModel {
         ...prev,
         moveList: prev.moveList.map((m) =>
           m.moveKey === p.moveKey
-            ? { ...m, blobId: p.blobId, evidenceHash: p.evidenceHash, anchorDigest: p.anchorDigest, withinMandate: true }
+            ? { ...m, blobId: p.blobId, evidenceHash: p.evidenceHash, anchorDigest: p.anchorDigest, withinMandate: true, mandateId: p.mandateId ?? m.mandateId }
             : m,
         ),
       };

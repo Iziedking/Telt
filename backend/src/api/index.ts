@@ -62,8 +62,12 @@ app.get("/health", (c) => c.json({ ok: true }));
 app.get("/verify/agent/:agentId", async (c) => {
   const agentId = c.req.param("agentId");
   const blob = c.req.query("blob");
+  // The mandate the move was anchored under, passed by the feed. A user's agent is anchored under
+  // a coordinator-provisioned mandate, not its registered one, so prefer this when given; only fall
+  // back to resolving the agent's on-chain mandate (correct for platform agents) when it is absent.
+  const mandate = c.req.query("mandate");
   try {
-    const mandateId = await agentMandateId(agentId);
+    const mandateId = mandate || (await agentMandateId(agentId));
     const v = await verifyByBlob(mandateId, blob);
     if (!v) return c.json({ error: "no anchored record found" }, 404);
     return c.json(v);
