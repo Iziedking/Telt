@@ -57,15 +57,22 @@ export const config = {
     anthropicKey: process.env.ANTHROPIC_API_KEY ?? "",
     model: optional("ANTHROPIC_MODEL", "claude-haiku-4-5"),
     callTimeoutMs: Number(optional("REASON_TIMEOUT_MS", "60000")),
-    // Conduit is an Anthropic-compatible gateway. When CONDUIT_API_KEY is set, the Anthropic
-    // client points at it (the primary), and OpenRouter stays the fallback.
+    // Conduit is an Anthropic-compatible gateway. Up to three keys are tried in order (a key that
+    // returns Conduit's placeholder is skipped); OpenRouter is the final fallback.
     conduitKey: process.env.CONDUIT_API_KEY ?? "",
+    conduitKeys: [process.env.CONDUIT_API_KEY, process.env.CONDUIT_API_KEY_2, process.env.CONDUIT_API_KEY_3].filter(
+      (k): k is string => Boolean(k && k.trim()),
+    ),
     conduitBaseUrl: optional("CONDUIT_BASE_URL", "https://conduit.ozdoev.net"),
     // OpenRouter (OpenAI-compatible) powers the cheaper lower tiers. A tier's strength
     // comes from its model: the ladder climbs from a small cheap model at level 0 to
     // Claude Haiku at level 4. Each is overridable in .env (TIER0_MODEL..TIER4_MODEL).
     openrouterKey: process.env.OPENROUTER_API_KEY ?? "",
     openrouterModel: optional("LLM_MODEL", "google/gemini-2.5-flash"),
+    // When the Anthropic/Conduit tier fails, the top tier and the puzzle writer fall back to this
+    // OpenRouter model. Picked to be cheap but clearly stronger than the L0-L3 ladder so Oracle
+    // stays the best tier even when Conduit is down.
+    openrouterFallbackModel: optional("OPENROUTER_FALLBACK_MODEL", "deepseek/deepseek-chat"),
     tierModels: [
       { provider: "openrouter" as const, model: optional("TIER0_MODEL", "meta-llama/llama-3.2-1b-instruct") },
       { provider: "openrouter" as const, model: optional("TIER1_MODEL", "meta-llama/llama-3.2-3b-instruct") },

@@ -46,17 +46,23 @@ export function reasonMode(): ReasonSource {
   return resolveMode();
 }
 
-let client: Anthropic | null = null;
-function getClient(): Anthropic {
-  if (client) return client;
-  // Prefer Conduit (an Anthropic-compatible gateway) when its key is set; it is the primary.
-  const useConduit = Boolean(config.reason.conduitKey);
-  client = new Anthropic({
-    apiKey: useConduit ? config.reason.conduitKey : config.reason.anthropicKey,
-    baseURL: useConduit ? config.reason.conduitBaseUrl : undefined,
-    timeout: config.reason.callTimeoutMs,
-  });
-  return client;
+// Conduit returns this canned text instead of a real answer when a key has no working access;
+// it is not a transient warmup, so we skip that key entirely.
+const CONDUIT_PLACEHOLDER = /response did not generate correctly|please resend/i;
+
+const clientCache = new Map<string, Anthropic>();
+function anthropicClientFor(key: string, conduit: boolean): Anthropic {
+  const ck = (conduit ? "c:" : "a:") + key;
+  let c = clientCache.get(ck);
+  if (!c) {
+    c = new Anthropic({
+      apiKey: key,
+      baseURL: conduit ? config.reason.conduitBaseUrl : undefined,
+      timeout: config.reason.callTimeoutMs,
+    });
+    clientCache.set(ck, c);
+  }
+  return c;
 }
 
 export async function callModel(params: CallParams): Promise<CallResult> {
@@ -65,7 +71,7 @@ export async function callModel(params: CallParams): Promise<CallResult> {
   // The tier requests a provider; if its key is missing, fall back to whatever is
   // configured so a partial setup still runs rather than erroring.
   // "anthropic" here means the Anthropic-compatible client, which is Conduit when configured.
-  const haveAnthropic = Boolean(config.reason.conduitKey || config.reason.anthropicKey);
+  const haveAnthropic = Boolean(config.reason.conduitKeys.length || config.reason.anthropicKey);
   const wants: Provider = params.provider ?? (haveAnthropic ? "anthropic" : "openrouter");
   const haveOpenrouter = Boolean(config.reason.openrouterKey);
   const provider: Provider = wants === "openrouter" && !haveOpenrouter ? "anthropic" : wants === "anthropic" && !haveAnthropic ? "openrouter" : wants;
@@ -93,31 +99,40 @@ export async function callModel(params: CallParams): Promise<CallResult> {
 async function callAnthropic(params: CallParams): Promise<CallResult> {
   const model = params.model ?? config.reason.model;
   const t0 = Date.now();
-  // Stream and accumulate the final message. The Conduit gateway only returns an SSE stream
-  // (not a single JSON body), and streaming also works against the real Anthropic API, so use
-  // it for both rather than messages.create.
-  const stream = getClient().messages.stream({
-    model,
-    max_tokens: params.maxTokens,
-    temperature: params.temperature,
-    system: params.systemPrompt,
-    messages: [{ role: "user", content: params.userPrompt }],
-  });
-  const message = await stream.finalMessage();
-  const text = message.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("")
-    .trim();
-  return {
-    text,
-    source: "anthropic",
-    provider: "anthropic",
-    model,
-    chatID: message.id ?? null,
-    verified: null,
-    latencyMs: Date.now() - t0,
-  };
+  // Try each Conduit key in order, skipping any that returns Conduit's placeholder; fall back to
+  // the real Anthropic key when no Conduit keys are set. Streaming, because Conduit only returns
+  // SSE (and streaming also works against the real Anthropic API).
+  const attempts = config.reason.conduitKeys.length
+    ? config.reason.conduitKeys.map((key) => ({ key, conduit: true }))
+    : config.reason.anthropicKey
+      ? [{ key: config.reason.anthropicKey, conduit: false }]
+      : [];
+  let lastErr: Error | null = null;
+  for (const a of attempts) {
+    try {
+      const stream = anthropicClientFor(a.key, a.conduit).messages.stream({
+        model,
+        max_tokens: params.maxTokens,
+        temperature: params.temperature,
+        system: params.systemPrompt,
+        messages: [{ role: "user", content: params.userPrompt }],
+      });
+      const message = await stream.finalMessage();
+      const text = message.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map((b) => b.text)
+        .join("")
+        .trim();
+      if (a.conduit && CONDUIT_PLACEHOLDER.test(text)) {
+        lastErr = new Error("conduit key returned a placeholder");
+        continue;
+      }
+      return { text, source: "anthropic", provider: "anthropic", model, chatID: message.id ?? null, verified: null, latencyMs: Date.now() - t0 };
+    } catch (e) {
+      lastErr = e as Error;
+    }
+  }
+  throw lastErr ?? new Error("no usable anthropic/conduit key");
 }
 
 // OpenRouter speaks the OpenAI chat-completions shape, so a plain fetch is enough,
