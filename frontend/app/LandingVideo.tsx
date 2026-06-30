@@ -32,10 +32,25 @@ export default function LandingVideo() {
   const timer = useRef<number | null>(null);
 
   useEffect(() => {
-    ref.current?.play().catch(() => {});
+    const v = ref.current;
+    if (!v) return;
+    // iOS only autoplays a muted, inline video, and wants the muted *property* set at play time
+    // (the React prop alone is not always enough on mobile), so set it explicitly, then play.
+    v.muted = muted;
+    const tryPlay = () => {
+      void v.play().catch(() => {});
+    };
+    tryPlay();
+    // Mobile can still refuse the initial autoplay; retry once on the first user interaction.
+    const onGesture = () => tryPlay();
+    window.addEventListener("pointerdown", onGesture, { once: true });
+    window.addEventListener("touchstart", onGesture, { once: true });
     return () => {
+      window.removeEventListener("pointerdown", onGesture);
+      window.removeEventListener("touchstart", onGesture);
       if (timer.current) window.clearTimeout(timer.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i]);
 
   // When a clip ends, hold on its last frame for a few seconds, then play the next one.
@@ -66,6 +81,7 @@ export default function LandingVideo() {
         className="landing-video"
         src={CLIPS[i]}
         autoPlay
+        preload="auto"
         muted={muted}
         playsInline
         onEnded={onEnded}
