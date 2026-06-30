@@ -1102,10 +1102,10 @@ a.ct-hash:hover {
 .ws-faucet-btn.done {
   background: rgba(20, 24, 31, 0.1);
   color: var(--ink);
-  opacity: 0.65;
-  filter: saturate(0.5);
+  opacity: 0.5;
+  filter: saturate(0.35) blur(0.3px);
   box-shadow: none;
-  cursor: default;
+  cursor: not-allowed;
 }
 .ws-faucet-btn.done:hover {
   transform: none;

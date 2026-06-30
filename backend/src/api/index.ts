@@ -188,6 +188,19 @@ app.post("/faucet", async (c) => {
   }
 });
 
+// Faucet status for a wallet: how many claims remain in the window and, if capped, when it resets.
+// Durable (reads the DB), so the UI can keep the button disabled after the cap is hit, including
+// across restarts. The cap itself is enforced server-side in /faucet regardless of the UI.
+app.get("/faucet/status", async (c) => {
+  const address = (c.req.query("address") || "").toLowerCase();
+  if (!/^0x[0-9a-f]{1,64}$/.test(address)) return c.json({ error: "invalid address" }, 400);
+  const now = Date.now();
+  const claims = await recentFaucetClaims(address, now);
+  const remaining = Math.max(0, FAUCET_MAX_CLAIMS - claims.length);
+  const retryAt = claims.length >= FAUCET_MAX_CLAIMS ? claims[0]! + FAUCET_WINDOW_MS : null;
+  return c.json({ remaining, max: FAUCET_MAX_CLAIMS, retryAt });
+});
+
 // Run one autopilot event now: open a contest, seat the agents, play, settle the pool.
 // Runs in the background; progress streams over /ws and the console.
 app.post("/autopilot/run", (c) => {

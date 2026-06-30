@@ -11,7 +11,9 @@ export default function FaucetCard() {
   const [pkg, setPkg] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
-  const [claimed, setClaimed] = useState(false);
+  // remaining claims this week (null = not yet loaded); retryAt = when the cap resets (ms).
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const [retryAt, setRetryAt] = useState<number | null>(null);
 
   useEffect(() => {
     fetch(`${API_BASE}/status`)
@@ -19,6 +21,26 @@ export default function FaucetCard() {
       .then((d) => setPkg(d.arenaPackage || ""))
       .catch(() => {});
   }, []);
+
+  // Load the durable claim status for this wallet, so the button stays disabled after the weekly
+  // cap is hit (it does not re-open on a refresh or a backend restart; the cap lives in the DB).
+  const loadStatus = useCallback(() => {
+    if (!account) return;
+    fetch(`${API_BASE}/faucet/status?address=${account.address}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d.remaining === "number") setRemaining(d.remaining);
+        setRetryAt(d.retryAt ?? null);
+      })
+      .catch(() => {});
+  }, [account]);
+
+  useEffect(() => {
+    loadStatus();
+  }, [loadStatus]);
+
+  const capped = remaining !== null && remaining <= 0;
+  const resetText = retryAt ? new Date(retryAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
 
   const coinType = pkg ? `${pkg}::test_usdc::TEST_USDC` : "";
   const enabled = !!(account && coinType);
@@ -46,11 +68,15 @@ export default function FaucetCard() {
       });
       const d = await r.json();
       if (d.ok) {
-        setClaimed(true);
+        if (typeof d.remaining === "number") setRemaining(d.remaining);
         setMsg(`Claimed ${d.amount} tUSDC. ${d.remaining} claim${d.remaining === 1 ? "" : "s"} left this week.`);
-        setTimeout(() => balQ.refetch(), 2500);
+        setTimeout(() => {
+          balQ.refetch();
+          loadStatus();
+        }, 2500);
       } else {
         setMsg(d.error || "faucet failed");
+        loadStatus(); // a 429 (cap hit) should immediately lock the button
       }
     } catch (e) {
       setMsg((e as Error).name === "AbortError" ? "The mint is taking a while. Check your balance, or try again." : "faucet unreachable");
@@ -58,7 +84,7 @@ export default function FaucetCard() {
       clearTimeout(timer);
       setBusy(false);
     }
-  }, [account, balQ]);
+  }, [account, balQ, loadStatus]);
 
   if (!account) {
     return (
@@ -83,14 +109,20 @@ export default function FaucetCard() {
         grows your balance.
       </p>
       <button
-        className={`hero-cta ws-faucet-btn${claimed ? " done" : ""}`}
+        className={`hero-cta ws-faucet-btn${capped ? " done" : ""}`}
         onClick={claim}
-        disabled={busy || claimed}
+        disabled={busy || capped}
         title="The platform mints 25 tUSDC straight to your wallet. No signature or gas. Twice a week."
       >
-        {claimed ? "Claimed ✓" : busy ? "Claiming…" : "Claim 25 tUSDC"}
+        {capped ? "Weekly limit reached" : busy ? "Claiming…" : "Claim 25 tUSDC"}
       </button>
-      {msg && <div className="ws-faucet-msg">{msg}</div>}
+      {msg ? (
+        <div className="ws-faucet-msg">{msg}</div>
+      ) : capped && resetText ? (
+        <div className="ws-faucet-msg">Both claims used this week. Resets {resetText}.</div>
+      ) : remaining !== null ? (
+        <div className="ws-faucet-msg">{remaining} of 2 claims left this week.</div>
+      ) : null}
     </div>
   );
 }
