@@ -78,8 +78,12 @@ export const config = {
       { provider: "openrouter" as const, model: optional("TIER0_MODEL", "meta-llama/llama-3.2-1b-instruct") },
       { provider: "openrouter" as const, model: optional("TIER1_MODEL", "meta-llama/llama-3.2-3b-instruct") },
       { provider: "openrouter" as const, model: optional("TIER2_MODEL", "meta-llama/llama-3.1-8b-instruct") },
-      { provider: "openrouter" as const, model: optional("TIER3_MODEL", "openai/gpt-4o-mini") },
-      { provider: "anthropic" as const, model: optional("TIER4_MODEL", optional("ANTHROPIC_MODEL", "claude-haiku-4-5")) },
+      // T3: much cheaper than gpt-4o-mini but clearly above the llama ladder.
+      { provider: "openrouter" as const, model: optional("TIER3_MODEL", "google/gemini-2.5-flash-lite") },
+      // T4 on OpenRouter too (Conduit's free tier 429-rate-limits under match load and dropped
+      // agents to the heuristic fallback). gpt-4o-mini is reliable and the top tier without the
+      // cost of full gpt-4o.
+      { provider: "openrouter" as const, model: optional("TIER4_MODEL", "openai/gpt-4o-mini") },
     ],
   },
   memory: {
