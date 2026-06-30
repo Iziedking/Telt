@@ -13,6 +13,7 @@ import {
   type SolverSettledPayload,
 } from "./feed";
 import GameTabs from "./GameTabs";
+import { play as sound } from "./sound";
 import PlatformBadge from "./PlatformBadge";
 
 const TIERS = ["Mark", "Reader", "Spotter", "Profiler", "Oracle"];
@@ -193,6 +194,9 @@ export default function Solver() {
         } catch {
           return;
         }
+        // Game audio: a ding per answer, a clap + celebration (pausing the music) when it settles.
+        if (msg.type === "answer") sound("solver");
+        else if (msg.type === "solverSettled") sound("win", { pauseMusic: true });
         setVm((prev) => reduce(prev, msg));
       };
     }

@@ -4259,6 +4259,70 @@ input:focus:not(:focus-visible) {
 .tut-btn:hover .tut-btn-label {
   opacity: 1;
 }
+
+/* Sound toggle: same quiet corner pill as the tutorial button, sitting just above it. */
+.snd-btn {
+  position: fixed;
+  right: 22px;
+  bottom: 74px;
+  z-index: 90;
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  width: 44px;
+  border: none;
+  cursor: pointer;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--cream);
+  overflow: hidden;
+  box-shadow: 0 8px 22px rgba(20, 24, 31, 0.28);
+  opacity: 0.5;
+  transition:
+    opacity 0.2s ease,
+    width 0.2s ease;
+}
+.snd-btn:hover {
+  opacity: 1;
+  width: 140px;
+}
+.snd-btn.muted {
+  opacity: 0.4;
+}
+.snd-btn-mark {
+  position: relative;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+}
+.snd-btn.muted .snd-btn-mark::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 50%;
+  height: 2px;
+  background: var(--signal);
+  transform: rotate(-45deg);
+}
+.snd-btn-label {
+  font-family: var(--font-display), sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.snd-btn:hover .snd-btn-label {
+  opacity: 1;
+}
 @media (max-width: 640px) {
   .tut-btn {
     right: 14px;

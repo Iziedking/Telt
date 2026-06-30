@@ -11,6 +11,7 @@ import {
   type MoveVerification,
 } from "./feed";
 import GameTabs from "./GameTabs";
+import { play as sound } from "./sound";
 import PlatformBadge from "./PlatformBadge";
 
 type Seat = "A" | "B";
@@ -170,6 +171,9 @@ export default function Arena() {
         } catch {
           return;
         }
+        // Game audio: a beat per poker move, a clap + celebration (pausing the music) on settle.
+        if (msg.type === "move") sound("poker");
+        else if (msg.type === "settled") sound("win", { pauseMusic: true });
         setVm((prev) => reduce(prev, msg));
       };
     }
