@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useCurrentAccount, useSignPersonalMessage, ConnectModal } from "@mysten/dapp-kit";
+import { useCurrentAccount, useSignPersonalMessage } from "@mysten/dapp-kit";
+import WalletConnect from "./WalletConnect";
 import Onboarding from "./Onboarding";
 import Spark from "./Spark";
 import { API_BASE } from "./feed";
@@ -104,7 +105,7 @@ export default function Launch() {
         {phase === "connect" && (
           <>
             <p className="gate-text">Connect your wallet to step into the arena.</p>
-            <ConnectModal trigger={<button className="gate-cta">Connect wallet</button>} />
+            <WalletConnect triggerClassName="gate-cta" triggerLabel="Connect wallet" />
           </>
         )}
         {phase === "sign" && (

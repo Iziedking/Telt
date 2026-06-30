@@ -133,7 +133,7 @@ export async function runAutopilotCycle(): Promise<CycleResult> {
     if (game === GAME_SOLVER) {
       // playSolverMatch settles the contest pool to the winner itself.
       const res = await playSolverMatch({
-        puzzles: 6,
+        puzzles: 10,
         participants: [
           { ...A, key: "A" },
           { ...B, key: "B" },
@@ -142,7 +142,16 @@ export async function runAutopilotCycle(): Promise<CycleResult> {
       });
       winnerName = res.winner;
     } else {
-      const { winner } = await playMatch({ intel: { buyerSeat: "A", beforeHand: 1 } });
+      // Off-chain (tUSDC pool, no SUI table); agents decide their own x402 intel, referencing the
+      // contest id. The contest pool pays the winner.
+      const { winner } = await playMatch({
+        participants: [
+          { ...A, key: "A" },
+          { ...B, key: "B" },
+        ],
+        sponsorTable: false,
+        intelRef: contestId,
+      });
       const winnerAgent = winner === "A" ? A : B;
       await settleContest(contestId, winnerAgent.agentId);
       winnerName = winnerAgent.name;

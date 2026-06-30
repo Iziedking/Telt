@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ConnectModal, useCurrentAccount, useDisconnectWallet, useSuiClientQuery } from "@mysten/dapp-kit";
+import { useCurrentAccount, useDisconnectWallet, useSuiClientQuery } from "@mysten/dapp-kit";
 import { suiscanAccount } from "./suiscan";
+import WalletConnect from "./WalletConnect";
 
 function short(s: string): string {
   return s ? `${s.slice(0, 6)}…${s.slice(-4)}` : "";
@@ -89,7 +90,7 @@ export function WalletButton() {
       </div>
     );
   }
-  return <ConnectModal trigger={<button className="chip wallet" data-tour="connect">Connect wallet</button>} />;
+  return <WalletConnect />;
 }
 
 const NAV = [

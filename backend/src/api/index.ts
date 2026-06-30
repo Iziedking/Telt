@@ -76,8 +76,9 @@ app.get("/verify/agent/:agentId", async (c) => {
   }
 });
 
-// Kick a demo match in the background; the live action streams over /ws. The underdog
-// (seat A) buys intel before the second hand by default.
+// Kick a demo match in the background; the live action streams over /ws. The trailing agent
+// decides for itself when to buy x402 intel. Runs off-chain (no SUI table): the in-app game
+// currency is tUSDC/chips, SUI is only for gas, agent upgrades, and the x402 intel micropayment.
 let running = false;
 app.post("/match", (c) => {
   if (running) return c.json({ started: false, reason: "a match is already running" });
@@ -85,14 +86,16 @@ app.post("/match", (c) => {
   // ?with=<agentId> seats the caller's own agent against the top platform agent.
   const withAgent = c.req.query("with") || "";
   void (async () => {
+    const roster = loadRoster().agents;
+    const opponent = roster[roster.length - 1]!;
+    // A valid on-chain id for x402 buy_intel to reference (no SUI table to point at off-chain).
+    const intelRef = opponent.agentId;
     if (/^0x[0-9a-f]{1,64}$/.test(withAgent)) {
-      const roster = loadRoster().agents;
-      const opponent = roster[roster.length - 1]!;
       const me = await provisionAgentEntry(withAgent, "A");
       const participants: Participant[] = [me, { ...opponent, key: "B" }];
-      await playMatch({ participants });
+      await playMatch({ participants, sponsorTable: false, intelRef });
     } else {
-      await playMatch({ intel: { buyerSeat: "A", beforeHand: 1 } });
+      await playMatch({ sponsorTable: false, intelRef });
     }
   })()
     .catch((e) => console.error("match failed:", (e as Error).message))

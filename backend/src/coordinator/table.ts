@@ -123,7 +123,8 @@ export async function playMatch(
     payload: {
       matchId,
       tableId,
-      buyin: Number(o.buyinMist),
+      // Only an on-chain SUI table has a SUI buy-in; off-chain matches are chips/tUSDC only.
+      buyin: o.sponsorTable ? Number(o.buyinMist) : 0,
       agents: [
         { seat: "A", name: A.name, level: A.level, agentId: A.agentId, platform: isPlatformAgent(A.agentId) },
         { seat: "B", name: B.name, level: B.level, agentId: B.agentId, platform: isPlatformAgent(B.agentId) },

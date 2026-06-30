@@ -353,8 +353,12 @@ export default function Arena() {
               <div className="kicker">Arena</div>
               <div className="round">
                 Hand {live ? vm.handIndex + 1 : vm.handsPlayed} ·{" "}
-                {watching && contest ? `pool ${contest.pool} tUSDC` : `buy-in ${fmtSui(vm.buyin)}`} · {vm.handsPlayed}{" "}
-                played
+                {watching && contest
+                  ? `pool ${contest.pool} tUSDC`
+                  : vm.buyin > 0
+                    ? `buy-in ${fmtSui(vm.buyin)}`
+                    : "free simulation"}{" "}
+                · {vm.handsPlayed} played
               </div>
               <div className="potline">
                 <span className="big">{vm.pot}</span>
