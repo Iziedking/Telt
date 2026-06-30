@@ -154,16 +154,30 @@ export type FeedMessage =
 
 let wss: WebSocketServer | null = null;
 
+// Buffer of the current match's events, so a client that connects late or refreshes mid-match can
+// rebuild the live view (or see the settled result) instead of an empty "waiting" table. Cleared
+// when a new match starts, so a reconnect never replays a finished match ahead of the live one.
+const MAX_BUFFER = 600;
+let recent: string[] = [];
+
 export function attachWebSocket(server: Server): void {
   wss = new WebSocketServer({ server, path: "/ws" });
   wss.on("connection", (socket: WebSocket) => {
     socket.send(JSON.stringify({ type: "status", payload: { status: "connected" } }));
+    // Catch the new client up on the match in progress (or the last one's result).
+    for (const data of recent) {
+      if (socket.readyState === WebSocket.OPEN) socket.send(data);
+    }
   });
 }
 
 export function broadcast(message: FeedMessage): void {
-  if (!wss) return;
   const data = JSON.stringify(message);
+  // A new match resets the replay buffer; everything else appends to it.
+  if (message.type === "match" || message.type === "solverMatch") recent = [];
+  recent.push(data);
+  if (recent.length > MAX_BUFFER) recent.shift();
+  if (!wss) return;
   for (const client of wss.clients) {
     if (client.readyState === WebSocket.OPEN) client.send(data);
   }
