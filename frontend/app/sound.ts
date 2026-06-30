@@ -14,14 +14,17 @@ const SFX_FILES: Record<Sfx, string> = {
 const MUSIC_FILE = "/audio/music.mp3";
 
 const MUSIC_VOL = 0.32;
-const DUCK_VOL = 0.06;
-const SFX_VOL = 0.85;
+const SFX_VOL = 0.8;
+const RESUME_AFTER_MS = 3500; // resume the music after this long without a game sound
+const MIN_GAP_MS = 120; // ignore sounds fired closer than this, so a burst does not clash
 
 let music: HTMLAudioElement | null = null;
 let muted = false;
 let ready = false;
 let primed = false;
-let restoreTimer: ReturnType<typeof setTimeout> | null = null;
+let resumeTimer: ReturnType<typeof setTimeout> | null = null;
+let current: HTMLAudioElement | null = null; // the single game sound allowed to play at once
+let lastPlayAt = 0;
 
 function init(): void {
   if (ready || typeof window === "undefined") return;
@@ -69,21 +72,44 @@ export function setMuted(m: boolean): void {
     /* ignore */
   }
   if (!music) return;
-  if (m) music.pause();
-  else void music.play().catch(() => {});
+  if (m) {
+    music.pause();
+    if (current) {
+      try {
+        current.pause();
+      } catch {
+        /* ignore */
+      }
+      current = null;
+    }
+  } else void music.play().catch(() => {});
 }
 
-function restoreMusic(): void {
-  if (!music || muted) return;
-  music.volume = MUSIC_VOL;
-  if (music.paused) void music.play().catch(() => {});
-}
-
-// Play a one-shot game sound. The music ducks (or pauses for a win) while it plays and comes
-// back when it ends. A safety timer restores the music even if "ended" never fires.
-export function play(sfx: Sfx, opts: { pauseMusic?: boolean } = {}): void {
+// Play a one-shot game sound. Only one plays at a time: a new one cuts off the previous, so a
+// burst of moves does not pile into a clashing wall of sound. The background music pauses while
+// game sounds play and resumes only after a short gap of silence, so it stays out of the way
+// through a match instead of fighting the game audio. The opts arg is accepted but ignored now
+// that every game sound pauses the music.
+export function play(sfx: Sfx, _opts?: { pauseMusic?: boolean }): void {
   init();
   if (muted) return;
+
+  // Drop sounds fired almost on top of each other.
+  const now = Date.now();
+  if (now - lastPlayAt < MIN_GAP_MS) return;
+  lastPlayAt = now;
+
+  // Cut off whatever is still playing so sounds never overlap.
+  if (current) {
+    try {
+      current.pause();
+      current.currentTime = 0;
+    } catch {
+      /* ignore */
+    }
+    current = null;
+  }
+
   let a: HTMLAudioElement;
   try {
     a = new Audio(SFX_FILES[sfx]);
@@ -91,20 +117,24 @@ export function play(sfx: Sfx, opts: { pauseMusic?: boolean } = {}): void {
     return;
   }
   a.volume = SFX_VOL;
+  current = a;
+  a.addEventListener(
+    "ended",
+    () => {
+      if (current === a) current = null;
+    },
+    { once: true },
+  );
 
-  if (music && !music.paused) {
-    if (opts.pauseMusic) music.pause();
-    else music.volume = DUCK_VOL;
-  }
-  const back = () => {
-    if (restoreTimer) clearTimeout(restoreTimer);
-    restoreTimer = null;
-    restoreMusic();
-  };
-  a.addEventListener("ended", back, { once: true });
-  a.addEventListener("error", back, { once: true });
-  if (restoreTimer) clearTimeout(restoreTimer);
-  restoreTimer = setTimeout(back, opts.pauseMusic ? 9000 : 4000);
+  // Pause the music while game sounds play; resume only after a gap so it does not blip back on
+  // between each move or answer.
+  if (music && !music.paused) music.pause();
+  if (resumeTimer) clearTimeout(resumeTimer);
+  resumeTimer = setTimeout(() => {
+    if (music && !muted) void music.play().catch(() => {});
+  }, RESUME_AFTER_MS);
 
-  void a.play().catch(back);
+  void a.play().catch(() => {
+    if (current === a) current = null;
+  });
 }

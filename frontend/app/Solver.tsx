@@ -20,7 +20,9 @@ const TIERS = ["Mark", "Reader", "Spotter", "Profiler", "Oracle"];
 const tierName = (l: number) => TIERS[Math.min(Math.max(l, 0), 4)] ?? "Mark";
 const PER_PAGE = 6;
 
-const letterFor = (n: number) => String.fromCharCode(65 + n);
+// A..D for a real choice; an em dash when the agent never picked (choice is -1, e.g. it timed out),
+// rather than the "@" that 65 + (-1) would print.
+const letterFor = (n: number) => (n >= 0 && n < 26 ? String.fromCharCode(65 + n) : "—");
 
 interface ContestInfo {
   contestId: string;

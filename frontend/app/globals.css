@@ -1173,9 +1173,9 @@ a.ct-hash:hover {
   letter-spacing: 0.03em;
   padding: 8px 14px;
   border-radius: 10px;
-  border: 1px solid var(--ink);
+  border: 1px solid var(--text);
   background: transparent;
-  color: var(--ink);
+  color: var(--text);
   cursor: pointer;
 }
 .ws-mini.primary {
@@ -2655,6 +2655,33 @@ a.ct-hash:hover {
   font-weight: 600;
   line-height: 1.4;
   margin-bottom: 10px;
+}
+
+/* Dark mode: the solver cards were drawn with the ink-on-light palette, so re-point their text,
+   badges, and borders at themed values when dark. The mint "correct" fill stays light, so its text
+   and letter stay dark/light to keep contrast. */
+[data-theme="dark"] .sq-card {
+  border-color: var(--line);
+}
+[data-theme="dark"] .sa-name,
+[data-theme="dark"] .sa-score,
+[data-theme="dark"] .sp-text {
+  color: var(--text);
+}
+[data-theme="dark"] .sp-opt.correct .sp-text {
+  color: var(--ink);
+}
+[data-theme="dark"] .sp-letter,
+[data-theme="dark"] .sq-num {
+  background: var(--cream);
+  color: var(--ink);
+}
+[data-theme="dark"] .sp-opt.correct .sp-letter,
+[data-theme="dark"] .sp-opt.wrong .sp-letter {
+  color: var(--cream);
+}
+[data-theme="dark"] .sp-opt.picked {
+  border-color: var(--cream);
 }
 .sp-rationales {
   margin-top: 16px;
