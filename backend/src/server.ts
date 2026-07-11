@@ -1,3 +1,5 @@
+// MUST be first: repoints Sui's dead public fullnode before any client is constructed.
+import "./chain/rpcShim.js";
 import { startServer } from "./api/index.js";
 import { startAutopilot, autopilotEnabled } from "./coordinator/autopilot.js";
 import { startSweeper } from "./coordinator/sweeper.js";

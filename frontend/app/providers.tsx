@@ -6,8 +6,13 @@ import "@mysten/dapp-kit/dist/index.css";
 
 // Sui wallet connect, the real thing. The connect button and modal come from dapp-kit;
 // the WalletProvider keeps the connected account in context for the nav.
+// Sui's public fullnode (fullnode.testnet.sui.io) started returning 404 to every RPC call in July
+// 2026, which broke wallet balances and every on-chain read in the browser. Point at a working
+// testnet RPC instead; NEXT_PUBLIC_SUI_RPC repoints it without a code change.
+const SUI_RPC = process.env.NEXT_PUBLIC_SUI_RPC ?? "https://rpc-testnet.suiscan.xyz";
+
 const { networkConfig } = createNetworkConfig({
-  testnet: { url: "https://fullnode.testnet.sui.io:443", network: "testnet" },
+  testnet: { url: SUI_RPC, network: "testnet" },
 });
 const queryClient = new QueryClient();
 
