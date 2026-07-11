@@ -9,8 +9,11 @@
 //
 // Import this FIRST in server.ts, before anything that constructs a Sui client.
 
+// The replacement must retain transaction history, not just current state. Verify reads the anchor's
+// tx events, so a pruned node (rpc-testnet.suiscan.xyz is one) lets writes land but breaks proving
+// them: "Could not find the referenced transaction events". blockvision and nodeinfra both keep it.
 const DEAD_HOST = /^https:\/\/fullnode\.(?:testnet|mainnet|devnet)\.sui\.io(?::443)?/i;
-const REPLACEMENT = (process.env.SUI_RPC_URL || "https://rpc-testnet.suiscan.xyz").replace(/\/+$/, "");
+const REPLACEMENT = (process.env.SUI_RPC_URL || "https://sui-testnet-endpoint.blockvision.org").replace(/\/+$/, "");
 
 const upstream = globalThis.fetch;
 type FetchArgs = Parameters<typeof upstream>;

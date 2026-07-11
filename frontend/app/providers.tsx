@@ -9,7 +9,7 @@ import "@mysten/dapp-kit/dist/index.css";
 // Sui's public fullnode (fullnode.testnet.sui.io) started returning 404 to every RPC call in July
 // 2026, which broke wallet balances and every on-chain read in the browser. Point at a working
 // testnet RPC instead; NEXT_PUBLIC_SUI_RPC repoints it without a code change.
-const SUI_RPC = process.env.NEXT_PUBLIC_SUI_RPC ?? "https://rpc-testnet.suiscan.xyz";
+const SUI_RPC = process.env.NEXT_PUBLIC_SUI_RPC ?? "https://sui-testnet-endpoint.blockvision.org";
 
 const { networkConfig } = createNetworkConfig({
   testnet: { url: SUI_RPC, network: "testnet" },
