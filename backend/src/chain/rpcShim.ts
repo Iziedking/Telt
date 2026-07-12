@@ -76,6 +76,9 @@ function methodOf(body: unknown): string | undefined {
   }
 }
 
+// method -> endpoint that last served it, so we stop re-probing the chain on every call.
+const working = new Map<string, string>();
+
 const upstream = globalThis.fetch;
 type FetchArgs = Parameters<typeof upstream>;
 type Body = FetchArgs[1] extends { body?: infer B } | undefined ? B : never;
@@ -94,7 +97,25 @@ globalThis.fetch = async function patchedFetch(input: FetchArgs[0], init?: Fetch
     body = (input.body ? await input.arrayBuffer() : undefined) as Body;
   }
 
-  const endpoints = poolFor(methodOf(body));
+  const rpcMethod = methodOf(body);
+  const pool = poolFor(rpcMethod);
+
+  // Anchoring fires 40+ RPC calls per move (Walrus's write path is chatty), so re-probing the
+  // failover chain every time is what pushes an anchor past its timeout. Once an endpoint has served
+  // a method, go straight back to it and skip the body inspection entirely. Only on failure do we
+  // forget the preference and fall back to probing the chain again.
+  const preferred = rpcMethod ? working.get(rpcMethod) : undefined;
+  if (preferred) {
+    try {
+      const res = await upstream(url.replace(DEAD_HOST, preferred), { ...init, method, headers, body } as FetchArgs[1]);
+      if (res.status !== 429 && res.status < 500) return res;
+    } catch {
+      /* fall through to the full chain below */
+    }
+    if (rpcMethod) working.delete(rpcMethod);
+  }
+
+  const endpoints = preferred ? pool.filter((e) => e !== preferred).concat(preferred) : pool;
   let lastErr: unknown;
   let lastRes: Response | undefined;
   for (const endpoint of endpoints) {
@@ -114,6 +135,7 @@ globalThis.fetch = async function patchedFetch(input: FetchArgs[0], init?: Fetch
         lastRes = res;
         continue;
       }
+      if (rpcMethod) working.set(rpcMethod, endpoint);
       return res;
     } catch (e) {
       lastErr = e;
