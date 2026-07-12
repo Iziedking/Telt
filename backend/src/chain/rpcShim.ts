@@ -32,9 +32,13 @@ const OVERRIDE = (process.env.SUI_RPC_URL || "")
 
 // Owner/balance/event lookups need the index store. Transaction reads need history. Writes stay on
 // the endpoint we have actually seen land transactions. Everything else can go anywhere.
+// Every pool lists ALL nodes: the order is a latency hint (most likely to serve it first), and the
+// capability failover below is the real safety net, so a misclassified method still self-heals.
 const POOLS = {
-  index: [SUISCAN, BLOCKVISION],
-  history: [NODEINFRA, BLOCKVISION],
+  index: [SUISCAN, BLOCKVISION, NODEINFRA],
+  history: [NODEINFRA, BLOCKVISION, SUISCAN],
+  // queryEvents needs the index AND the referenced tx events; only blockvision reliably does both.
+  events: [BLOCKVISION, SUISCAN, NODEINFRA],
   write: [BLOCKVISION, SUISCAN, NODEINFRA],
   any: [SUISCAN, NODEINFRA, BLOCKVISION],
 };
@@ -46,11 +50,17 @@ const WRITE_METHODS = new Set([
   "sui_devInspectTransactionBlock",
 ]);
 
+// A node telling us it cannot serve this call (pruned history, no index, feature switched off).
+// These come back as HTTP 200 with a JSON-RPC error, so status codes alone never catch them.
+const CANNOT_SERVE =
+  /could not find the referenced transaction|index store not available|disabled feature|not supported|method not found|extended object indexing/i;
+
 function poolFor(method: string | undefined): string[] {
   if (OVERRIDE.length) return OVERRIDE;
   if (!method) return POOLS.any;
   if (WRITE_METHODS.has(method)) return POOLS.write;
   if (HISTORY_METHODS.has(method)) return POOLS.history;
+  if (method === "suix_queryEvents") return POOLS.events;
   if (method.startsWith("suix_")) return POOLS.index; // suix_* is the indexed namespace
   return POOLS.any;
 }
@@ -86,6 +96,7 @@ globalThis.fetch = async function patchedFetch(input: FetchArgs[0], init?: Fetch
 
   const endpoints = poolFor(methodOf(body));
   let lastErr: unknown;
+  let lastRes: Response | undefined;
   for (const endpoint of endpoints) {
     try {
       const res = await upstream(url.replace(DEAD_HOST, endpoint), { ...init, method, headers, body } as FetchArgs[1]);
@@ -94,11 +105,22 @@ globalThis.fetch = async function patchedFetch(input: FetchArgs[0], init?: Fetch
         lastErr = new Error(`${endpoint} returned ${res.status}`);
         continue;
       }
+      // A node can also refuse at the JSON-RPC layer while still returning 200 (pruned history, no
+      // index store, indexing switched off). Read the body and move on when it says it cannot serve
+      // this call, otherwise the caller gets a capability error from a node that simply lacks it.
+      const text = await res.clone().text();
+      if (text.includes('"error"') && CANNOT_SERVE.test(text)) {
+        lastErr = new Error(`${endpoint} cannot serve this call`);
+        lastRes = res;
+        continue;
+      }
       return res;
     } catch (e) {
       lastErr = e;
     }
   }
+  // Every endpoint refused. Hand back the real RPC error rather than inventing one.
+  if (lastRes) return lastRes;
   throw lastErr instanceof Error ? lastErr : new Error("every Sui RPC endpoint failed");
 } as typeof fetch;
 
