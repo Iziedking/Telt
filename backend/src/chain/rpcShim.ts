@@ -25,10 +25,22 @@ const BLOCKVISION = "https://sui-testnet-endpoint.blockvision.org"; // complete,
 const SUISCAN = "https://rpc-testnet.suiscan.xyz"; // index, no history
 const NODEINFRA = "https://sui-testnet.nodeinfra.com"; // history, no index
 
+// Validate each override: a malformed value here (a typo, a "<paste-your-endpoint>" placeholder
+// left in .env) would otherwise replace EVERY working endpoint and take all chain ops down.
+// Dropping the bad entry and falling back to the built-in pools keeps the app alive.
 const OVERRIDE = (process.env.SUI_RPC_URL || "")
   .split(",")
   .map((s) => s.trim().replace(/\/+$/, ""))
-  .filter(Boolean);
+  .filter((s) => {
+    if (!s) return false;
+    try {
+      new URL(s);
+      return true;
+    } catch {
+      console.error(`[rpc] ignoring invalid SUI_RPC_URL entry: ${JSON.stringify(s)}`);
+      return false;
+    }
+  });
 
 // Owner/balance/event lookups need the index store. Transaction reads need history. Writes stay on
 // the endpoint we have actually seen land transactions. Everything else can go anywhere.
