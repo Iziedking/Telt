@@ -1,3 +1,7 @@
+// Repoints Sui's dead public fullnode. It lives here rather than only in server.ts so that
+// every entry point that touches the chain (the server, but also `npm run match`, `records`,
+// `refillWal` and the rest) gets it. Importing it anywhere else is redundant but harmless.
+import "./rpcShim.js";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { Transaction } from "@mysten/sui/transactions";
 import type { SuiJsonRpcClient } from "@mysten/sui/jsonRpc";

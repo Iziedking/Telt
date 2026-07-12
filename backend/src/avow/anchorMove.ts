@@ -1,11 +1,11 @@
 import type { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
+import { WalrusClient } from "@mysten/walrus";
 import {
   anchor,
   verify,
   listRecords,
   createSession,
   getSealClient,
-  getWalrusClient,
   Reasoning,
   EVIDENCE_VERSION,
   type AnchorResult,
@@ -24,7 +24,77 @@ import type { Seat, Street, Card } from "../poker/types.js";
 // Sui client so Seal can cache keys across decryptions. Exported so the dossier path
 // reuses the same clients rather than spinning up a second pair.
 export const seal = getSealClient(sui);
-export const walrus = getWalrusClient(sui);
+
+// Storing the sealed bundle is the slow half of an anchor, and avow-sdk's getWalrusClient()
+// pins the one route that is currently broken. Measured on 2026-07-12:
+//
+//   upload relay  (avow default) : POST /v1/blob-upload-relay stalls 33s, answers 500. Dead.
+//   direct to nodes              : works, but it is ~2000 sliver PUTs over ~100 storage nodes,
+//                                  many of which have expired certs or no DNS. ~90s per blob.
+//   publisher                    : one PUT, ~15s, returns the blob id. Healthy.
+//
+// Every Sui RPC call in the same traces came back 200 in under two seconds, so the RPC layer
+// was never the problem. Write through the publisher and keep the direct path as the fallback,
+// so a publisher outage degrades anchoring to slow instead of broken.
+const PUBLISHER = process.env.WALRUS_PUBLISHER ?? "https://publisher.walrus-testnet.walrus.space";
+const AGGREGATOR = process.env.WALRUS_AGGREGATOR ?? "https://aggregator.walrus-testnet.walrus.space";
+const GATEWAY_TIMEOUT_MS = Number(process.env.WALRUS_GATEWAY_TIMEOUT_MS) || 60_000;
+
+// The publisher registers and certifies the blob with its own funds, so it owns the Blob object.
+// That is fine here: an anchor records the blob id and the evidence hash on chain, and verify
+// reads the bytes back by blob id, so nothing downstream needs us to hold the object.
+//
+// Reads have the same shape. verify() calls readBlob, which pulls slivers from that same
+// half-dead fleet and took 77s. The aggregator serves the whole blob in one GET, so the verify
+// reveal answers in seconds. Both overrides fall back to the SDK's direct path on failure.
+type WriteBlob = WalrusClient["writeBlob"];
+
+class GatewayWalrusClient extends WalrusClient {
+  constructor(config: ConstructorParameters<typeof WalrusClient>[0]) {
+    super(config);
+    const readFromNodes = this.readBlob;
+    this.readBlob = async (options) => {
+      try {
+        const res = await globalThis.fetch(`${AGGREGATOR}/v1/blobs/${options.blobId}`, {
+          signal: options.signal ?? AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
+        });
+        if (!res.ok) throw new Error(`aggregator returned ${res.status}`);
+        return new Uint8Array(await res.arrayBuffer());
+      } catch (e) {
+        console.warn(`[walrus] aggregator read failed (${(e as Error).message}), reading from storage nodes`);
+        return readFromNodes(options);
+      }
+    };
+  }
+
+  async writeBlob(...args: Parameters<WriteBlob>): ReturnType<WriteBlob> {
+    const [options] = args;
+    try {
+      const res = await globalThis.fetch(`${PUBLISHER}/v1/blobs?epochs=${options.epochs}`, {
+        method: "PUT",
+        body: options.blob as unknown as RequestInit["body"],
+        signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
+      });
+      if (!res.ok) throw new Error(`publisher returned ${res.status}`);
+      const body = (await res.json()) as {
+        newlyCreated?: { blobObject?: { blobId?: string } };
+        alreadyCertified?: { blobId?: string };
+      };
+      const blobObject = body.newlyCreated?.blobObject;
+      const blobId = blobObject?.blobId ?? body.alreadyCertified?.blobId;
+      if (!blobId) throw new Error("publisher returned no blob id");
+      return { blobId, blobObject } as Awaited<ReturnType<WriteBlob>>;
+    } catch (e) {
+      console.warn(`[walrus] publisher write failed (${(e as Error).message}), writing to storage nodes`);
+      return super.writeBlob(...args);
+    }
+  }
+}
+
+export const walrus = new GatewayWalrusClient({
+  network: process.env.AVOW_NETWORK === "mainnet" ? "mainnet" : "testnet",
+  suiClient: sui,
+});
 
 /** Everything a single agent needs to anchor under its own Avow mandate. */
 export interface AgentAvow {
