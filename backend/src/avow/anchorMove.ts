@@ -3,11 +3,12 @@ import { WalrusClient } from "@mysten/walrus";
 import {
   anchor,
   verify,
-  listRecords,
   createSession,
   getSealClient,
   Reasoning,
   EVIDENCE_VERSION,
+  ORIGINAL_PACKAGE_ID,
+  type AnchoredRecord,
   type AnchorResult,
   type VerifyResult,
 } from "avow-sdk";
@@ -195,10 +196,10 @@ export async function anchorMove(ctx: AgentAvow, m: MoveAnchorInput): Promise<An
 // through Seal, recompute the hash, and read the on-chain compliance verdict. The
 // reader is the coordinator, which is the principal of every access it created.
 export async function verifyLatestForMandate(mandateId: string): Promise<VerifyResult | null> {
-  const records = await listRecords(sui, mandateId, 10);
-  if (records.length === 0) return null;
+  const record = await findRecord(mandateId, () => true);
+  if (!record) return null;
   const session = await createSession(sui, coordinator(), 10);
-  return verify({ suiClient: sui, sealClient: seal, walrusClient: walrus, sessionKey: session, record: records[0]! });
+  return verify({ suiClient: sui, sealClient: seal, walrusClient: walrus, sessionKey: session, record });
 }
 
 export interface MoveVerification {
@@ -209,12 +210,62 @@ export interface MoveVerification {
   txDigest: string | null;
 }
 
+// avow's listRecords reads the newest N ActionAnchored events across EVERY mandate on the
+// network and filters ours out afterwards. That window slides: once ~N other anchors exist
+// after a move (a couple of matches is enough), the move can no longer be found and its
+// verify reveal fails, which is exactly the old "some moves verify, some do not". Page
+// through the global stream with a cursor until the record turns up instead.
+const ANCHOR_EVENT = `${ORIGINAL_PACKAGE_ID}::record::ActionAnchored`;
+const asBytes = (v: unknown): Uint8Array =>
+  Array.isArray(v) ? Uint8Array.from(v as number[]) : typeof v === "string" ? Uint8Array.from(Buffer.from(v, "base64")) : new Uint8Array();
+const asText = (v: unknown): string => new TextDecoder().decode(asBytes(v));
+const asHex = (v: unknown): string => Buffer.from(asBytes(v)).toString("hex");
+
+async function findRecord(
+  mandateId: string,
+  match: (r: AnchoredRecord) => boolean,
+  maxPages = 20,
+): Promise<AnchoredRecord | null> {
+  let cursor: { txDigest: string; eventSeq: string } | null = null;
+  for (let page = 0; page < maxPages; page++) {
+    const res = await sui.queryEvents({
+      query: { MoveEventType: ANCHOR_EVENT },
+      order: "descending",
+      limit: 100,
+      cursor,
+    });
+    for (const e of res.data) {
+      const j = e.parsedJson as Record<string, unknown>;
+      if (String(j.mandate_id) !== mandateId) continue;
+      const record: AnchoredRecord = {
+        mandateId: String(j.mandate_id),
+        accessId: String(j.access_id),
+        agent: String(j.agent),
+        user: String(j.user),
+        blobId: asText(j.blob_id),
+        evidenceHashHex: asHex(j.evidence_hash),
+        amount: String(j.amount),
+        actionType: asText(j.action_type),
+        target: asText(j.target),
+        epoch: String(j.epoch),
+        txDigest: e.id.txDigest,
+        timestampMs: Number(e.timestampMs ?? 0),
+        withinMandate: j.within_mandate === undefined ? undefined : Boolean(j.within_mandate),
+        breaches: j.breaches === undefined ? undefined : Number(j.breaches),
+      };
+      if (match(record)) return record;
+    }
+    if (!res.hasNextPage || !res.nextCursor) return null;
+    cursor = res.nextCursor;
+  }
+  return null;
+}
+
 // Verify one specific anchored move by its Walrus blob id (or the latest if no blob is
 // given). This backs the frontend verify reveal: it does the real check on demand, it
 // does not trust a cached flag.
 export async function verifyByBlob(mandateId: string, blobId?: string): Promise<MoveVerification | null> {
-  const records = await listRecords(sui, mandateId, 50);
-  const record = blobId ? records.find((r) => r.blobId === blobId) : records[0];
+  const record = await findRecord(mandateId, (r) => (blobId ? r.blobId === blobId : true));
   if (!record) return null;
 
   // Seal key servers and the Walrus relay occasionally rate-limit or drop a request
