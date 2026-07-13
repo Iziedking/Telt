@@ -76,6 +76,8 @@ export interface IntelPayload {
 
 export interface MatchPayload {
   matchId: string;
+  /** The contest this match belongs to, when it has one. Lets a spectator watch one and ignore the rest. */
+  contestId?: string;
   tableId: string;
   buyin: number;
   agents: { seat: string; name: string; level: number; agentId: string; platform?: boolean }[];
@@ -122,6 +124,11 @@ export interface BracketSnapshot {
 // --- Solver feed (the quiz game) ---
 export interface SolverMatchPayload {
   matchId: string;
+  // The contest this match is playing out, when it belongs to one. Without it a spectator who came
+  // to watch a specific contest cannot tell this match from any other, and the arena is a firehose:
+  // every client is sent every match, so an unrelated one starting elsewhere would reset their page
+  // mid-quiz. It did exactly that.
+  contestId?: string;
   puzzleCount: number;
   secondsPerQuestion?: number;
   webGrounded: boolean;

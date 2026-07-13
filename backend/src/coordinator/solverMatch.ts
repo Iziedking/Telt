@@ -62,6 +62,7 @@ export async function playSolverMatch(opts: SolverMatchOptions = {}): Promise<So
     type: "solverMatch",
     payload: {
       matchId,
+      contestId: opts.contestId,
       puzzleCount: count,
       secondsPerQuestion: SECONDS_PER_QUESTION,
       webGrounded: solverSourcesConfigured(),

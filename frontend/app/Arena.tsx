@@ -121,11 +121,18 @@ export default function Arena() {
   // Which settle the winner card has been dismissed for, so it pops once per event but can close.
   const [closedSettle, setClosedSettle] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  // The feed is shared by every client and carries every match. When we came to watch ONE contest,
+  // ignore the rest, or an unrelated match starting elsewhere wipes the table mid-hand. Refs, not
+  // state: the socket handler is installed once and would close over a stale contest id.
+  const watchingRef = useRef<string | null>(null);
+  const followingRef = useRef<string | null>(null);
   const watching = !!contestId;
 
   // Which contest we arrived to watch (from Run now / Watch live), and its live details.
   useEffect(() => {
-    setContestId(new URLSearchParams(window.location.search).get("contest"));
+    const id = new URLSearchParams(window.location.search).get("contest");
+    setContestId(id);
+    watchingRef.current = id;
   }, []);
   useEffect(() => {
     if (!contestId) return;
@@ -179,6 +186,19 @@ export default function Arena() {
         } catch {
           return;
         }
+        // Only follow the match we came for. With no contest in the URL, follow whatever is live --
+        // which is what the open arena page is for.
+        const watching = watchingRef.current;
+        if (watching) {
+          const p = (msg as { payload?: { matchId?: string; contestId?: string } }).payload ?? {};
+          if (msg.type === "match") {
+            if (p.contestId !== watching) return; // another contest's match: not the one we are here for
+            followingRef.current = p.matchId ?? null;
+          } else if (msg.type !== "bracket" && p.matchId && p.matchId !== followingRef.current) {
+            return; // a message from some other match on the shared feed
+          }
+        }
+
         // Game audio: a beat per poker move, a clap + celebration (pausing the music) on settle.
         if (msg.type === "move") sound("poker");
         else if (msg.type === "settled") sound("win", { pauseMusic: true });

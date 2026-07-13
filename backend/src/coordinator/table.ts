@@ -140,6 +140,9 @@ export async function playMatch(
     type: "match",
     payload: {
       matchId,
+      // A contest match carries its contest id (it is the same id the intel market references), so a
+      // spectator watching one contest can ignore every other match on the shared feed.
+      contestId: o.sponsorTable ? undefined : (o.intelRef || undefined),
       tableId,
       // Only an on-chain SUI table has a SUI buy-in; off-chain matches are chips/tUSDC only.
       buyin: o.sponsorTable ? Number(o.buyinMist) : 0,

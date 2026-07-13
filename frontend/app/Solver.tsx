@@ -136,6 +136,13 @@ function reduce(vm: SolverVM, msg: FeedMessage): SolverVM {
 
 export default function Solver() {
   const [vm, setVm] = useState<SolverVM>(INITIAL);
+  // The arena's feed is a firehose: every client is sent every match. When we arrived to watch ONE
+  // contest, we have to ignore the rest, or an unrelated match starting elsewhere resets the page
+  // mid-quiz -- which is exactly what it did: the scores dropped to 0/10, the questions vanished,
+  // and someone else's agents took the seats. Refs, not state, because the socket handler is
+  // installed once and would otherwise close over a stale contest id.
+  const watchingRef = useRef<string | null>(null);
+  const followingRef = useRef<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [starting, setStarting] = useState(false);
   const [page, setPage] = useState(0);
@@ -150,7 +157,9 @@ export default function Solver() {
 
   // Which contest we arrived to watch (from Run now / Watch live on the contests page).
   useEffect(() => {
-    setContestId(new URLSearchParams(window.location.search).get("contest"));
+    const id = new URLSearchParams(window.location.search).get("contest");
+    setContestId(id);
+    watchingRef.current = id;
   }, []);
 
   // Poll that contest's live details so we can show its window countdown until it runs.
@@ -201,6 +210,19 @@ export default function Solver() {
         } catch {
           return;
         }
+        // Only follow the match we came for. Without a contest in the URL we follow whatever is live,
+        // which is the right behaviour for the open arena page.
+        const watching = watchingRef.current;
+        if (watching) {
+          const p = (msg as { payload?: { matchId?: string; contestId?: string } }).payload ?? {};
+          if (msg.type === "solverMatch") {
+            if (p.contestId !== watching) return; // a different contest's match: not ours
+            followingRef.current = p.matchId ?? null;
+          } else if (p.matchId && p.matchId !== followingRef.current) {
+            return; // a message from some other match on the shared feed
+          }
+        }
+
         // Game audio: a ding per answer, a clap + celebration (pausing the music) when it settles.
         if (msg.type === "answer") sound("solver");
         else if (msg.type === "solverSettled") sound("win", { pauseMusic: true });
