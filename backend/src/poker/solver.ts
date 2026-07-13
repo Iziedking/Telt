@@ -108,6 +108,27 @@ export interface SolverTier {
 // So the engine treats every tier the same, and a level's strength comes entirely from the things
 // that genuinely make a player better: a sharper equity read (iterations, below), a stronger model,
 // more self-consistency passes, a better expert skill, and a bigger dossier budget to scout with.
+// SLACK IS UNIFORM, AND IT MUST BE. This was tried the other way twice, and it inverted the ladder
+// both times, so the reason is written down here rather than rediscovered a third time.
+//
+// The intuition -- borrowed from the chess engine, where it is correct -- is that a low tier should
+// be handed rope: a wider shortlist, containing genuinely losing actions, which a weak model will
+// take. It reads as a handicap. It is not one.
+//
+// In heads-up poker a wider shortlist is not rope, it is a WEAPON. The extra options are extra ways
+// to apply pressure, and pressure wins heads-up pots. Level 0, handed five options instead of four,
+// finds more bets and more raises, and it runs over a level 4 that has been narrowed to the sound
+// lines and is quietly folding. Measured on 20 duplicate boards, twice, and the second time after
+// the EV-argmax bug had been fixed, so the numbers being hidden was not the explanation:
+//
+//   graded slack (level 0 wide, level 4 narrow)   level 4 LOST by 750 chips a board
+//   uniform slack                                 level 4 WON  by 301 chips a board
+//
+// So slack is a safety rail set at the same height for everyone. It exists to keep the stack-punt
+// off the list, and for nothing else. A level's strength comes from a sharper equity read, a
+// stronger model, more self-consistency passes, a better expert skill, and a bigger dossier budget
+// -- the things that raise a player's CEILING. Nothing here lowers anyone's floor, because lowering
+// a poker player's floor turns out to make them harder to play against, not easier.
 const SLACK_BB = 8.0;
 const SHORTLIST = 4;
 
