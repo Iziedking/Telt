@@ -1,14 +1,13 @@
 import { callModel, type CallResult } from "../reason/client.js";
 import type { InferencePlan } from "../reason/levels.js";
 import { pokerSkill } from "../skills/poker.js";
+import { candidates, solverTier, type ActionCandidate } from "../poker/solver.js";
 import type { ActionType, Card, Seat } from "../poker/types.js";
 
-// One agent making one poker decision. The whole point of Telt lives in callModel:
-// the action is produced by a Claude Haiku call, and the level's InferencePlan decides
-// how hard the agent thinks. Higher levels run more self-consistency passes and vote,
-// so a trained agent reliably out-decides the baseline. Everything else here is the
-// thin shell around that one call, plus the parsing that turns the reply into a legal
-// action and the proof-friendly rationale.
+// One agent making one poker decision, as a two-part brain: the engine prices the legal
+// actions (poker/solver.ts) and the model chooses among the ones this level is allowed to
+// see. The model supplies judgment and the rationale that gets anchored; the engine supplies
+// the arithmetic and the guarantee that a high level cannot be handed a losing action.
 
 export interface DecisionContext {
   seat: Seat;
@@ -21,7 +20,9 @@ export interface DecisionContext {
   myStack: number;
   oppStack: number;
   myCommitted: number;
+  oppCommitted: number;
   currentBet: number;
+  bigBlind: number;
   toCall: number;
   canCheck: boolean;
   canCall: boolean;
@@ -42,12 +43,18 @@ export interface Decision {
   samples: number;
   /** How many passes backed the chosen action. */
   agreement: number;
+  /** The engine's win probability against the opponent's whole range, 0..1. */
+  equity: number;
+  /** The priced shortlist this level was allowed to choose from. */
+  candidates: ActionCandidate[];
   raw: string;
   source: string;
   latencyMs: number;
 }
 
 interface Proposal {
+  /** Index into the shortlist. The model picks a number, not a move. */
+  index: number;
   action: ActionType;
   size: number;
   confidence: number;
@@ -55,19 +62,28 @@ interface Proposal {
   raw: string;
 }
 
-// Every tier is told to play well. The difference between tiers is the model executing
-// this advice (cheap and weak at level 0, Haiku at level 4) plus the reasoning passes
-// and the expert skill, not a prompt telling anyone to play badly.
+// The agent is the DECISION HEAD, not the calculator.
+//
+// It used to be both, and it was bad at the second job in a way no prompt could repair.
+// A model cannot price a call, so it called when the odds forbade it; it could not tell a
+// made hand from a dead one, so it fired busted draws on the river. That last blunder was
+// patched with an explicit "never bet a busted draw" sentence in this very prompt, and the
+// level 4 agent went and did it again the same evening.
+//
+// So the arithmetic moved to the engine (poker/solver.ts). It enumerates the legal actions,
+// prices each against a Monte Carlo equity read, and passes a SHORTLIST. Every option on
+// that shortlist is already sane; the agent's job is the part a model is genuinely good at,
+// which is judgment — which of these good lines fits this opponent, this history, this read
+// I paid for. It cannot pick a move that is not on the list, so it cannot punt.
 const SYSTEM_PROMPT =
-  "You are a strong, competitive heads-up No-Limit Texas Hold'em player. You are given the full state and the exact " +
-  "legal actions. Reply with ONLY a JSON object, no prose, in this form: " +
-  '{"action":"fold|check|call|raise","size":<integer>,"confidence":<0..1>,"rationale":"<one short sentence>"}. ' +
-  "For a raise, `size` is the TOTAL amount to raise your street bet TO (between the stated min and max); use 0 for " +
-  "any non-raise. Play to win: take the initiative with bets and raises when you have an edge, value-bet strong hands, " +
-  "and bluff in good spots — but pick your spots and do not punt chips on weak holdings. Crucial: the river is the " +
-  "final card, so a draw that has not completed is now worthless — never raise or value-bet a busted draw on the " +
-  "river; check or fold it, and only bet it as a bluff when the story is credible. Use your training and any intel " +
-  "you hold to read and exploit your opponent.";
+  "You are the decision head of a strong heads-up No-Limit Texas Hold'em agent. The engine has already done the " +
+  "arithmetic: it gives you the position, your equity, and a short list of candidate actions, each already legal and " +
+  "each priced in chips (EV, the expected chip gain against folding). Choose the single best candidate for THIS " +
+  "opponent. The EV is a guide, not an order: it assumes an average opponent, so a read you hold on this specific " +
+  "player — from the history or from intel you bought — is exactly the reason to prefer a close second. Do not " +
+  "invent a move that is not on the list. Reply with ONLY a JSON object, no prose, in this form: " +
+  '{"pick":<the number of your chosen candidate>,"confidence":<0..1>,"rationale":"<one short sentence>"}. ' +
+  "Always give the rationale. It is shown to spectators as your thinking and is anchored on chain as your reasoning.";
 
 // The intel decision is the agent's own call: spend a small x402 fee on a dossier when a read is
 // worth it, not a scripted one-time purchase. Kept cheap (one short call) so it does not stall play.
@@ -117,9 +133,56 @@ const ACTIONS: ActionType[] = ["fold", "check", "call", "raise"];
 const PRIORITY: Record<ActionType, number> = { check: 0, call: 1, fold: 2, raise: 3 };
 
 export async function decide(ctx: DecisionContext, plan: InferencePlan): Promise<Decision> {
-  const userPrompt = buildPrompt(ctx);
-  // Tier = reasoning (plan.samples passes) + training (the level's expert skill, injected
-  // into the system prompt). A higher tier both thinks more and knows more.
+  // The engine speaks first. It prices every legal action and hands back only the ones this
+  // level is allowed to see: a low level's shortlist still contains real mistakes, a high
+  // level's does not. This is where a tier becomes a strength rather than a label.
+  const tier = solverTier(ctx.level);
+  const { actions: shortlist, equity } = candidates(
+    {
+      hole: ctx.hole,
+      board: ctx.board,
+      pot: ctx.pot,
+      toCall: ctx.toCall,
+      myCommitted: ctx.myCommitted,
+      oppCommitted: ctx.oppCommitted,
+      myStack: ctx.myStack,
+      oppStack: ctx.oppStack,
+      bigBlind: ctx.bigBlind,
+      legal: {
+        canFold: true,
+        canCheck: ctx.canCheck,
+        canCall: ctx.canCall,
+        callAmount: ctx.toCall,
+        canRaise: ctx.canRaise,
+        minRaiseTo: ctx.minRaiseTo,
+        maxRaiseTo: ctx.maxRaiseTo,
+      },
+    },
+    tier,
+  );
+  const engineBest = shortlist[0]!;
+
+  // A forced move is not a decision. When the tier's rope leaves exactly one sane action,
+  // play it and skip the model entirely: it saves a call per decision across a bracket, and
+  // there is nothing to judge.
+  if (shortlist.length === 1) {
+    return {
+      action: engineBest.action,
+      size: engineBest.size,
+      rationale: `Only sane line here: ${engineBest.label}.`,
+      confidence: 1,
+      samples: 0,
+      agreement: 0,
+      equity,
+      candidates: shortlist,
+      raw: "",
+      source: "engine",
+      latencyMs: 0,
+    };
+  }
+
+  const userPrompt = buildPrompt(ctx, shortlist);
+  // Tier = the shortlist it is handed (above) + reasoning passes + the level's expert skill.
   const systemPrompt = SYSTEM_PROMPT + pokerSkill(ctx.level).system + plan.hint;
   let lastRaw = "";
   let source = "offline-dev";
@@ -148,19 +211,24 @@ export async function decide(ctx: DecisionContext, plan: InferencePlan): Promise
     if (!res) continue;
     source = res.source;
     lastRaw = res.text;
-    const p = extractProposal(res.text, ctx);
+    const p = extractPick(res.text, shortlist);
     if (p) proposals.push(p);
   }
   const latencyMs = Date.now() - t0;
 
   if (proposals.length === 0) {
-    // The model never returned a parseable action. Fall back to the safest legal line.
-    const safe = safeAction(ctx);
+    // Every pass failed or returned nothing we could read. Play the engine's own best line.
+    // This is a far better floor than the old hand-rolled heuristic: it is the same priced
+    // action the model was choosing among, so a provider outage costs judgment, not the hand.
     return {
-      ...safe,
+      action: engineBest.action,
+      size: engineBest.size,
+      rationale: `Engine line: ${engineBest.label}.`,
       confidence: 0,
       samples: plan.samples,
       agreement: 0,
+      equity,
+      candidates: shortlist,
       raw: lastRaw,
       source,
       latencyMs,
@@ -168,12 +236,21 @@ export async function decide(ctx: DecisionContext, plan: InferencePlan): Promise
   }
 
   const chosen = aggregate(proposals);
-  return { ...chosen, samples: plan.samples, raw: lastRaw, source, latencyMs };
+  return {
+    ...chosen,
+    samples: plan.samples,
+    equity,
+    candidates: shortlist,
+    raw: lastRaw,
+    source,
+    latencyMs,
+  };
 }
 
-// Majority vote over the proposed actions; ties go to summed confidence, then to the
-// lower-variance line. For a raise, take the median proposed size; the rationale and
-// confidence come from the most confident proposal of the winning action.
+// Majority vote over the picked candidates. Because every proposal is now an index into the
+// same priced shortlist, the vote is over identical options rather than over free-form moves
+// that had to be reconciled afterwards: no median sizing, no illegal-action remapping. Ties
+// go to summed confidence, then to the engine's own ranking (the earlier candidate).
 function aggregate(proposals: Proposal[]): {
   action: ActionType;
   size: number;
@@ -181,47 +258,43 @@ function aggregate(proposals: Proposal[]): {
   confidence: number;
   agreement: number;
 } {
-  const buckets = new Map<ActionType, Proposal[]>();
+  const buckets = new Map<number, Proposal[]>();
   for (const p of proposals) {
-    const arr = buckets.get(p.action) ?? [];
+    const arr = buckets.get(p.index) ?? [];
     arr.push(p);
-    buckets.set(p.action, arr);
+    buckets.set(p.index, arr);
   }
 
-  let best: ActionType = proposals[0]!.action;
+  let bestIndex = proposals[0]!.index;
   let bestScore = -Infinity;
-  for (const a of ACTIONS) {
-    const arr = buckets.get(a);
-    if (!arr || arr.length === 0) continue;
-    const count = arr.length;
+  for (const [index, arr] of buckets) {
     const conf = arr.reduce((s, p) => s + p.confidence, 0);
-    // count dominates, then summed confidence, then priority (lower is better).
-    const score = count * 1000 + conf * 10 - PRIORITY[a];
+    // Votes dominate, then summed confidence, then the engine's preference order.
+    const score = arr.length * 1000 + conf * 10 - index;
     if (score > bestScore) {
       bestScore = score;
-      best = a;
+      bestIndex = index;
     }
   }
 
-  const arr = buckets.get(best)!;
+  const arr = buckets.get(bestIndex)!;
   const top = arr.reduce((a, b) => (b.confidence > a.confidence ? b : a));
-  const size = best === "raise" ? median(arr.map((p) => p.size)) : 0;
-  return { action: best, size, rationale: top.rationale, confidence: top.confidence, agreement: arr.length };
+  return {
+    action: top.action,
+    size: top.size,
+    rationale: top.rationale,
+    confidence: top.confidence,
+    agreement: arr.length,
+  };
 }
 
-function buildPrompt(ctx: DecisionContext): string {
+function buildPrompt(ctx: DecisionContext, shortlist: ActionCandidate[]): string {
   const lines: string[] = [];
   lines.push(`You are ${ctx.agentName} (seat ${ctx.seat}), a level ${ctx.level} agent.`);
   lines.push(`Your hole cards: ${ctx.hole.join(" ")}.`);
   lines.push(`Street: ${ctx.street}. Board: ${ctx.board.length ? ctx.board.join(" ") : "(none yet)"}.`);
   lines.push(`Pot: ${ctx.pot}. Your stack: ${ctx.myStack}. Opponent stack: ${ctx.oppStack}.`);
   lines.push(`You have put ${ctx.myCommitted} in this street; the current bet is ${ctx.currentBet}.`);
-
-  const opts: string[] = ["fold"];
-  if (ctx.canCheck) opts.push("check");
-  if (ctx.canCall) opts.push(`call ${ctx.toCall}`);
-  if (ctx.canRaise) opts.push(`raise to between ${ctx.minRaiseTo} and ${ctx.maxRaiseTo}`);
-  lines.push(`Legal actions: ${opts.join(", ")}.`);
 
   if (ctx.oppLastAction) lines.push(`Opponent's last action: ${ctx.oppLastAction}.`);
   if (ctx.history.length) lines.push(`Recent action: ${ctx.history.slice(-6).join("; ")}.`);
@@ -230,14 +303,21 @@ function buildPrompt(ctx: DecisionContext): string {
     lines.push("What you know about this opponent (use it):");
     for (const n of ctx.notes.slice(0, 6)) lines.push(`- ${n}`);
   }
+
   lines.push("");
-  lines.push("Decide your action now.");
+  lines.push("Candidate actions, best-first by the engine's expected value in chips:");
+  shortlist.forEach((c, i) => {
+    lines.push(`${i + 1}. ${c.label}  (EV ${c.ev >= 0 ? "+" : ""}${c.ev.toFixed(0)})`);
+  });
+  lines.push("");
+  lines.push(`Reply with the number of your pick (1 to ${shortlist.length}), your confidence, and why.`);
   return lines.join("\n");
 }
 
-// Strip optional code fences, find the first JSON object, and normalize it into a legal
-// proposal. Tolerant by design: the model often wraps JSON in ```json fences.
-function extractProposal(text: string, ctx: DecisionContext): Proposal | null {
+// Read the model's pick out of its reply and resolve it to a candidate. The pick is an index,
+// so there is nothing to sanitize: an out-of-range or unreadable answer is simply discarded
+// and the remaining passes decide. If none survive, decide() plays the engine's own best line.
+function extractPick(text: string, shortlist: ActionCandidate[]): Proposal | null {
   let t = text.trim();
   const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (fence && fence[1]) t = fence[1].trim();
@@ -251,30 +331,25 @@ function extractProposal(text: string, ctx: DecisionContext): Proposal | null {
     return null;
   }
 
-  let action = String(parsed.action ?? "").toLowerCase().trim();
-  if (action === "bet") action = "raise";
-  if (!ACTIONS.includes(action as ActionType)) return null;
-
-  let a = action as ActionType;
-  // Map to a legal action so a stray choice never desyncs from the engine.
-  if (a === "check" && !ctx.canCheck) a = ctx.canCall ? "call" : "fold";
-  if (a === "call" && !ctx.canCall) a = ctx.canCheck ? "check" : "fold";
-  if (a === "raise" && !ctx.canRaise) a = ctx.canCall ? "call" : "check";
-
-  let size = Number(parsed.size ?? 0);
-  if (!Number.isFinite(size)) size = 0;
-  if (a === "raise") {
-    size = Math.round(Math.max(ctx.minRaiseTo, Math.min(size || ctx.minRaiseTo, ctx.maxRaiseTo)));
-  } else {
-    size = 0;
-  }
+  const pick = Number(parsed.pick);
+  if (!Number.isFinite(pick)) return null;
+  const index = Math.round(pick) - 1; // the prompt is 1-based
+  const chosen = shortlist[index];
+  if (!chosen) return null;
 
   let confidence = Number(parsed.confidence ?? 0.5);
   if (!Number.isFinite(confidence)) confidence = 0.5;
   confidence = Math.max(0, Math.min(1, confidence));
 
   const rationale = String(parsed.rationale ?? "").slice(0, 240) || "(no rationale given)";
-  return { action: a, size, confidence, rationale, raw: text };
+  return {
+    index,
+    action: chosen.action,
+    size: chosen.size,
+    confidence,
+    rationale,
+    raw: text,
+  };
 }
 
 // When the model produces nothing usable, fall back to a real hand-strength heuristic rather than

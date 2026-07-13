@@ -331,7 +331,9 @@ async function playHand(
         myStack: view.stacks[seat],
         oppStack: view.stacks[opp],
         myCommitted: view.committedStreet[seat],
+        oppCommitted: view.committedStreet[opp],
         currentBet: view.currentBet,
+        bigBlind,
         toCall: legal.callAmount,
         canCheck: legal.canCheck,
         canCall: legal.canCall,
@@ -364,7 +366,13 @@ async function playHand(
         action: applied.action,
         size: decision.size,
         amount: applied.amount,
-        rationale: decision.rationale,
+        // Anchor the arithmetic alongside the sentence. A rationale on its own is a claim; the
+        // equity it was reasoning from, and the priced options it was choosing between, are what
+        // make the claim checkable later.
+        rationale:
+          `${decision.rationale} [equity ${(decision.equity * 100).toFixed(0)}%, chose ` +
+          `${decision.candidates.find((c) => c.action === decision.action && c.size === decision.size)?.label ?? decision.action}` +
+          ` from ${decision.candidates.map((c) => `${c.label} EV ${c.ev.toFixed(0)}`).join(" | ")}]`,
         opponentAgentId: them.agentId,
         before: view,
         after,
@@ -406,6 +414,11 @@ async function playHand(
       rationale: decision.rationale,
       samples: decision.samples,
       agreement: decision.agreement,
+      // The engine's shortlist and the agent's pick out of it, so the feed can show what the
+      // agent was choosing between rather than only what it chose.
+      equity: decision.equity,
+      candidates: decision.candidates.map((c) => ({ action: c.action, size: c.size, ev: c.ev, label: c.label })),
+      chose: decision.candidates.findIndex((c) => c.action === decision.action && c.size === decision.size),
       blobId: null,
       evidenceHash: null,
       anchorDigest: null,

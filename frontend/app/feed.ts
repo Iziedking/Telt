@@ -26,6 +26,11 @@ export interface MovePayload {
   rationale: string;
   samples: number;
   agreement: number;
+  // The engine's half of the decision: the hand's win probability, the priced shortlist the
+  // agent was allowed to choose from, and which one it took. Older feeds may omit these.
+  equity?: number;
+  candidates?: { action: string; size: number; ev: number; label: string }[];
+  chose?: number;
   blobId: string | null;
   evidenceHash: string | null;
   anchorDigest: string | null;
@@ -122,10 +127,34 @@ export interface SolverSettledPayload {
   tie?: boolean;
 }
 
+// The championship bracket: who is seated, the draw, the match on the table right now, and the
+// podium at the end. One envelope carries every state, so the room renders from this alone.
+export interface BracketSeat {
+  agentId: string;
+  name: string;
+  level: number;
+  isHouse: boolean;
+  seed: number;
+}
+
+export interface BracketSnapshot {
+  contestId: string;
+  status: "lobby" | "playing" | "complete";
+  size: number;
+  capacity: number;
+  filled: number;
+  rounds: { round: number; index: number; a: string | null; b: string | null; winner: string | null; live: boolean }[][];
+  seats: BracketSeat[];
+  currentMatch: { round: number; index: number; label: string } | null;
+  champion: string | null;
+  placements: { agentId: string; place: number }[];
+}
+
 export type FeedMessage =
   | { type: "status"; payload: { matchId?: string; status: string; detail?: string } }
   | { type: "match"; payload: MatchPayload }
   | { type: "move"; payload: MovePayload }
+  | { type: "bracket"; payload: BracketSnapshot }
   | {
       type: "moveProven";
       payload: { matchId: string; moveKey: string; blobId: string; evidenceHash: string; anchorDigest: string; mandateId: string };

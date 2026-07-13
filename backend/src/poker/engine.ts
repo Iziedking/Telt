@@ -373,7 +373,17 @@ export class Hand {
     this.result = { winner, reason, pot: this.pot, descr };
   }
 
-  /** A snapshot of the public state for prompting and the feed (no hole cards). */
+  /**
+   * A snapshot of the public state for prompting and the feed (no hole cards).
+   *
+   * `pot` is the LIVE pot: chips banked from earlier streets plus everything wagered on this
+   * one. The internal `this.pot` only banks a street's bets when the street ends, so reading it
+   * mid-street reports a pot with the current action missing from it -- preflop, before a single
+   * bet is collected, it reports ZERO while the blinds sit in front of the players. Every caller
+   * wants the money on the table, so that is what this returns. (The bug this fixes: the solver
+   * priced the small blind's opening decision against a pot of nothing, so calling 10 to win 0
+   * was correctly a fold, and the agents folded 95% of their hands before the flop.)
+   */
   publicView(): {
     street: Street;
     board: Card[];
@@ -386,7 +396,7 @@ export class Hand {
     return {
       street: this.street,
       board: [...this.board],
-      pot: this.pot,
+      pot: this.pot + this.players.A.committedStreet + this.players.B.committedStreet,
       currentBet: this.currentBet,
       toAct: this.toAct,
       stacks: { A: this.players.A.stack, B: this.players.B.stack },

@@ -26,7 +26,11 @@ export interface SimResult {
   busted: boolean;
 }
 
-const DEFAULTS = { startingChips: 400, smallBlind: 10, bigBlind: 20, maxHands: 30, seedBase: 1, escalateEvery: 5 };
+// Mirror the real table (coordinator/table.ts): 1500 chips is ~75 big blinds. The old default of
+// 400 was 20bb, and at 20bb heads-up is a push/fold game -- the correct strategy is a shove chart,
+// most hands end all-in preflop, and the winner is decided by the deck. That is why this harness
+// could never separate the tiers: it was not measuring poker, it was measuring coin flips.
+const DEFAULTS = { startingChips: 1500, smallBlind: 10, bigBlind: 20, maxHands: 30, seedBase: 1, escalateEvery: 5 };
 
 export async function simulateMatch(levelA: number, levelB: number, opts: SimOptions = {}): Promise<SimResult> {
   const o = { ...DEFAULTS, ...opts };
@@ -70,7 +74,9 @@ export async function simulateMatch(levelA: number, levelB: number, opts: SimOpt
           myStack: view.stacks[seat],
           oppStack: view.stacks[opp],
           myCommitted: view.committedStreet[seat],
+          oppCommitted: view.committedStreet[opp],
           currentBet: view.currentBet,
+          bigBlind: bb,
           toCall: legal.callAmount,
           canCheck: legal.canCheck,
           canCall: legal.canCall,

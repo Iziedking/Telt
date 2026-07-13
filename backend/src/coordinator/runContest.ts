@@ -3,6 +3,7 @@ import { loadRoster } from "./roster.js";
 import { provisionAgentEntry, type Participant } from "./provision.js";
 import { playSolverMatch } from "./solverMatch.js";
 import { playMatch } from "./table.js";
+import { runPokerTournament } from "./runPokerTournament.js";
 import { customContests, challengeContests } from "./contestKinds.js";
 import type { Seat } from "../poker/types.js";
 
@@ -12,8 +13,13 @@ import type { Seat } from "../poker/types.js";
 //   - general (multi): platform agents fill the empty seats as house. They play but cannot
 //     win and never take a payout, so a general contest needs at least one real entrant.
 //   - custom (multi): a creator's event, no platform agents at all.
+// Poker with three or more entrants runs as a single-elimination CHAMPIONSHIP
+// (runPokerTournament); two is an ordinary heads-up match.
 const GAME_SOLVER = 1;
 const FORMAT_DUEL = 0;
+
+// The bracket tops out at eight seats, matching the on-chain cap in contest::create.
+const TOURNEY_MAX_SEATS = 8;
 
 // A contest can be triggered from two places at once (the sweeper at the deadline and a manual
 // Run now), so guard against running the same one twice in parallel.
@@ -50,8 +56,14 @@ async function runContestInner(contestId: string, opts: { puzzles?: number }): P
     // General: fill the empty seats with platform agents as house. They play but cannot win,
     // so the pool falls to the real entrant. A general with no real entrant is not run (the
     // sweeper expires it), so there is always at least one real agent here.
+    //
+    // Fill to the contest's OWN seat cap, not to two. A championship opened with eight seats
+    // fills all eight, so a single real entrant still gets a full bracket to win rather than a
+    // duel wearing a tournament's name. Bounded by the roster: with two house agents a 4-seat
+    // room fills to three and the bracket byes the odd seat, which is correct.
+    const cap = Math.max(2, Math.min(TOURNEY_MAX_SEATS, c.maxEntries));
     for (const r of roster) {
-      if (entrants.length >= 2) break;
+      if (entrants.length >= cap) break;
       if (entrants.some((e) => e.agentId === r.agentId)) continue;
       await joinContestAsHouse(contestId, r.agentId);
       entrants.push({ agentId: r.agentId, owner: "", isHouse: true });
@@ -65,6 +77,17 @@ async function runContestInner(contestId: string, opts: { puzzles?: number }): P
     );
   }
   if (realCount < 1) throw new Error("join with your agent before running this contest");
+
+  // Three or more poker entrants is a CHAMPIONSHIP, not a duel: hand off to the bracket, which
+  // maps the field onto heads-up matches and settles the pool to the best real finisher. Solver
+  // stays a single field, and two players is just a match.
+  if (c.game !== GAME_SOLVER && entrants.length > 2) {
+    await runPokerTournament(
+      contestId,
+      entrants.map((e) => ({ agentId: e.agentId, isHouse: e.isHouse })),
+    );
+    return;
+  }
 
   const seats: Seat[] = ["A", "B"];
   const participants: Participant[] = [];

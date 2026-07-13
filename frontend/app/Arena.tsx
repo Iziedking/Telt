@@ -9,6 +9,7 @@ import {
   type IntelPayload,
   type SettledPayload,
   type MoveVerification,
+  type BracketSnapshot,
 } from "./feed";
 import GameTabs from "./GameTabs";
 import { play as sound } from "./sound";
@@ -44,6 +45,9 @@ interface ViewModel {
   moveList: MovePayload[];
   intel: IntelPayload | null;
   settled: SettledPayload | null;
+  // The championship this match belongs to, if any. It outlives the match: a bracket plays
+  // several matches and each one resets the rest of this view model, so it is carried across.
+  bracket: BracketSnapshot | null;
 }
 
 const EMPTY_SEAT: SeatView = {
@@ -73,6 +77,7 @@ const INITIAL: ViewModel = {
   moveList: [],
   intel: null,
   settled: null,
+  bracket: null,
 };
 
 // What each level buys: self-consistency passes (mirrors reason/levels.ts).
@@ -389,6 +394,8 @@ export default function Arena() {
           </div>
 
           {/* Felt live table, the hero */}
+          {vm.bracket && <BracketPanel b={vm.bracket} />}
+
           <div className="tile felt table" id="table">
             <div className="kicker">Live table</div>
             <div className="board">
@@ -468,7 +475,10 @@ export default function Arena() {
                 Walrus blob id and Sui tx digest appear in mono underneath.
               </div>
             ) : (
-              <VerifyPanel move={selected} state={verifyState} />
+              <>
+                <VerifyPanel move={selected} state={verifyState} />
+                <ShortlistPanel move={selected} />
+              </>
             )}
           </div>
 
@@ -614,6 +624,117 @@ function Stat({ k, v }: { k: string; v: string | number }) {
   );
 }
 
+// The championship bracket. Renders every state from one snapshot: the draw while it plays, the
+// live match highlighted, and the podium when it is done. Round names are read from the tail of
+// the bracket, so a four-seat field says Semifinal and Final rather than "round 1 of 2".
+function BracketPanel({ b }: { b: BracketSnapshot }) {
+  const nameOf = (id: string | null) => b.seats.find((s) => s.agentId === id)?.name ?? "—";
+  const total = b.rounds.length;
+  const roundName = (r: number) => {
+    const fromEnd = total - 1 - r;
+    if (fromEnd === 0) return "Final";
+    if (fromEnd === 1) return "Semifinal";
+    if (fromEnd === 2) return "Quarterfinal";
+    return `Round ${r + 1}`;
+  };
+  const ordinal = (p: number) => (p === 1 ? "1st" : p === 2 ? "2nd" : p === 3 ? "3rd" : `${p}th`);
+
+  return (
+    <div className="tile" style={{ gridColumn: "1 / -1" }}>
+      <div className="kicker">
+        Championship · {b.filled} agents{b.currentMatch ? ` · ${b.currentMatch.label}` : ""}
+      </div>
+
+      {b.status === "complete" && b.placements.length > 0 ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 8 }}>
+          {b.placements.map((p) => (
+            <div
+              key={p.agentId + p.place}
+              className="muted-small"
+              style={{
+                padding: "6px 10px",
+                borderRadius: 8,
+                border: "1px solid rgba(255,255,255,0.10)",
+                background: p.place === 1 ? "rgba(255,255,255,0.10)" : "transparent",
+                fontWeight: p.place === 1 ? 700 : 400,
+              }}
+            >
+              {ordinal(p.place)} · {nameOf(p.agentId)}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 14, marginTop: 8, overflowX: "auto" }}>
+          {b.rounds.map((round, r) => (
+            <div key={r} style={{ minWidth: 150 }}>
+              <div className="muted-small" style={{ marginBottom: 6, opacity: 0.7 }}>
+                {roundName(r)}
+              </div>
+              {round.map((m) => (
+                <div
+                  key={`${m.round}-${m.index}`}
+                  style={{
+                    marginBottom: 6,
+                    padding: "6px 8px",
+                    borderRadius: 8,
+                    fontSize: 12,
+                    lineHeight: 1.5,
+                    border: m.live ? "1px solid rgba(255,255,255,0.45)" : "1px solid rgba(255,255,255,0.08)",
+                    background: m.live ? "rgba(255,255,255,0.07)" : "transparent",
+                  }}
+                >
+                  <div style={{ fontWeight: m.winner === m.a ? 700 : 400, opacity: m.a ? 1 : 0.35 }}>{nameOf(m.a)}</div>
+                  <div style={{ fontWeight: m.winner === m.b ? 700 : 400, opacity: m.b ? 1 : 0.35 }}>{nameOf(m.b)}</div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// What the engine handed the agent, and what the agent did with it. This is the honest picture of
+// a decision: the priced options it was allowed to choose from, and the one it took. A pick that
+// is not the top line is the interesting case, and it is the one worth showing plainly.
+function ShortlistPanel({ move }: { move: MovePayload }) {
+  if (!move.candidates?.length) return null;
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div className="muted-small" style={{ marginBottom: 6, opacity: 0.7 }}>
+        Equity {Math.round((move.equity ?? 0) * 100)}% · chose from {move.candidates.length}
+      </div>
+      {move.candidates.map((c, i) => {
+        const taken = i === move.chose;
+        return (
+          <div
+            key={c.label + i}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 10,
+              padding: "3px 0",
+              fontSize: 12,
+              opacity: taken ? 1 : 0.45,
+              fontWeight: taken ? 700 : 400,
+            }}
+          >
+            <span>
+              {taken ? "▸ " : "　"}
+              {c.label}
+            </span>
+            <span>
+              EV {c.ev >= 0 ? "+" : ""}
+              {Math.round(c.ev)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function SeatBox({ seat, view, active, live, reveal }: { seat: Seat; view: SeatView; active: boolean; live: boolean; reveal: boolean }) {
   return (
     <div className={`seat ${active ? "active" : ""}`}>
@@ -741,8 +862,12 @@ function reduce(prev: ViewModel, msg: FeedMessage): ViewModel {
         const s = a.seat as Seat;
         seats[s] = { ...EMPTY_SEAT, name: a.name, level: a.level, agentId: a.agentId, platform: !!a.platform };
       }
-      return { ...INITIAL, status: "seated", buyin: msg.payload.buyin, seats };
+      // A new match clears the table but NOT the bracket: in a championship this is the next
+      // round, and the tournament it belongs to is still the same one.
+      return { ...INITIAL, status: "seated", buyin: msg.payload.buyin, seats, bracket: prev.bracket };
     }
+    case "bracket":
+      return { ...prev, bracket: msg.payload };
     case "move": {
       const p = msg.payload;
       const seat = p.seat as Seat;
