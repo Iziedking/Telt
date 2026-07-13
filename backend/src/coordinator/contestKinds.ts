@@ -73,12 +73,26 @@ export function levelBandFor(difficulty: string): [number, number] {
   return [0, 4];
 }
 
+// How long a creator may hold a contest open for. A window nobody can reach is worse than no
+// window at all, and the default demo override closes one in seconds -- fine on stage, useless
+// for a real event someone has to hear about and join. Ten minutes is the floor for an event you
+// want people to actually enter; a day is the ceiling.
+export const JOIN_SECONDS_MIN = 30;
+export const JOIN_SECONDS_MAX = 24 * 60 * 60;
+
 // Open a join window for a contest: a random length between the configured min and max
 // minutes, so contests do not all close at once. Returns the deadline (epoch ms).
-export function openContestWindow(contestId: string): number {
-  // Demo override wins when set: a fixed, short window so a contest fires quickly on stage.
+//
+// `seconds` lets the creator of a custom event choose their own window instead. That is the whole
+// point of a custom contest: the platform's short demo window exists so a contest fires quickly
+// on stage, and it means a real event closes before anyone can join it.
+export function openContestWindow(contestId: string, seconds?: number): number {
   let length: number;
-  if (config.contest.joinFixedMs > 0) {
+  if (seconds && Number.isFinite(seconds)) {
+    // The creator asked for a specific window. Honour it, clamped to something sane.
+    length = Math.max(JOIN_SECONDS_MIN, Math.min(JOIN_SECONDS_MAX, Math.floor(seconds))) * 1000;
+  } else if (config.contest.joinFixedMs > 0) {
+    // Demo override: a fixed, short window so a contest fires quickly on stage.
     length = config.contest.joinFixedMs;
   } else {
     const min = config.contest.joinMinMs;

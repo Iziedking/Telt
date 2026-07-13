@@ -1,5 +1,5 @@
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -23,9 +23,24 @@ import { nextLevelCostMist } from "../reason/levels.js";
 // a distinct user identity, so per-agent intel stays separable for the Day 3 economy.
 // Run: npm run setup:agents
 
+// The house field. Calypso and Maverick stay FIRST and keep their keys: a standalone match takes
+// the first two of this list, so the headline duel is still the untrained underdog against the
+// Oracle. The six behind them exist so a CHAMPIONSHIP can fill: an eight-seat bracket with one
+// real entrant needs seven house agents to play against, and a bracket seeded by level is only
+// worth watching if the levels actually spread. Rerunning setup:agents mints any that are missing.
+//
+// The spread is deliberate. Two at the top so the final can be a genuine L4 v L4; a thick middle,
+// because that is where a bought dossier changes a decision; and a floor of Marks for the top
+// seeds to draw in round one.
 const ROSTER = [
   { key: "A" as const, name: "Calypso", level: 0 }, // Mark, the untrained underdog
   { key: "B" as const, name: "Maverick", level: 4 }, // Oracle, the top tier
+  { key: "A" as const, name: "Kestrel", level: 4 }, // the other Oracle: a real final is possible
+  { key: "B" as const, name: "Vesper", level: 3 }, // Profiler
+  { key: "A" as const, name: "Onyx", level: 3 }, // Profiler
+  { key: "B" as const, name: "Halcyon", level: 2 }, // Spotter
+  { key: "A" as const, name: "Rook", level: 1 }, // Reader
+  { key: "B" as const, name: "Pike", level: 0 }, // Mark
 ];
 
 const PER_MOVE_CAP = 1_000_000_000n; // generous: chips committed never approach this
@@ -53,11 +68,45 @@ async function retry<T>(fn: () => Promise<T>, tries = 5): Promise<T> {
   throw last;
 }
 
+interface StoredAgent {
+  key: "A" | "B";
+  name: string;
+  level: number;
+  agentId: string;
+  mandateId: string;
+  accessId: string;
+  capId: string;
+  userAddr: string;
+  userSecret: string;
+}
+
+// Agents already minted, by name. This script used to rebuild the whole roster from scratch and
+// overwrite agents.json, which was harmless when the roster was two throwaway demo agents and is
+// NOT harmless now: Calypso and Maverick have real anchored histories on chain, and those records
+// are keyed to their agent and mandate ids. Minting fresh ones would orphan every dossier the
+// intel market can sell and every row on the leaderboard. So keep what exists and only mint what
+// is missing, which also makes this safe to re-run when the roster grows again.
+function existingAgents(): StoredAgent[] {
+  const file = resolve(dirname(fileURLToPath(import.meta.url)), "../../runtime/agents.json");
+  try {
+    return (JSON.parse(readFileSync(file, "utf8")) as { agents: StoredAgent[] }).agents ?? [];
+  } catch {
+    return [];
+  }
+}
+
 async function main() {
   console.log(`coordinator: ${coordinatorAddress()}`);
-  const agents = [];
+  const kept = existingAgents();
+  const agents: StoredAgent[] = [...kept];
+  const have = new Set(kept.map((a) => a.name));
+  if (kept.length) console.log(`keeping ${kept.length} existing: ${kept.map((a) => a.name).join(", ")}`);
 
   for (const a of ROSTER) {
+    if (have.has(a.name)) {
+      console.log(`\n${a.name} already exists, keeping its agent and mandate`);
+      continue;
+    }
     console.log(`\n${a.name} (level ${a.level})...`);
     // A distinct sealing identity per agent, for per-agent intel separation. The
     // secret is kept so the agent can decrypt intel re-sealed to it via the per-user

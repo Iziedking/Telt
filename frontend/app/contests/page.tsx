@@ -90,6 +90,9 @@ export default function ContestsPage() {
   const [msg, setMsg] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [game, setGame] = useState<"solver" | "poker">("solver");
+  // How long a custom event stays open for entries. The platform's own contests use a short demo
+  // window; a creator's event needs long enough that somebody can actually turn up.
+  const [joinMinutes, setJoinMinutes] = useState(10);
   const [stake, setStake] = useState(5);
   const [watch, setWatch] = useState<{ href: string; label: string } | null>(null);
   const [tab, setTab] = useState<"live" | "settled" | "expired">("live");
@@ -158,6 +161,10 @@ export default function ContestsPage() {
             kind,
             entryFeeUsdc: staked ? Math.max(0, stake) : 0,
             rewardUsdc: staked ? 0 : 20,
+            // A custom event is the creator's own, so they set how long it stays open. The
+            // platform's default window is a demo window and closes in seconds, which is far too
+            // short for anyone to actually find the contest and enter it.
+            ...(kind === "custom" ? { joinSeconds: Math.max(30, joinMinutes * 60) } : {}),
           }),
         });
         setMsg("");
@@ -166,7 +173,7 @@ export default function ContestsPage() {
         setMsg("could not open the contest");
       }
     },
-    [game, stake, load],
+    [game, stake, joinMinutes, load],
   );
 
   const join = useCallback(
@@ -316,10 +323,22 @@ export default function ContestsPage() {
             >
               Duel
             </button>
+            <label className="ct-stake">
+              <span className="ct-stake-label">open for</span>
+              <input
+                type="number"
+                min={1}
+                max={1440}
+                value={joinMinutes}
+                onChange={(e) => setJoinMinutes(Math.max(1, Number(e.target.value) || 1))}
+                aria-label="How long a custom event stays open, in minutes"
+              />
+              <span>min</span>
+            </label>
             <button
               className="ws-mini"
               onClick={() => create("custom")}
-              title="Your own event, no platform agents. Entrants stake the tUSDC above; the winner takes the pool."
+              title="Your own event, no platform agents. Entrants stake the tUSDC above, and you set how long it stays open for them to join. The winner takes the pool."
             >
               Custom
             </button>

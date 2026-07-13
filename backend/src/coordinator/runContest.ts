@@ -76,7 +76,17 @@ async function runContestInner(contestId: string, opts: { puzzles?: number }): P
       c.format === FORMAT_DUEL ? "a duel needs two agents before it can run" : "open the contest to entrants first",
     );
   }
-  if (realCount < 1) throw new Error("join with your agent before running this contest");
+  // A general contest with no real entrant runs as a HOUSE EXHIBITION: the agents play, the moves
+  // anchor, the intel market works, and a spectator has something to watch. It just cannot pay --
+  // contest::settle rejects a house winner -- so the pool is left where it is for a contest that
+  // somebody actually enters. A duel or a custom event still needs its real players.
+  const exhibition = realCount < 1;
+  if (exhibition && (c.format === FORMAT_DUEL || customContests.has(contestId))) {
+    throw new Error("join with your agent before running this contest");
+  }
+  if (exhibition) {
+    console.log(`[runContest ${contestId.slice(0, 10)}] no operator joined, playing as a house exhibition`);
+  }
 
   // Three or more poker entrants is a CHAMPIONSHIP, not a duel: hand off to the bracket, which
   // maps the field onto heads-up matches and settles the pool to the best real finisher. Solver
@@ -110,7 +120,11 @@ async function runContestInner(contestId: string, opts: { puzzles?: number }): P
   const { winnerAgentId } = await playMatch({ participants, sponsorTable: false, intelRef: contestId });
   const champ = participants.find((p) => p.agentId === winnerAgentId && !p.isHouse);
   const winner = champ ?? participants.find((p) => !p.isHouse);
-  if (!winner) throw new Error("no eligible winner");
+  if (!winner) {
+    // A house exhibition: it was played, anchored and watched, but there is nobody to pay.
+    console.log(`[runContest ${contestId.slice(0, 10)}] exhibition over, pool left open for a real entrant`);
+    return;
+  }
   console.log(`[runContest ${contestId.slice(0, 10)}] match done, settling pool to ${winner.agentId.slice(0, 10)}`);
   await settleContest(contestId, winner.agentId);
   console.log(`[runContest ${contestId.slice(0, 10)}] pool settled`);

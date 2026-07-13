@@ -10,6 +10,12 @@ const FORMAT_DUEL = 0;
 // contest with no real entrant is left alone; one with at least one real agent runs (general
 // fills the rest with house, a challenge seats a platform opponent).
 const SWEEP_MS = 15_000;
+
+// The last call before the house takes the table. When a general contest's window closes with no
+// real entrant, this is how long a late operator still has to claim the seat; after it, the house
+// fills the room and plays it as an exhibition rather than leaving the arena empty.
+const HOUSE_FILL_GRACE_MS = Number(process.env.HOUSE_FILL_GRACE_SECONDS ?? "5") * 1000;
+
 const inFlight = new Set<string>();
 
 async function sweepOnce(): Promise<void> {
@@ -34,10 +40,16 @@ async function sweepOnce(): Promise<void> {
     // (a platform-vs-platform demo if no one joined). A challenge needs one real agent (a
     // platform opponent is seated for it); a plain duel and a custom event need two real
     // agents and otherwise wait.
-    // A contest runs at the deadline only if it has a real field: general and challenge need
-    // one real agent (a platform opponent / house seats are filled around it), a plain duel
-    // and a custom event need two. With no real entrants there is no winner, so it is left to
-    // expire rather than run a hollow demo.
+    // A contest runs at the deadline if it has a real field: general and challenge need one real
+    // agent (a platform opponent / house seats fill in around it), a plain duel and a custom event
+    // need two.
+    //
+    // A GENERAL contest with nobody in it still runs, as a house exhibition, once a short grace has
+    // passed. That grace is the point: it is the last few seconds for a late operator to claim the
+    // seat, and only after it lapses does the house take the table. An empty arena teaches a
+    // visitor nothing, and a bracket of house agents playing for nothing is still a bracket they
+    // can watch, verify, and buy intel on. Nothing is paid out (the pool cannot settle to a house
+    // agent), so the pot simply waits for a contest somebody enters.
     const real = s.entrants.filter((e) => !e.isHouse).length;
     let ready: boolean;
     if (s.format === FORMAT_DUEL) {
@@ -45,7 +57,7 @@ async function sweepOnce(): Promise<void> {
     } else if (customContests.has(s.contestId)) {
       ready = real >= 2;
     } else {
-      ready = real >= 1;
+      ready = real >= 1 || now >= endsAt + HOUSE_FILL_GRACE_MS;
     }
     if (!ready) continue;
 

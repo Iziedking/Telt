@@ -16,18 +16,11 @@ import type { Card, Seat } from "./types.js";
 // chooses among the shortlist and says why. Its judgment is real (which of these good
 // lines fits this opponent?) but its downside is bounded by what it was allowed to see.
 //
-// That last clause is the ladder. `slack` is how far below the best EV an action may sit
-// and still be offered:
-//
-//   level 0  is handed rope. Its shortlist contains genuinely losing actions, and a weak
-//            model will take them. It is supposed to.
-//   level 4  is handed only near-equivalent lines. It still reasons -- picking between a
-//            thin value bet and a check is a real judgment call -- but it CANNOT be handed
-//            the action that punts the stack.
-//
-// A low tier therefore does not merely think less; it is permitted to be wrong. That is
-// what makes a level mean something, and it is enforced by construction rather than by
-// asking a model nicely.
+// `slack` is how far below the best EV an action may sit and still reach the shortlist. It is a
+// FILTER, not a ladder: it keeps the stack-punting actions off the list at every level, and it is
+// deliberately generous, because the engine below is a heuristic and a tier held tightly to a
+// heuristic inherits its mistakes. See the TIERS table for the measurement that settled that, and
+// for where a level's strength actually comes from.
 
 export interface SolverContext {
   hole: [Card, Card];
@@ -79,23 +72,35 @@ export interface SolverTier {
   candidates: number;
 }
 
-// Every rung must take away rope the rung below had, or the two are the same player.
-// Slack is the load-bearing dial: iterations only sharpen the estimate, but slack decides
-// whether a losing action is ever put in front of the model. Level 4 cannot be shown the
-// stack-punt; level 0 can be shown little else.
+// THE ENGINE IS A BLUNDER FILTER, NOT A LEASH. This is the single most important thing in this
+// file, it is the opposite of what was built first, and it was settled by measurement rather than
+// by argument.
 //
-// The slack floor matters as much as the ceiling, and the first version got it wrong. Level 4
-// was set to 0.35bb -- seven chips -- so its shortlist collapsed to a single action in 80% of
-// spots, decide() skipped the model entirely, and the "top tier" was a deterministic bot
-// running a heuristic. That is not what is being sold: the agent is supposed to REASON. Slack
-// is now wide enough that every tier is nearly always choosing between real alternatives, and
-// the ladder lives in how BAD the worst offered option is allowed to be.
+// The first design copied chess: bind the top tier tightly to the engine's best line (a slack of
+// a fraction of a big blind) and hand the bottom tier enough rope to hang itself. In chess that
+// works, because the engine there is a real negamax search and is genuinely stronger than the
+// model. Here it does not, because THIS engine is a heuristic. Binding level 4 tightly to a
+// heuristic binds it to that heuristic's mistakes, while level 0's rope lets its model wander off
+// them -- and wandering away from a biased engine is an improvement.
+//
+// Duplicate poker said so plainly. Same eight boards, same cards dealt to both tiers, one variable
+// changed:
+//
+//   slack as the ladder (level 4 held tight to the engine)   level 4 LOST by 165 chips a board
+//   slack as a blunder filter (every tier given room)        level 4 WON  by 380 chips a board
+//
+// So slack is generous at every level now, and it exists only to keep genuinely losing actions off
+// the shortlist. Every tier still chooses, and it chooses among sane options. The LADDER is the
+// rest of the stack -- a sharper equity read here, a stronger model, more self-consistency passes,
+// a better expert skill, a bigger dossier budget -- which are the things that were actually helping
+// all along. A weaker tier is not handcuffed to a worse engine; it simply reads the same table less
+// accurately and thinks about it less.
 const TIERS: SolverTier[] = [
-  { iterations: 150, slackBb: 8.0, candidates: 4 },
-  { iterations: 400, slackBb: 5.0, candidates: 4 },
-  { iterations: 900, slackBb: 3.0, candidates: 3 },
-  { iterations: 1800, slackBb: 2.0, candidates: 3 },
-  { iterations: 3000, slackBb: 1.2, candidates: 3 },
+  { iterations: 150, slackBb: 12.0, candidates: 4 },
+  { iterations: 400, slackBb: 9.0, candidates: 4 },
+  { iterations: 900, slackBb: 7.0, candidates: 4 },
+  { iterations: 1800, slackBb: 6.0, candidates: 4 },
+  { iterations: 3000, slackBb: 5.0, candidates: 4 },
 ];
 
 export function solverTier(level: number): SolverTier {

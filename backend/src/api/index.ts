@@ -647,8 +647,12 @@ app.post("/contests/create", async (c) => {
     if (rewardUsdc > 0n) await fundContest(contestId, rewardUsdc);
     if (kind === "custom") markCustom(contestId);
     if (kind === "challenge") markChallenge(contestId);
-    openContestWindow(contestId);
-    return c.json({ ok: true, contestId, kind });
+    // A custom event is somebody's own contest, so its creator sets how long it stays open. The
+    // platform's default window is a demo window: it closes in seconds, which is right for a stage
+    // and wrong for an event you want other people to find and enter.
+    const joinSeconds = kind === "custom" ? Number(b.joinSeconds) : NaN;
+    const endsAt = openContestWindow(contestId, Number.isFinite(joinSeconds) ? joinSeconds : undefined);
+    return c.json({ ok: true, contestId, kind, endsAt });
   } catch (e) {
     return c.json({ error: (e as Error).message }, 500);
   }

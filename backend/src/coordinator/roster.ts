@@ -39,9 +39,15 @@ export function avowFor(e: RosterEntry): AgentAvow {
   };
 }
 
+// The two agents of the headline duel, by seat. The roster now holds a full house field so a
+// championship bracket can fill, and several of them share a seat key -- so take the FIRST match
+// for each seat, which keeps Calypso and Maverick as the standalone pairing rather than letting
+// whoever was appended last quietly take their place.
 export function rosterBySeat(): Record<Seat, RosterEntry> {
   const out = {} as Record<Seat, RosterEntry>;
-  for (const e of loadRoster().agents) out[e.key] = e;
+  for (const e of loadRoster().agents) {
+    if (!out[e.key]) out[e.key] = e;
+  }
   return out;
 }
 
