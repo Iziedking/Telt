@@ -109,8 +109,22 @@ const enum Lane {
   Background = 1, // an anchor; nobody is waiting
 }
 
+// How long a background task may be jumped before it goes first anyway.
+//
+// Without this the priority lanes STARVE anchoring, and they did. The first version claimed
+// background work "cannot be starved forever: it only ever yields to the user tasks queued ahead of
+// it." That is false, and the arena proved it within a day: user tasks kept ARRIVING, so at every
+// selection there was a fresh one to yield to, and the anchors simply never ran. Every move on the
+// board came back "not anchored" while the queue looked healthy.
+//
+// A priority queue without ageing is not a priority queue, it is a way to never do the low-priority
+// work. Once a background task has waited this long it is promoted and runs next, so a person still
+// jumps the anchor backlog but the backlog still drains.
+const STARVATION_MS = 30_000;
+
 interface QueuedTask {
   lane: Lane;
+  queuedAt: number;
   run: () => Promise<unknown>;
   resolve: (v: unknown) => void;
   reject: (e: unknown) => void;
@@ -124,11 +138,22 @@ async function drain(): Promise<void> {
   draining = true;
   try {
     while (pending.length) {
-      // Highest priority first, and FIFO within a lane, so background work still runs in order and
-      // cannot be starved forever: it only ever yields to the user tasks queued ahead of it.
+      const now = Date.now();
+      // Anything that has waited too long goes first, whatever lane it is in. Otherwise the highest
+      // priority, and FIFO within a lane.
       let best = 0;
       for (let i = 1; i < pending.length; i++) {
-        if (pending[i]!.lane < pending[best]!.lane) best = i;
+        const a = pending[i]!;
+        const b = pending[best]!;
+        const aStarved = now - a.queuedAt >= STARVATION_MS;
+        const bStarved = now - b.queuedAt >= STARVATION_MS;
+        if (aStarved !== bStarved) {
+          if (aStarved) best = i; // a has waited too long, b has not
+        } else if (aStarved && bStarved) {
+          if (a.queuedAt < b.queuedAt) best = i; // both starved: oldest first
+        } else if (a.lane < b.lane) {
+          best = i; // neither starved: priority decides
+        }
       }
       const task = pending.splice(best, 1)[0]!;
       try {
@@ -144,7 +169,13 @@ async function drain(): Promise<void> {
 
 function enqueue<T>(lane: Lane, run: () => Promise<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    pending.push({ lane, run: run as () => Promise<unknown>, resolve: resolve as (v: unknown) => void, reject });
+    pending.push({
+      lane,
+      queuedAt: Date.now(),
+      run: run as () => Promise<unknown>,
+      resolve: resolve as (v: unknown) => void,
+      reject,
+    });
     void drain();
   });
 }
