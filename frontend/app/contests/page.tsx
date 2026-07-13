@@ -74,6 +74,45 @@ function timeAgo(at: number, now: number): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
+// The four kinds of contest, described in the only terms that matter before you click: who you are
+// playing, and where the money comes from and goes. These were previously four bare buttons whose
+// explanation lived in a hover tooltip, which meant that in practice nobody knew what any of them
+// did.
+const KINDS: { id: string; name: string; who: string; pays: string; staked: boolean; window: boolean }[] = [
+  {
+    id: "challenge",
+    name: "Challenge the house",
+    who: "Your agent, against one of ours.",
+    pays: "Free to enter. The platform puts up the prize; beat us and it is yours.",
+    staked: false,
+    window: false,
+  },
+  {
+    id: "general",
+    name: "General",
+    who: "Open to everyone. Our agents fill any empty seats.",
+    pays: "Free to enter, platform-funded prize. House agents play but can never win it.",
+    staked: false,
+    window: false,
+  },
+  {
+    id: "duel",
+    name: "Duel",
+    who: "You against one other real player. No house agents.",
+    pays: "You both stake. Winner takes the pool. You set how long it stays open for them.",
+    staked: true,
+    window: true,
+  },
+  {
+    id: "custom",
+    name: "Custom",
+    who: "Your own event. Real players only, up to eight.",
+    pays: "Entrants stake. Winner takes the pool. You set how long it stays open.",
+    staked: true,
+    window: true,
+  },
+];
+
 export default function ContestsPage() {
   const account = useCurrentAccount();
   const suiClient = useSuiClient();
@@ -93,6 +132,8 @@ export default function ContestsPage() {
   // How long a custom event stays open for entries. The platform's own contests use a short demo
   // window; a creator's event needs long enough that somebody can actually turn up.
   const [joinMinutes, setJoinMinutes] = useState(10);
+  // Which kind is currently being opened on chain, so the buttons can say so and lock.
+  const [pending, setPending] = useState("");
   const [stake, setStake] = useState(5);
   const [watch, setWatch] = useState<{ href: string; label: string } | null>(null);
   const [tab, setTab] = useState<"live" | "settled" | "expired">("live");
@@ -151,7 +192,12 @@ export default function ContestsPage() {
       // General and challenge are platform-seeded: a platform reward, free entry. Duels and
       // custom events carry the creator's tUSDC stake as the entry.
       const staked = kind === "duel" || kind === "custom";
-      setMsg("Opening a contest…");
+      // Opening a contest is an on-chain transaction, so it takes a handful of seconds. It used to
+      // say "Opening a contest…" and then sit there in silence, which reads as a hang rather than
+      // as work: say what is happening, disable the buttons so nobody fires a second one, and
+      // confirm when it actually lands.
+      setPending(kind);
+      setMsg("Opening the contest on Sui… this is a transaction, give it a few seconds.");
       try {
         await fetch(`${API_BASE}/contests/create`, {
           method: "POST",
@@ -164,13 +210,17 @@ export default function ContestsPage() {
             // A custom event is the creator's own, so they set how long it stays open. The
             // platform's default window is a demo window and closes in seconds, which is far too
             // short for anyone to actually find the contest and enter it.
-            ...(kind === "custom" ? { joinSeconds: Math.max(30, joinMinutes * 60) } : {}),
+            ...(KINDS.find((k) => k.id === kind)?.window ? { joinSeconds: Math.max(30, joinMinutes * 60) } : {}),
           }),
         });
-        setMsg("");
-        setTimeout(load, 2500);
+        const label = KINDS.find((k) => k.id === kind)?.name ?? "Contest";
+        setMsg(`${label} is open. It is in Live below — join it with your agent, or watch it run.`);
+        await load();
+        setTimeout(() => setMsg(""), 6000);
       } catch {
-        setMsg("could not open the contest");
+        setMsg("Could not open the contest. Check the backend is reachable and try again.");
+      } finally {
+        setPending("");
       }
     },
     [game, stake, joinMinutes, load],
@@ -284,64 +334,54 @@ export default function ContestsPage() {
                 Poker
               </button>
             </div>
-            <span className="ct-group-label">
-              Challenge and General are platform-seeded and free; Duel and Custom take a stake
-            </span>
+            <span className="ct-group-label">Pick a game, then a kind. Each card says who you play and who pays.</span>
           </div>
 
-          <div className="ct-bar-kinds">
-            <button
-              className="ws-mini"
-              onClick={() => create("challenge")}
-              title="A 1v1 against a random platform agent, to test your agent against the house. Platform funds the pool; you only pay gas to enter."
-            >
-              Challenge the house
-            </button>
-            <button
-              className="ws-mini"
-              onClick={() => create("general")}
-              title="Anyone joins, free to enter (the platform funds the pool). Platform agents fill empty seats but never win and rank last."
-            >
-              General
-            </button>
-            <label className="ct-stake">
-              <span className="ct-stake-label">stake</span>
-              <input
-                type="number"
-                min={0}
-                max={1000}
-                value={stake}
-                onChange={(e) => setStake(Math.max(0, Number(e.target.value) || 0))}
-                aria-label="Stake in tUSDC"
-              />
-              <span>tUSDC</span>
-            </label>
-            <button
-              className="ws-mini"
-              onClick={() => create("duel")}
-              title="A 1v1 for two real users, no platform agents. Both stake the tUSDC above; the winner takes the pool."
-            >
-              Duel
-            </button>
-            <label className="ct-stake">
-              <span className="ct-stake-label">open for</span>
-              <input
-                type="number"
-                min={1}
-                max={1440}
-                value={joinMinutes}
-                onChange={(e) => setJoinMinutes(Math.max(1, Number(e.target.value) || 1))}
-                aria-label="How long a custom event stays open, in minutes"
-              />
-              <span>min</span>
-            </label>
-            <button
-              className="ws-mini"
-              onClick={() => create("custom")}
-              title="Your own event, no platform agents. Entrants stake the tUSDC above, and you set how long it stays open for them to join. The winner takes the pool."
-            >
-              Custom
-            </button>
+          {/* The four kinds, as cards. They used to be a row of buttons whose only explanation lived
+              in a title tooltip, so the difference between a Duel and a Custom event was invisible
+              unless you hovered and waited. What anyone actually needs to know before clicking is
+              the same three things every time: who you play, who pays, and who takes the pool. */}
+          <div className="ct-kindgrid">
+            {KINDS.map((k) => (
+              <div key={k.id} className={`ct-kindcard ${pending === k.id ? "busy" : ""}`}>
+                <div className="ct-kindcard-name">{k.name}</div>
+                <div className="ct-kindcard-line">{k.who}</div>
+                <div className="ct-kindcard-line muted">{k.pays}</div>
+
+                {k.staked && (
+                  <label className="ct-stake">
+                    <span className="ct-stake-label">stake</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={1000}
+                      value={stake}
+                      onChange={(e) => setStake(Math.max(0, Number(e.target.value) || 0))}
+                      aria-label="Stake in tUSDC"
+                    />
+                    <span>tUSDC</span>
+                  </label>
+                )}
+                {k.window && (
+                  <label className="ct-stake">
+                    <span className="ct-stake-label">open for</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={1440}
+                      value={joinMinutes}
+                      onChange={(e) => setJoinMinutes(Math.max(1, Number(e.target.value) || 1))}
+                      aria-label="How long the contest stays open, in minutes"
+                    />
+                    <span>min</span>
+                  </label>
+                )}
+
+                <button className="ws-mini" onClick={() => create(k.id)} disabled={pending !== ""}>
+                  {pending === k.id ? "Opening…" : "Open"}
+                </button>
+              </div>
+            ))}
           </div>
           {msg && (
             <span className="ct-msg">

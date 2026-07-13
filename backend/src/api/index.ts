@@ -647,10 +647,12 @@ app.post("/contests/create", async (c) => {
     if (rewardUsdc > 0n) await fundContest(contestId, rewardUsdc);
     if (kind === "custom") markCustom(contestId);
     if (kind === "challenge") markChallenge(contestId);
-    // A custom event is somebody's own contest, so its creator sets how long it stays open. The
-    // platform's default window is a demo window: it closes in seconds, which is right for a stage
-    // and wrong for an event you want other people to find and enter.
-    const joinSeconds = kind === "custom" ? Number(b.joinSeconds) : NaN;
+    // A duel or a custom event is somebody's own contest, and both need a real opponent to turn up.
+    // Their creator sets how long they stay open. The platform's default window is a demo window: it
+    // closes in seconds, which is right for a stage and wrong for an event you want a human to find
+    // and enter. Challenge and general stay on the platform default: the house fills those.
+    const creatorSet = kind === "custom" || kind === "duel";
+    const joinSeconds = creatorSet ? Number(b.joinSeconds) : NaN;
     const endsAt = openContestWindow(contestId, Number.isFinite(joinSeconds) ? joinSeconds : undefined);
     return c.json({ ok: true, contestId, kind, endsAt });
   } catch (e) {
