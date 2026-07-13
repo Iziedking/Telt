@@ -186,6 +186,9 @@ export default function Arena() {
         } catch {
           return;
         }
+        // Replayed from the buffer: it happened before we arrived. Rebuild the view from it, but do
+        // not celebrate it -- the trophy and the sound are for what happens while you are watching.
+        const isReplay = Boolean((msg as { replay?: boolean }).replay);
         // Only follow the match we came for. With no contest in the URL, follow whatever is live --
         // which is what the open arena page is for.
         const watching = watchingRef.current;
@@ -200,8 +203,14 @@ export default function Arena() {
         }
 
         // Game audio: a beat per poker move, a clap + celebration (pausing the music) on settle.
-        if (msg.type === "move") sound("poker");
-        else if (msg.type === "settled") sound("win", { pauseMusic: true });
+        // Silent on replay: nobody wants a fanfare for a hand that finished before they opened the page.
+        if (!isReplay) {
+          if (msg.type === "move") sound("poker");
+          else if (msg.type === "settled") sound("win", { pauseMusic: true });
+        }
+        // A settlement we did not watch is dismissed on arrival, so the trophy never opens over a
+        // match that was already over. The result still renders on the table behind it.
+        if (isReplay && msg.type === "settled") setClosedSettle(msg.payload.matchId);
         setVm((prev) => reduce(prev, msg));
       };
     }

@@ -210,6 +210,9 @@ export default function Solver() {
         } catch {
           return;
         }
+        // Replayed from the buffer: it happened before we arrived. Rebuild the view from it, but do
+        // not celebrate it -- the trophy and the sound are for what happens while you are watching.
+        const isReplay = Boolean((msg as { replay?: boolean }).replay);
         // Only follow the match we came for. Without a contest in the URL we follow whatever is live,
         // which is the right behaviour for the open arena page.
         const watching = watchingRef.current;
@@ -224,8 +227,11 @@ export default function Solver() {
         }
 
         // Game audio: a ding per answer, a clap + celebration (pausing the music) when it settles.
-        if (msg.type === "answer") sound("solver");
-        else if (msg.type === "solverSettled") sound("win", { pauseMusic: true });
+        // Silent on replay: this all happened before the page was opened.
+        if (!isReplay) {
+          if (msg.type === "answer") sound("solver");
+          else if (msg.type === "solverSettled") sound("win", { pauseMusic: true });
+        }
         setVm((prev) => reduce(prev, msg));
       };
     }

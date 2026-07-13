@@ -224,9 +224,24 @@ export function attachWebSocket(server: Server): void {
   wss.on("connection", (socket: WebSocket) => {
     socket.send(JSON.stringify({ type: "status", payload: { status: "connected" } }));
     // Catch the new client up: the tournament it is in, then the match in progress.
-    if (latestBracket && socket.readyState === WebSocket.OPEN) socket.send(latestBracket);
+    //
+    // Everything replayed here is tagged, because it ALREADY HAPPENED. Without the tag a page could
+    // not tell a settlement it just watched from one that finished before it opened, so arriving at
+    // the arena fired the winner trophy immediately -- and once for every match still in the buffer,
+    // so you dismissed one modal and the next was behind it. The state should be rebuilt silently;
+    // only what happens while you are watching deserves a fanfare.
+    const replayed = (data: string): string => {
+      try {
+        const m = JSON.parse(data);
+        m.replay = true;
+        return JSON.stringify(m);
+      } catch {
+        return data;
+      }
+    };
+    if (latestBracket && socket.readyState === WebSocket.OPEN) socket.send(replayed(latestBracket));
     for (const data of recent) {
-      if (socket.readyState === WebSocket.OPEN) socket.send(data);
+      if (socket.readyState === WebSocket.OPEN) socket.send(replayed(data));
     }
   });
 }
