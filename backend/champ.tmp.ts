@@ -1,0 +1,11 @@
+import { createContest } from "./src/chain/sui.js";
+import { runContest } from "./src/coordinator/runContest.js";
+import { closeContestWindow, openContestWindow } from "./src/coordinator/contestKinds.js";
+const t0 = Date.now();
+const { contestId } = await createContest({ game: 0, format: 1, levelMin: 0, levelMax: 4, entryFeeUsdc: 0n, maxEntries: 8 });
+console.log(`contest ${contestId}`);
+openContestWindow(contestId, 30);
+closeContestWindow(contestId);
+await runContest(contestId);
+console.log(`\ntotal ${((Date.now() - t0) / 1000 / 60).toFixed(1)} min`);
+process.exit(0);
