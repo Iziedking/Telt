@@ -518,15 +518,58 @@ app.get("/admin/diagnostics", async (c) => {
 // The Contests view: the difficulty tiers, recent finished missions, and the contests that
 // are open right now for an agent to join. Open contests are read live from chain (any
 // ContestCreated that is still status open).
+// Read the contest module's recent events and keep the ones of a given type.
+//
+// This asks by MODULE and filters in JS, rather than asking the RPC to filter by event TYPE, and
+// the difference is the whole reason the Contests page was empty. A MoveEventType query for this
+// package fails on every public testnet RPC we have: suiscan prunes the transaction events out from
+// under its own index ("could not find the referenced transaction events"), nodeinfra has no
+// extended index at all, and blockvision -- the only one that can serve it -- throttles the query
+// under production's polling load and answers with an empty page. All three failures then landed in
+// a silent catch, so the page showed no contests rather than a broken read, and it looked like
+// opening a contest simply did nothing.
+//
+// A MoveModule query is served happily by blockvision and does not touch the pruned path at all.
+// The module emits few enough event kinds that pulling a page and filtering here costs nothing.
+async function contestEvents(kind: string, limit: number): Promise<any[]> {
+  const want = `${config.arena.packageId}::contest::${kind}`;
+
+  // Ask by TYPE first. It is the right query -- the node jumps straight to the events we want, however
+  // far back they are -- and when it works nothing beats it. But it is the query that fails: suiscan
+  // prunes the transaction events out from under its own index, nodeinfra has no extended index, and
+  // blockvision (the only one that can serve it) throttles it under production's polling load and
+  // answers with an empty page. All three then landed in a silent catch, so the Contests page showed
+  // no contests instead of a broken read, and opening one looked like it did nothing.
+  try {
+    const ev = await sui.queryEvents({ query: { MoveEventType: want }, limit, order: "descending" });
+    if (ev.data.length) return ev.data;
+  } catch {
+    /* fall through to the module scan */
+  }
+
+  // Fall back to scanning the module and filtering here. It always works, because it never touches
+  // the pruned path -- but it can only see as far back as it pages, so it is the backup, not the plan.
+  const out: any[] = [];
+  let cursor: any = null;
+  for (let page = 0; page < 5 && out.length < limit; page++) {
+    const ev = await sui.queryEvents({
+      query: { MoveModule: { package: config.arena.packageId, module: "contest" } },
+      cursor,
+      limit: 50,
+      order: "descending",
+    });
+    out.push(...ev.data.filter((e) => String((e as any).type) === want));
+    if (!ev.hasNextPage || !ev.nextCursor) break;
+    cursor = ev.nextCursor;
+  }
+  return out.slice(0, limit);
+}
+
 app.get("/contests", async (c) => {
   let open: unknown[] = [];
   try {
-    const ev = await sui.queryEvents({
-      query: { MoveEventType: `${config.arena.packageId}::contest::ContestCreated` },
-      limit: 20,
-      order: "descending",
-    });
-    const ids = [...new Set(ev.data.map((e) => String((e as any).parsedJson?.contest)).filter(Boolean))];
+    const created = await contestEvents("ContestCreated", 20);
+    const ids = [...new Set(created.map((e) => String((e as any).parsedJson?.contest)).filter(Boolean))];
     const states = await readContests(ids);
     open = states
       // Open, and not a stuck legacy contest already full of house-only seats (those can
@@ -576,19 +619,17 @@ app.get("/contests", async (c) => {
           difficulty: contestDifficulty.get(s.contestId) ?? null,
         };
       });
-  } catch {
-    /* leave open empty on read failure */
+  } catch (e) {
+    // Never swallow this quietly again: an empty Contests page and a failed chain read look
+    // identical to a user, and they are not the same problem.
+    console.error("[/contests] could not read open contests:", (e as Error).message);
   }
 
   // Event history: recently settled contests, newest first.
   let history: unknown[] = [];
   try {
-    const sev = await sui.queryEvents({
-      query: { MoveEventType: `${config.arena.packageId}::contest::ContestSettled` },
-      limit: 15,
-      order: "descending",
-    });
-    const winnerIds = [...new Set(sev.data.map((e) => String((e as any).parsedJson?.winner)).filter(Boolean))];
+    const settled = await contestEvents("ContestSettled", 15);
+    const winnerIds = [...new Set(settled.map((e) => String((e as any).parsedJson?.winner)).filter(Boolean))];
     const objs = winnerIds.length ? ((await sui.multiGetObjects({ ids: winnerIds, options: { showContent: true } })) as any[]) : [];
     const nameById = new Map<string, string>();
     for (const o of objs) {
@@ -602,7 +643,7 @@ app.get("/contests", async (c) => {
     } catch {
       /* ignore */
     }
-    history = sev.data.map((e) => {
+    history = settled.map((e) => {
       const p = (e as any).parsedJson ?? {};
       const winnerId = String(p.winner);
       return {
@@ -613,8 +654,8 @@ app.get("/contests", async (c) => {
         at: Number((e as any).timestampMs ?? 0),
       };
     });
-  } catch {
-    /* leave history empty on read failure */
+  } catch (e) {
+    console.error("[/contests] could not read settled contests:", (e as Error).message);
   }
 
   return c.json({
