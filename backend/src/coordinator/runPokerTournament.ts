@@ -134,10 +134,18 @@ export async function runPokerTournament(contestId: string, entries: TourneyPlay
         { ...a, key: "A" },
         { ...b, key: "B" },
       ];
+      // A knockout match must be long enough to be POKER. On the platform's default (a six-hand
+       // cap with blinds doubling every four), a bracket match ends in one or two all-ins and the
+      // better agent goes out to a coin flip: the first run of this tournament knocked BOTH level
+      // 4 agents out in round one, one of them in a single hand. That is not a tier failing, it is
+      // a match too short to have a tier in it. More hands and a slower blind climb give the skill
+      // somewhere to show up, and a knockout is the one place worth paying the extra minutes for.
       const { winnerAgentId } = await playMatch({
         participants,
         sponsorTable: false,
         intelRef: contestId,
+        maxHands: Number(process.env.TOURNEY_MAX_HANDS ?? "12"),
+        escalateEvery: Number(process.env.TOURNEY_ESCALATE_EVERY ?? "8"),
       });
 
       const winner = winnerAgentId === b.agentId ? b : a;
