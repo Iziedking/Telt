@@ -113,14 +113,28 @@ globalThis.fetch = async function patchedFetch(input: FetchArgs[0], init?: Fetch
   const pool = poolFor(rpcMethod);
 
   // Anchoring fires 40+ RPC calls per move (Walrus's write path is chatty), so re-probing the
-  // failover chain every time is what pushes an anchor past its timeout. Once an endpoint has served
-  // a method, go straight back to it and skip the body inspection entirely. Only on failure do we
-  // forget the preference and fall back to probing the chain again.
+  // failover chain on every call is what pushes an anchor past its timeout. Once an endpoint has
+  // served a method, go straight back to it.
+  //
+  // But CHECK THE BODY, every time. The first version of this fast path trusted the status code and
+  // returned anything that was not a 429 or a 5xx, which quietly defeated the entire failover below,
+  // because these nodes refuse at the JSON-RPC layer while still answering HTTP 200. Suiscan got
+  // memoized for suix_queryEvents, then started answering "could not find the referenced transaction
+  // events" for anything whose transaction it had pruned -- with a 200 -- and the fast path handed
+  // that straight back to the caller, forever, without ever trying another node.
+  //
+  // Two production pages died of exactly this: the Contests list came back empty and nobody's agent
+  // would load. Both looked like application bugs. Both were one memoized endpoint and a status-code
+  // check that never read what it was returning.
   const preferred = rpcMethod ? working.get(rpcMethod) : undefined;
   if (preferred) {
     try {
       const res = await upstream(url.replace(DEAD_HOST, preferred), { ...init, method, headers, body } as FetchArgs[1]);
-      if (res.status !== 429 && res.status < 500) return res;
+      if (res.status !== 429 && res.status < 500) {
+        const text = await res.clone().text();
+        if (!(text.includes('"error"') && CANNOT_SERVE.test(text))) return res;
+        // It can no longer serve this call. Drop the memo and probe the chain properly.
+      }
     } catch {
       /* fall through to the full chain below */
     }
