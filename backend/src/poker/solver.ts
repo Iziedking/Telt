@@ -95,12 +95,28 @@ export interface SolverTier {
 // a better expert skill, a bigger dossier budget -- which are the things that were actually helping
 // all along. A weaker tier is not handcuffed to a worse engine; it simply reads the same table less
 // accurately and thinks about it less.
+// Slack and shortlist width are now IDENTICAL at every level. They are a safety rail, not a
+// ladder: they keep the stack-punting actions off the list for everyone, and nothing more.
+//
+// They were graded before, and grading them backfired twice. First tightly (level 4 pinned to the
+// engine's top line) which bound the top tier to a heuristic's mistakes. Then loosely-but-still-
+// graded, which was worse in a way that took a whole championship to see: a WIDER shortlist is not
+// a handicap in heads-up poker, it is a licence to be aggressive. Level 0, handed 12 big blinds of
+// rope, was being offered the bullying lines that level 4 was not, and it used them -- it knocked
+// out both Oracles and won the bracket. The rope was not rope. It was a weapon.
+//
+// So the engine treats every tier the same, and a level's strength comes entirely from the things
+// that genuinely make a player better: a sharper equity read (iterations, below), a stronger model,
+// more self-consistency passes, a better expert skill, and a bigger dossier budget to scout with.
+const SLACK_BB = 8.0;
+const SHORTLIST = 4;
+
 const TIERS: SolverTier[] = [
-  { iterations: 150, slackBb: 12.0, candidates: 4 },
-  { iterations: 400, slackBb: 9.0, candidates: 4 },
-  { iterations: 900, slackBb: 7.0, candidates: 4 },
-  { iterations: 1800, slackBb: 6.0, candidates: 4 },
-  { iterations: 3000, slackBb: 5.0, candidates: 4 },
+  { iterations: 150, slackBb: SLACK_BB, candidates: SHORTLIST },
+  { iterations: 400, slackBb: SLACK_BB, candidates: SHORTLIST },
+  { iterations: 900, slackBb: SLACK_BB, candidates: SHORTLIST },
+  { iterations: 1800, slackBb: SLACK_BB, candidates: SHORTLIST },
+  { iterations: 3000, slackBb: SLACK_BB, candidates: SHORTLIST },
 ];
 
 export function solverTier(level: number): SolverTier {

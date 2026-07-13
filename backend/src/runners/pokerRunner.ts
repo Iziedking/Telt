@@ -75,14 +75,29 @@ interface Proposal {
 // that shortlist is already sane; the agent's job is the part a model is genuinely good at,
 // which is judgment — which of these good lines fits this opponent, this history, this read
 // I paid for. It cannot pick a move that is not on the list, so it cannot punt.
+// The EV numbers are DELIBERATELY not in the prompt, and that is the whole lesson of this file.
+//
+// They were, at first: the shortlist arrived ranked, each line labelled with its expected chips.
+// The result was measured and it was humiliating. The model stopped reasoning and started doing
+// argmax -- it read the biggest number and returned it. Level 4 took the engine's top line in 100%
+// of 72 decisions, never once deviating, so the "agent" was a deterministic heuristic with a
+// language model bolted on for decoration. Worse, the tier ladder INVERTED: level 4's five
+// self-consistency passes vote, voting converges hard on the biggest number, and so the stronger
+// the tier the more perfectly it collapsed onto the engine and inherited every bias in it. Level 0,
+// with one noisy pass, deviated 13% of the time, escaped the bias, and beat it by 719 chips a board
+// over twenty duplicate boards.
+//
+// So the engine still decides what is SANE -- every option on the list is a real poker play, and
+// the stack-punt is not on it -- but it no longer decides what is BEST. That is the agent's job,
+// and it can only be the agent's job if the agent is not handed the answer.
 const SYSTEM_PROMPT =
-  "You are the decision head of a strong heads-up No-Limit Texas Hold'em agent. The engine has already done the " +
-  "arithmetic: it gives you the position, your equity, and a short list of candidate actions, each already legal and " +
-  "each priced in chips (EV, the expected chip gain against folding). Choose the single best candidate for THIS " +
-  "opponent. The EV is a guide, not an order: it assumes an average opponent, so a read you hold on this specific " +
-  "player — from the history or from intel you bought — is exactly the reason to prefer a close second. Do not " +
-  "invent a move that is not on the list. Reply with ONLY a JSON object, no prose, in this form: " +
-  '{"pick":<the number of your chosen candidate>,"confidence":<0..1>,"rationale":"<one short sentence>"}. ' +
+  "You are the decision head of a strong heads-up No-Limit Texas Hold'em agent. The engine has read the board and " +
+  "given you your equity and a short list of options. Every option on it is a sound poker play, so there is no " +
+  "trap and no wrong answer to be caught out by: your job is to pick the one that beats THIS opponent, right now. " +
+  "Use everything you have on them — how they have been betting, what they folded, what they showed down, and any " +
+  "intel you bought. A player who folds too much should be bet into; one who never folds should be value-bet and " +
+  "never bluffed. Do not invent a move that is not on the list. Reply with ONLY a JSON object, no prose, in this " +
+  'form: {"pick":<the number of your chosen option>,"confidence":<0..1>,"rationale":"<one short sentence>"}. ' +
   "Always give the rationale. It is shown to spectators as your thinking and is anchored on chain as your reasoning.";
 
 // The intel decision is the agent's own call: spend a small x402 fee on a dossier when a read is
@@ -305,9 +320,9 @@ function buildPrompt(ctx: DecisionContext, shortlist: ActionCandidate[]): string
   }
 
   lines.push("");
-  lines.push("Candidate actions, best-first by the engine's expected value in chips:");
+  lines.push("Your options here, all of them sound. Choose the one that beats THIS opponent:");
   shortlist.forEach((c, i) => {
-    lines.push(`${i + 1}. ${c.label}  (EV ${c.ev >= 0 ? "+" : ""}${c.ev.toFixed(0)})`);
+    lines.push(`${i + 1}. ${c.label}`);
   });
   lines.push("");
   lines.push(`Reply with the number of your pick (1 to ${shortlist.length}), your confidence, and why.`);
