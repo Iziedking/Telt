@@ -1,5 +1,6 @@
 import { Hand, otherSeat } from "../poker/engine.js";
 import { blindsForHand } from "../poker/blinds.js";
+import { emptyRead, noteMove, noteShowdown, describeRead, type OpponentRead } from "../poker/reads.js";
 import type { Seat } from "../poker/types.js";
 import { planForLevel, intelBudgetForLevel } from "../reason/levels.js";
 import { decide, wantsIntel } from "../runners/pokerRunner.js";
@@ -157,6 +158,9 @@ export async function playMatch(
   const injected: Record<Seat, string[]> = { A: [], B: [] };
   // Each agent's moves this match, kept in memory so a bought dossier is served fast from here.
   const scoutLog: Record<Seat, DossierMove[]> = { A: [], B: [] };
+  // Each seat's observed tendencies, accumulated across the whole match. reads[A] is what A has
+  // done, which is the read B is playing against.
+  const reads: Record<Seat, OpponentRead> = { A: emptyRead(), B: emptyRead() };
   // How many dossiers each seat has bought this match, against its per-tier cap.
   const intelBought: Record<Seat, number> = { A: 0, B: 0 };
 
@@ -224,7 +228,7 @@ export async function playMatch(
       }
     }
     const button: Seat = handIndex % 2 === 0 ? "A" : "B";
-    await playHand(matchId, tableId, handIndex, button, bySeat, chips, injected, scoutLog, o, sb, bb);
+    await playHand(matchId, tableId, handIndex, button, bySeat, chips, injected, scoutLog, reads, o, sb, bb);
     handsPlayed = handIndex + 1;
   }
 
@@ -289,6 +293,9 @@ async function playHand(
   chips: Record<Seat, number>,
   injected: Record<Seat, string[]>,
   scoutLog: Record<Seat, DossierMove[]>,
+  // reads[X] is what X has DONE, i.e. the read the other seat holds on them. Carried across hands
+  // of the match, so a tendency has time to become visible.
+  reads: Record<Seat, OpponentRead>,
   o: typeof DEFAULTS,
   smallBlind: number,
   bigBlind: number,
@@ -316,8 +323,13 @@ async function playHand(
     const pl = hand.players[seat];
 
     const recalled = await recallNotes(me.avow.user, `betting and bluffing tendencies of ${them.name}`).catch(() => []);
-    // Bought intel leads; recalled memory follows.
-    const notes = [...injected[seat], ...recalled];
+    // What this agent has WATCHED the opponent do at this table leads: it is first-hand, it is
+    // current, and it is the read a human would be playing off. Bought intel (their history from
+    // matches this agent never saw) comes next, then recalled memory. Together that is a read
+    // worth having, and it is the reason a stronger model can now be worth more than a weaker one:
+    // there is finally something here to be better at judging.
+    const watched = describeRead(reads[opp], them.name);
+    const notes = [...watched, ...injected[seat], ...recalled];
 
     const decision = await decide(
       {
@@ -350,6 +362,11 @@ async function playHand(
     const streetAtDecision = view.street;
     const boardAtDecision = view.board;
     const applied = hand.apply({ type: decision.action, size: decision.size });
+
+    // Fold the move into the OPPONENT's read of this player. `facingBet` is read before the move
+    // is applied (legal.callAmount above), because whether they folded to pressure is only
+    // meaningful if there was pressure to fold to.
+    noteMove(reads[seat], applied, legal.callAmount > 0);
     const after = hand.publicView();
 
     // Anchor the move through Avow, but never block live play on it: the move streams now,
@@ -459,6 +476,16 @@ async function playHand(
   const result = hand.result!;
   chips.A = hand.players.A.stack;
   chips.B = hand.players.B.stack;
+
+  // A showdown is the only time anyone's cards are ground truth rather than inference. Record what
+  // each player actually turned over, so the next decision can be made against what they DO hold
+  // rather than what a model imagines they hold.
+  if (result.reason === "showdown" && result.descr) {
+    for (const s of ["A", "B"] as Seat[]) {
+      noteShowdown(reads[s], hand.players[s].hole, hand.board, result.descr[s] ?? "", result.winner === s);
+    }
+  }
+  for (const s of ["A", "B"] as Seat[]) reads[s].hands += 1;
 
   broadcast({
     type: "hand",

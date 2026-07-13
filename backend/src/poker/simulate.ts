@@ -1,4 +1,5 @@
 import { Hand, otherSeat } from "./engine.js";
+import { emptyRead, noteMove, noteShowdown, describeRead, type OpponentRead } from "./reads.js";
 import { blindsForHand } from "./blinds.js";
 import type { Seat } from "./types.js";
 import { planForLevel } from "../reason/levels.js";
@@ -36,6 +37,8 @@ export async function simulateMatch(levelA: number, levelB: number, opts: SimOpt
   const o = { ...DEFAULTS, ...opts };
   const level: Record<Seat, number> = { A: levelA, B: levelB };
   const chips: Record<Seat, number> = { A: o.startingChips, B: o.startingChips };
+  // The same opponent reads the real table keeps, so the harness measures the game we ship.
+  const reads: Record<Seat, OpponentRead> = { A: emptyRead(), B: emptyRead() };
 
   let handIndex = 0;
   let busted = false;
@@ -84,12 +87,20 @@ export async function simulateMatch(levelA: number, levelB: number, opts: SimOpt
           minRaiseTo: legal.minRaiseTo,
           maxRaiseTo: legal.maxRaiseTo,
           history: hand.history.map((h) => `${h.seat} ${h.action}${h.amount ? " " + h.amount : ""}`),
-          notes: [],
+          notes: describeRead(reads[opp], `L${level[opp]}`),
         },
         planForLevel(level[seat]),
       );
-      hand.apply({ type: decision.action, size: decision.size });
+      const applied = hand.apply({ type: decision.action, size: decision.size });
+      noteMove(reads[seat], applied, legal.callAmount > 0);
     }
+    const r = hand.result;
+    if (r?.reason === "showdown" && r.descr) {
+      for (const s of ["A", "B"] as Seat[]) {
+        noteShowdown(reads[s], hand.players[s].hole, hand.board, r.descr[s] ?? "", r.winner === s);
+      }
+    }
+    for (const s of ["A", "B"] as Seat[]) reads[s].hands += 1;
     chips.A = hand.players.A.stack;
     chips.B = hand.players.B.stack;
   }
