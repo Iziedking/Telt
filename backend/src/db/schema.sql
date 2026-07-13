@@ -81,5 +81,7 @@ create table if not exists contest_markers (
   kind        text,                     -- 'custom' | 'challenge' | null (general)
   difficulty  text,
   ends_at     bigint,                   -- join-window deadline, epoch ms
+  played_at   timestamptz,              -- it has been run; never run it again
   updated_at  timestamptz not null default now()
 );
+alter table contest_markers add column if not exists played_at timestamptz;

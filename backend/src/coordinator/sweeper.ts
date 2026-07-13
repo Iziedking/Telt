@@ -1,6 +1,6 @@
 import { sui, readContests } from "../chain/sui.js";
 import { config } from "../config/index.js";
-import { contestEndsAt, customContests, challengeContests } from "./contestKinds.js";
+import { contestEndsAt, customContests, challengeContests, hasPlayed } from "./contestKinds.js";
 import { runContest } from "./runContest.js";
 
 const FORMAT_DUEL = 0;
@@ -50,6 +50,11 @@ async function sweepOnce(): Promise<void> {
     // visitor nothing, and a bracket of house agents playing for nothing is still a bracket they
     // can watch, verify, and buy intel on. Nothing is paid out (the pool cannot settle to a house
     // agent), so the pot simply waits for a contest somebody enters.
+    // Already run. A settled contest leaves status 0 behind only when it could not pay (an all-house
+    // exhibition), and without this the sweeper would run it again every fifteen seconds for as long
+    // as the process lived. It did.
+    if (hasPlayed(s.contestId)) continue;
+
     const real = s.entrants.filter((e) => !e.isHouse).length;
     let ready: boolean;
     if (s.format === FORMAT_DUEL) {

@@ -4,7 +4,7 @@ import { provisionAgentEntry, type Participant } from "./provision.js";
 import { playSolverMatch } from "./solverMatch.js";
 import { playMatch } from "./table.js";
 import { runPokerTournament } from "./runPokerTournament.js";
-import { customContests, challengeContests } from "./contestKinds.js";
+import { customContests, challengeContests, markPlayed } from "./contestKinds.js";
 import type { Seat } from "../poker/types.js";
 
 // Run a contest with its entrants, by kind:
@@ -31,6 +31,10 @@ export async function runContest(contestId: string, opts: { puzzles?: number } =
   try {
     await runContestInner(contestId, opts);
   } finally {
+    // Played once is played, whatever happened. A contest that runs but cannot settle (a house
+    // exhibition: the contract will not pay a house agent, so it stays open on chain) was otherwise
+    // picked up by the sweeper on the very next pass and run again, forever.
+    markPlayed(contestId);
     inFlight.delete(contestId);
   }
 }

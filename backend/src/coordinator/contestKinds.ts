@@ -14,21 +14,43 @@ export const challengeContests = new Set<string>();
 export const contestDifficulty = new Map<string, string>();
 const contestEnds = new Map<string, number>();
 
+// Contests that have already been RUN. This exists because a contest that plays but cannot settle
+// used to be run again, and again, forever.
+//
+// A general contest with no real entrant plays as a house exhibition, and it cannot settle: the
+// contract will not pay a house agent, so the contest stays open on chain. The sweeper runs any open
+// contest whose window has closed, every fifteen seconds -- so each exhibition was replayed on every
+// sweep, thirteen of them at once, indefinitely, burning inference and gas the whole time. Nobody
+// had clicked anything. Played once is played.
+const playedContests = new Set<string>();
+
 // Upsert the full marker row for a contest from the current in-memory state. Fire-and-forget: the
 // in-memory maps are authoritative at runtime, the DB is the restart mirror.
 function persistMarker(contestId: string): void {
   const kind = customContests.has(contestId) ? "custom" : challengeContests.has(contestId) ? "challenge" : null;
   const difficulty = contestDifficulty.get(contestId) ?? null;
   const endsAt = contestEnds.get(contestId) ?? null;
+  const played = playedContests.has(contestId);
   void persist(() =>
     query(
-      `insert into contest_markers (contest_id, kind, difficulty, ends_at, updated_at)
-       values ($1, $2, $3, $4, now())
+      `insert into contest_markers (contest_id, kind, difficulty, ends_at, played_at, updated_at)
+       values ($1, $2, $3, $4, case when $5 then now() else null end, now())
        on conflict (contest_id) do update
-         set kind = excluded.kind, difficulty = excluded.difficulty, ends_at = excluded.ends_at, updated_at = now()`,
-      [contestId, kind, difficulty, endsAt],
+         set kind = excluded.kind, difficulty = excluded.difficulty, ends_at = excluded.ends_at,
+             played_at = coalesce(contest_markers.played_at, excluded.played_at), updated_at = now()`,
+      [contestId, kind, difficulty, endsAt, played],
     ),
   );
+}
+
+/** Record that a contest has been run, so nothing ever runs it a second time. */
+export function markPlayed(contestId: string): void {
+  playedContests.add(contestId);
+  persistMarker(contestId);
+}
+
+export function hasPlayed(contestId: string): boolean {
+  return playedContests.has(contestId);
 }
 
 // Persisting setters: use these instead of mutating the sets/map directly so the DB stays in sync.
@@ -50,14 +72,19 @@ export function markDifficulty(contestId: string, difficulty: string): void {
 export async function loadContestMarkers(): Promise<void> {
   if (!dbAvailable()) return;
   try {
-    const r = await query<{ contest_id: string; kind: string | null; difficulty: string | null; ends_at: string | null }>(
-      "select contest_id, kind, difficulty, ends_at from contest_markers",
-    );
+    const r = await query<{
+      contest_id: string;
+      kind: string | null;
+      difficulty: string | null;
+      ends_at: string | null;
+      played_at: string | null;
+    }>("select contest_id, kind, difficulty, ends_at, played_at from contest_markers");
     for (const row of r.rows) {
       if (row.kind === "custom") customContests.add(row.contest_id);
       if (row.kind === "challenge") challengeContests.add(row.contest_id);
       if (row.difficulty) contestDifficulty.set(row.contest_id, row.difficulty);
       if (row.ends_at !== null) contestEnds.set(row.contest_id, Number(row.ends_at));
+      if (row.played_at) playedContests.add(row.contest_id);
     }
     console.log(`[contest-markers] reloaded ${r.rows.length} from db`);
   } catch (e) {

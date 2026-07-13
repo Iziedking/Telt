@@ -33,6 +33,7 @@ import {
   closeContestWindow,
   contestEndsAt,
   contestDifficulty,
+  hasPlayed,
 } from "../coordinator/contestKinds.js";
 import { runAutopilotCycle, recentContests, difficultyTiers, autopilotEnabled } from "../coordinator/autopilot.js";
 import { query, dbAvailable, persist } from "../db/pool.js";
@@ -584,7 +585,11 @@ app.get("/contests", async (c) => {
         const real = s.entrants.filter((e) => !e.isHouse).length;
         const isDuel = s.format === CONTEST_FORMAT.duel;
         let phase: "joining" | "running" | "expired";
-        if (endsAt === null) {
+        if (hasPlayed(s.contestId)) {
+          // It has been run. If it could not pay (an all-house exhibition) it is still open on chain,
+          // but it is over, and showing it as Live would invite people to join a finished contest.
+          phase = "expired";
+        } else if (endsAt === null) {
           phase = "expired";
         } else if (Date.now() < endsAt) {
           phase = "joining";
