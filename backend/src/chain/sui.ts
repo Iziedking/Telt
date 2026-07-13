@@ -77,8 +77,6 @@ async function doExecute(tx: Transaction, signer: Ed25519Keypair): Promise<TxRes
 // The coordinator drives every platform transaction from a single key. Running them
 // concurrently makes them fight over the same gas coin (object-version locks). Serialize
 // them through a queue so each one settles before the next starts.
-let txQueue: Promise<unknown> = Promise.resolve();
-
 // A ceiling on any single queued task, so one hung task (a stalled Walrus write, an RPC that
 // never answers) can never deadlock the whole queue and freeze every later coordinator action
 // (a faucet claim, a settle). The task is abandoned and the next one proceeds; a half-done tx
@@ -92,27 +90,85 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   ]);
 }
 
-// Run a built transaction with the coordinator (or a given signer) and surface object
-// changes so callers can read created object ids. Serialized to avoid gas contention.
-export async function execute(tx: Transaction, signer: Ed25519Keypair = coordinator()): Promise<TxResult> {
-  const run = txQueue.then(() => withTimeout(doExecute(tx, signer), QUEUE_TASK_TIMEOUT_MS, "coordinator tx"));
-  txQueue = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
+// The queue has PRIORITIES, and it needs them, because a plain first-come-first-served queue let
+// background work starve a person.
+//
+// Everything the coordinator signs shares one gas coin, so it all has to run one at a time or the
+// transactions fight over the object version. That part is unavoidable. What was avoidable is the
+// ORDER: anchoring is fire-and-forget background work, an anchor takes about seventeen seconds, and
+// a busy arena produces them by the hundred. A solver match alone put over a hundred anchors in the
+// queue. Someone then clicked "open a contest", their transaction was appended behind all of them,
+// and the button sat on "Opening…" for the forty minutes it would take to drain -- which is exactly
+// what it did in production.
+//
+// So a user-facing transaction (opening a contest, joining one, settling a pool, a faucet claim)
+// jumps ahead of background anchoring. It cannot preempt a task already running, so it still waits
+// out at most one anchor; it just never waits out a hundred.
+const enum Lane {
+  User = 0, // someone is watching a spinner
+  Background = 1, // an anchor; nobody is waiting
 }
 
-// Run arbitrary coordinator work (for example an Avow anchor, whose Walrus writes do their
-// own on-chain transactions inside the SDK) on the same serial queue, so it never races the
-// coordinator's gas coin with a settle or a join. Failures do not poison the queue.
+interface QueuedTask {
+  lane: Lane;
+  run: () => Promise<unknown>;
+  resolve: (v: unknown) => void;
+  reject: (e: unknown) => void;
+}
+
+const pending: QueuedTask[] = [];
+let draining = false;
+
+async function drain(): Promise<void> {
+  if (draining) return;
+  draining = true;
+  try {
+    while (pending.length) {
+      // Highest priority first, and FIFO within a lane, so background work still runs in order and
+      // cannot be starved forever: it only ever yields to the user tasks queued ahead of it.
+      let best = 0;
+      for (let i = 1; i < pending.length; i++) {
+        if (pending[i]!.lane < pending[best]!.lane) best = i;
+      }
+      const task = pending.splice(best, 1)[0]!;
+      try {
+        task.resolve(await withTimeout(task.run(), QUEUE_TASK_TIMEOUT_MS, "coordinator task"));
+      } catch (e) {
+        task.reject(e); // a failed task never poisons the queue
+      }
+    }
+  } finally {
+    draining = false;
+  }
+}
+
+function enqueue<T>(lane: Lane, run: () => Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    pending.push({ lane, run: run as () => Promise<unknown>, resolve: resolve as (v: unknown) => void, reject });
+    void drain();
+  });
+}
+
+// Run a built transaction with the coordinator (or a given signer) and surface object changes so
+// callers can read created object ids. This is the USER lane: a person is waiting on it.
+export async function execute(tx: Transaction, signer: Ed25519Keypair = coordinator()): Promise<TxResult> {
+  return enqueue(Lane.User, () => doExecute(tx, signer));
+}
+
+// Run arbitrary coordinator work (for example an Avow anchor, whose Walrus writes do their own
+// on-chain transactions inside the SDK) on the same serial queue, so it never races the coordinator's
+// gas coin with a settle or a join. This is the BACKGROUND lane: it yields to anything a user is
+// waiting on. Failures do not poison the queue.
 export async function serialize<T>(fn: () => Promise<T>): Promise<T> {
-  const run = txQueue.then(() => withTimeout(fn(), QUEUE_TASK_TIMEOUT_MS, "coordinator task"));
-  txQueue = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
+  return enqueue(Lane.Background, fn);
+}
+
+/** How much work is queued, by lane. For the diagnostics endpoint. */
+export function queueDepth(): { user: number; background: number } {
+  return {
+    user: pending.filter((t) => t.lane === Lane.User).length,
+    background: pending.filter((t) => t.lane === Lane.Background).length,
+  };
 }
 
 // Pull the id of the first created object whose type ends with `suffix`.
